@@ -5,7 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 authors = []
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.2.6",
+    "pamiq-core[torch]>=0.3.1",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -47,7 +50,6 @@ exclude = [
   "**/.venv",
   "tests/"
 ]
-strict = ["./src/"]
 reportMissingTypeStubs = false
 reportImplicitOverride = true
 reportPrivateUsage = "warning"
