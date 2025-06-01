@@ -6,8 +6,10 @@ readme = "README.md"
 authors = []
 requires-python = ">=3.12"
 dependencies = [
+    "inputtino-python",
     "numpy>=2.2.6",
     "pamiq-core[torch]>=0.3.1",
+    "pamiq-vrchat>=0.1.0",
 ]
 
 [build-system]
@@ -128,3 +130,6 @@ exclude_lines = [
     "pass",
     "raise ImportError",
 ]
+
+[tool.uv.sources]
+inputtino-python = { git = "https://github.com/games-on-whales/inputtino.git", subdirectory = "bindings/python" }
