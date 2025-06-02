@@ -144,16 +144,18 @@ class QLSTMLayer(nn.Module):
         self.tanh = nn.Tanh()
 
     @override
-    def forward(self, x: Tensor, hidden: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, hidden: Tensor | None) -> tuple[Tensor, Tensor]:
         """Apply the QLSTM layer.
 
         Args:
             x: The input tensor of shape (batch, len, dim).
-            hidden: The hidden state tensor of shape (batch, dim).
+            hidden: The hidden state tensor of shape (batch, dim), or None.
         Returns:
             The output tensor of shape (batch, len, dim) and the new hidden state tensor of shape (batch, len, dim).
         """
         batch, len, dim = x.shape
+        if hidden is None:
+            hidden = torch.zeros(batch, dim, device=x.device, dtype=x.dtype)
 
         forget = F.sigmoid(self.fc_forget(x))  # (batch, len, dim)
 
@@ -167,7 +169,7 @@ class QLSTMLayer(nn.Module):
             .transpose(2, 1)
         )
 
-        h = torch.addcmul(h_inner_chunk, hidden[:, None, :], forget.cumprod(1))
+        h = torch.addcmul(h_inner_chunk, hidden[:, torch.newaxis, :], forget.cumprod(1))
 
         y = self.tanh(h) * self.sigmoid(self.fc_output_gate(x))
         return y, h
@@ -193,18 +195,18 @@ class QLSTMBlock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     @override
-    def forward(self, x: Tensor, hidden: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, hidden: Tensor | None) -> tuple[Tensor, Tensor]:
         """Apply the QLSTM block.
 
         Args:
             x: The input tensor of shape (batch, len, dim).
-            hidden: The hidden state tensor of shape (batch, len, dim).
+            hidden: The hidden state tensor of shape (batch, dim), or None.
         Returns:
             The output tensor of shape (batch, len, dim) and the new hidden state tensor of shape (batch, len, dim).
         """
         x_ = x
         x = self.norm_qlstm(x)
-        x, hidden = self.qlstm(x, hidden)
+        x, hidden_out = self.qlstm(x, hidden)
         x = self.dropout(x)
         x = x + x_
 
@@ -214,7 +216,7 @@ class QLSTMBlock(nn.Module):
         x = self.dropout(x)
         x = x + x_
 
-        return x, hidden
+        return x, hidden_out
 
 
 class QLSTM(StackedHiddenState):

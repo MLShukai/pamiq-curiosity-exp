@@ -26,16 +26,31 @@ class TestQLSTM:
         qlstm = QLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
         return qlstm
 
-    def test_qlstm(self, qlstm):
+    def test_qlstm_with_hidden(self, qlstm):
+        """Test QLSTM with provided hidden state."""
         x_shape = (BATCH, LEN, DIM)
         x = torch.randn(*x_shape)
-        hidden_shape = (BATCH, DEPTH, LEN, DIM)
+        hidden_shape = (BATCH, DEPTH, DIM)
         hidden = torch.randn(*hidden_shape)
 
-        x, hidden = qlstm(x, hidden[:, :, -1, :])
+        x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden.shape == hidden_shape
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
 
-        x, hidden = qlstm(x, hidden[:, :, -1, :])
+        x, hidden_out = qlstm(x, hidden_out[:, :, -1, :])
         assert x.shape == x_shape
-        assert hidden.shape == hidden_shape
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+
+    def test_qlstm_without_hidden(self, qlstm):
+        """Test QLSTM with None hidden state (auto-initialization)."""
+        x_shape = (BATCH, LEN, DIM)
+        x = torch.randn(*x_shape)
+
+        x, hidden_out = qlstm(x, None)
+        assert x.shape == x_shape
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+
+        # Test again with previous output
+        x, hidden_out2 = qlstm(x, hidden_out[:, :, -1, :])
+        assert x.shape == x_shape
+        assert hidden_out2.shape == (BATCH, DEPTH, LEN, DIM)
