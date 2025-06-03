@@ -1,7 +1,8 @@
 import pytest
 import torch
 
-from pamiq_curiosity_exp.envs.transforms.common import Standardize
+from pamiq_curiosity_exp.envs.transforms.common import Standardize, ToDevice, ToDtype
+from tests.helpers import parametrize_device
 
 
 class TestStandardize:
@@ -38,3 +39,61 @@ class TestStandardize:
         output = transform(input_tensor)
 
         assert output.shape == (0,)
+
+
+class TestToDtype:
+    @pytest.mark.parametrize(
+        "target_dtype",
+        [torch.float32, torch.float64, torch.bfloat16],
+    )
+    def test_default_dtype(self, target_dtype):
+        """Test conversion using PyTorch's default dtype."""
+        default_dtype = torch.get_default_dtype()
+        try:
+            torch.set_default_dtype(target_dtype)
+            transform = ToDtype()
+            input_tensor = torch.tensor([1, 2, 3], dtype=torch.int32)
+            output = transform(input_tensor)
+
+            assert output.dtype == torch.get_default_dtype()
+            assert torch.equal(output, input_tensor.type(torch.get_default_dtype()))
+        finally:
+            torch.set_default_dtype(default_dtype)
+
+    @pytest.mark.parametrize(
+        "target_dtype",
+        [torch.float32, torch.float64, torch.int32, torch.int64, torch.bool],
+    )
+    def test_explicit_dtype(self, target_dtype):
+        """Test conversion to explicit dtypes."""
+        transform = ToDtype(target_dtype)
+        input_tensor = torch.randn(3, 4)
+        output = transform(input_tensor)
+
+        assert output.dtype == target_dtype
+        assert output.shape == input_tensor.shape
+
+
+class TestToDevice:
+    @parametrize_device
+    def test_default_device(self, device):
+        """Test moving to PyTorch's default device."""
+        default_device = torch.get_default_device()
+        try:
+            torch.set_default_device(device)
+            transform = ToDevice()
+            input_tensor = torch.tensor([1, 2, 3])
+            output = transform(input_tensor)
+
+            assert output.device == torch.get_default_device()
+        finally:
+            torch.set_default_device(default_device)
+
+    @parametrize_device
+    def test_explicit_device(self, device):
+        """Test moving to CPU device explicitly."""
+        transform = ToDevice(device)
+        input_tensor = torch.tensor([1, 2, 3])
+        output = transform(input_tensor)
+
+        assert output.device == device
