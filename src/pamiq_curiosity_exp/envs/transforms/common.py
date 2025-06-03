@@ -1,4 +1,37 @@
+import functools
+from collections.abc import Callable, Iterable
+from typing import Any
+
 import torch
+
+type AnyFunction = Callable[..., Any]
+
+
+def compose(
+    *fns: AnyFunction, functions: Iterable[AnyFunction] | None = None
+) -> AnyFunction:
+    """Compose multiple functions into a single function.
+
+    Creates a new function that applies the given functions in sequence from left to right.
+    For functions f1, f2, f3, the composition applies as f3(f2(f1(x))).
+
+    Args:
+        *fns: Variable number of functions to compose.
+        functions: Optional iterable of additional functions to include in composition.
+
+    Returns:
+        A composed function that applies all input functions in sequence.
+
+    Examples:
+        >>> add_one = lambda x: x + 1
+        >>> multiply_two = lambda x: x * 2
+        >>> composed = compose(add_one, multiply_two)
+        >>> composed(5)  # (5 + 1) * 2 = 12
+        12
+    """
+    if functions is not None:
+        fns = (*fns, *functions)
+    return lambda x: functools.reduce(lambda result, f: f(result), fns, x)
 
 
 class Standardize:

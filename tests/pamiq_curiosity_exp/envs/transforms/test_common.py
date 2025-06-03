@@ -1,8 +1,90 @@
 import pytest
 import torch
 
-from pamiq_curiosity_exp.envs.transforms.common import Standardize, ToDevice, ToDtype
+from pamiq_curiosity_exp.envs.transforms.common import (
+    Standardize,
+    ToDevice,
+    ToDtype,
+    compose,
+)
 from tests.helpers import parametrize_device
+
+
+class TestCompose:
+    def test_single_function(self):
+        """Test composition with a single function."""
+
+        def add_one(x):
+            return x + 1
+
+        composed = compose(add_one)
+
+        assert composed(5) == 6
+        assert composed(0) == 1
+
+    def test_multiple_functions(self):
+        """Test composition with multiple functions."""
+
+        def add_one(x):
+            return x + 1
+
+        def multiply_two(x):
+            return x * 2
+
+        def subtract_three(x):
+            return x - 3
+
+        composed = compose(add_one, multiply_two, subtract_three)
+        result = composed(5)  # ((5 + 1) * 2) - 3 = 9
+
+        assert result == 9
+
+    def test_function_application_order(self):
+        """Test that functions are applied left to right."""
+
+        def append_a(x):
+            return x + "a"
+
+        def append_b(x):
+            return x + "b"
+
+        def append_c(x):
+            return x + "c"
+
+        composed = compose(append_a, append_b, append_c)
+        result = composed("start")
+
+        assert result == "startabc"
+
+    def test_empty_composition(self):
+        """Test composition with no functions returns identity."""
+        composed = compose()
+
+        assert composed(42) == 42
+        assert composed("test") == "test"
+        assert composed([1, 2, 3]) == [1, 2, 3]
+
+    def test_functions_parameter(self):
+        """Test using the functions parameter."""
+
+        def add_one(x):
+            return x + 1
+
+        def multiply_two(x):
+            return x * 2
+
+        def subtract_one(x):
+            return x - 1
+
+        def multiply_three(x):
+            return x * 3
+
+        functions_list = [subtract_one, multiply_three]
+
+        composed = compose(add_one, multiply_two, functions=functions_list)
+        result = composed(5)  # (((5 + 1) * 2) - 1) * 3 = 33
+
+        assert result == 33
 
 
 class TestStandardize:
