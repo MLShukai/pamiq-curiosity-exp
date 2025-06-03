@@ -1,8 +1,11 @@
+import numpy as np
 import pytest
 import torch
-from pamiq_vrchat.actuators import OscAxes, OscButtons
+from pamiq_vrchat.actuators import OscAction, OscAxes, OscButtons
+from pytest_mock import MockerFixture
 
-from pamiq_curiosity_exp.envs.vrchat import OSC_ACTION_CHOICES, OscTransform
+from pamiq_curiosity_exp.envs.vrchat import OSC_ACTION_CHOICES, OscTransform, create_env
+from tests.helpers import parametrize_device
 
 
 class TestOscTransform:
@@ -82,3 +85,71 @@ class TestOscTransform:
 
         with pytest.raises(ValueError, match=error_msg):
             transform(action)
+
+
+class TestCreateEnv:
+    """Tests for the create_env function."""
+
+    @pytest.fixture
+    def mock_sensor(self, mocker: MockerFixture) -> None:
+        mock = mocker.patch("pamiq_curiosity_exp.envs.vrchat.ImageSensor").return_value
+        mock.read.return_value = np.random.randint(
+            0, 256, (480, 620, 3), dtype=np.uint8
+        )
+        return mock
+
+    @pytest.fixture
+    def mock_actuator(self, mocker: MockerFixture) -> None:
+        mock = mocker.patch(
+            "pamiq_curiosity_exp.envs.vrchat.SmoothOscActuator"
+        ).return_value
+        return mock
+
+    def test_create_env_default_parameters(self, mocker: MockerFixture):
+        """Test create_env with default parameters."""
+
+        # Set up mock return values
+        mock_sensor = mocker.patch("pamiq_curiosity_exp.envs.vrchat.ImageSensor")
+
+        mock_actuator = mocker.patch(
+            "pamiq_curiosity_exp.envs.vrchat.SmoothOscActuator"
+        )
+
+        # Call the function
+        create_env()
+
+        # Verify the mocks were called with correct default arguments
+        mock_sensor.assert_called_once()
+        mock_actuator.assert_called_once_with("127.0.0.1", 9000, delta_time=0.1)
+
+    @parametrize_device
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
+    def test_observe(self, mock_sensor, mock_actuator, device, dtype):
+        env = create_env(image_size=(84, 84), device=device, dtype=dtype)
+
+        obs = env.observe()
+        mock_sensor.read.assert_called_once_with()
+        assert obs.shape == (3, 84, 84)
+        assert obs.mean().item() == pytest.approx(0.0, abs=0.01)
+        assert obs.std().item() == pytest.approx(1.0, abs=0.01)
+        assert obs.device == device
+        assert obs.dtype == dtype
+
+    @parametrize_device
+    def test_affect(self, mock_sensor, mock_actuator, device):
+        env = create_env(device=device, look_horizontal_velocity=0.7)
+
+        env.affect(torch.ones(5, device=device))
+        mock_actuator.operate.assert_called_once_with(
+            OscAction(
+                axes={
+                    OscAxes.Vertical: 1.0,
+                    OscAxes.Horizontal: 1.0,
+                    OscAxes.LookHorizontal: 0.7,
+                },
+                buttons={
+                    OscButtons.Jump: True,
+                    OscButtons.Run: True,
+                },
+            )
+        )

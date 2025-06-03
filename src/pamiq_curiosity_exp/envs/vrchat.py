@@ -102,6 +102,22 @@ def create_env(
     device: torch.device | None = None,
     dtype: torch.dtype | None = None,
 ) -> ModularEnvironment[Tensor, Tensor]:
+    """Create a VRChat environment with image sensor and OSC actuator.
+
+    Args:
+        image_size: Target size for image resizing as (height, width).
+        osc_host: VRChat OSC hostname or IP address for avatar control.
+        osc_port: VRChat OSC port number for avatar control.
+        actuator_delta_time: Time interval between actuator updates in seconds.
+        vertical_velocity: Velocity multiplier for forward/backward movement.
+        horizontal_velocity: Velocity multiplier for left/right movement.
+        look_horizontal_velocity: Velocity multiplier for horizontal look movement.
+        device: Target device for tensor operations. If None, uses default device.
+        dtype: Target data type for tensors. If None, uses default dtype.
+
+    Returns:
+        A ModularEnvironment instance configured for VRChat interaction.
+    """
     return ModularEnvironment(
         sensor=LambdaWrapper(
             transforms.compose(
