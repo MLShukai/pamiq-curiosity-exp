@@ -35,11 +35,11 @@ class TestQLSTM:
 
         x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
-        x, hidden_out = qlstm(x, hidden_out[:, :, -1, :])
+        x, hidden_out = qlstm(x, hidden_out)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
     def test_qlstm_without_hidden(self, qlstm):
         """Test QLSTM with None hidden state (auto-initialization)."""
@@ -48,9 +48,9 @@ class TestQLSTM:
 
         x, hidden_out = qlstm(x, None)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
         # Test again with previous output
-        x, hidden_out2 = qlstm(x, hidden_out[:, :, -1, :])
+        x, hidden_out2 = qlstm(x, hidden_out)
         assert x.shape == x_shape
-        assert hidden_out2.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out2.shape == (BATCH, DEPTH, DIM)
