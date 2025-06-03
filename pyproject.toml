@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=2.2.6",
     "pamiq-core[torch]>=0.3.1",
     "pamiq-vrchat>=0.1.0",
+    "torchvision>=0.22.0",
 ]
 
 [build-system]
