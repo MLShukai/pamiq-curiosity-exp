@@ -49,8 +49,16 @@ class StackedHiddenFD(nn.Module):
             obs_info.dim_hidden + action_info.dim * len(action_info.choices), dim
         )
         self.core_model = core_model
-        self.to_stacked_obs = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
-        self.obs_hat_dist_head = FCDeterministicNormalHead(obs_info.dim, obs_info.dim)
+        self.obs_hat_dist_head = nn.Sequential(
+            ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens),
+            FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
+        )
+
+    def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
+        """Flatten and concat observation and action."""
+        obs_flat = self.obs_flatten(obs)
+        action_flat = self.action_flatten(action)
+        return self.obs_action_projection(torch.cat((obs_flat, action_flat), dim=-1))
 
     @override
     def forward(
@@ -68,11 +76,8 @@ class StackedHiddenFD(nn.Module):
                 - Distribution representing predicted next observation.
                 - Updated hidden state tensor for use in next prediction.
         """
-        obs_flat = self.obs_flatten(obs)
-        action_flat = self.action_flatten(action)
-        x = self.obs_action_projection(torch.cat((obs_flat, action_flat), dim=-1))
+        x = self._flatten_obs_action(obs, action)
         x, next_hidden = self.core_model(x, hidden)
-        x = self.to_stacked_obs(x)
         obs_hat_dist = self.obs_hat_dist_head(x)
         return obs_hat_dist, next_hidden
 
@@ -85,3 +90,22 @@ class StackedHiddenFD(nn.Module):
         See forward() method for full documentation.
         """
         return super().__call__(obs, action, hidden)
+
+    def forward_with_no_len(
+        self, obs: Tensor, action: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
+            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            hidden: Hidden state from previous timestep or None. shape is (*batch, depth, dim)
+
+        Returns:
+            A tuple containing:
+                - Distribution representing predicted next observation.
+                - Updated hidden state tensor for use in next prediction.
+        """
+        x = self._flatten_obs_action(obs, action)  # (*batch, dim)
+        x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
+        return self.obs_hat_dist_head(x), next_hidden
