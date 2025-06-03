@@ -1,5 +1,7 @@
 """Utility tools for model definitions."""
 
+from dataclasses import dataclass
+
 import torch.nn as nn
 
 
@@ -21,3 +23,31 @@ def init_weights(m: nn.Module, init_std: float) -> None:
             nn.init.constant_(m.weight, 1.0)
         case _:
             pass
+
+
+@dataclass
+class ObsInfo:
+    """Configuration for observation processing in forward dynamcis and policy.
+
+    Attributes:
+        dim: Input dimension of the observation.
+        dim_hidden: Hidden dimension after feature transformation.
+        num_tokens: Number of tokens of observation.
+    """
+
+    dim: int
+    dim_hidden: int
+    num_tokens: int
+
+
+@dataclass
+class ActionInfo:
+    """Configuration for action processing in forward dynamics.
+
+    Attributes:
+        choices: List specifying the number of choices for each discrete action dimension.
+        dim: Embedding dimension for each action component.
+    """
+
+    choices: list[int]
+    dim: int
