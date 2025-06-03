@@ -1,7 +1,14 @@
 from typing import Final
 
-from pamiq_vrchat.actuators import OscAction, OscAxes, OscButtons
+import torch
+from pamiq_core.interaction.modular_env import ModularEnvironment
+from pamiq_core.interaction.wrappers import LambdaWrapper
+from pamiq_vrchat.actuators import OscAction, OscAxes, OscButtons, SmoothOscActuator
+from pamiq_vrchat.sensors import ImageSensor
 from torch import Tensor
+from torchvision.transforms.v2 import ToImage, ToPureTensor
+
+from . import transforms
 
 OSC_ACTION_CHOICES: Final[tuple[int, ...]] = (3, 3, 3, 2, 2)
 
@@ -82,3 +89,37 @@ class OscTransform:
                 OscButtons.Run: bool(action_list[4]),
             },
         )
+
+
+def create_env(
+    image_size: tuple[int, int] = (144, 144),
+    osc_host: str = "127.0.0.1",
+    osc_port: int = 9000,
+    actuator_delta_time: float = 0.1,
+    vertical_velocity: float = 1.0,
+    horizontal_velocity: float = 1.0,
+    look_horizontal_velocity: float = 0.7,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> ModularEnvironment[Tensor, Tensor]:
+    return ModularEnvironment(
+        sensor=LambdaWrapper(
+            transforms.compose(
+                ToImage(),
+                transforms.ToDevice(device),
+                transforms.image.ResizeAndCenterCrop(image_size),
+                transforms.ToDtype(dtype),
+                transforms.Standardize(),
+                ToPureTensor(),
+            ),
+        ).wrap_sensor(ImageSensor()),
+        actuator=LambdaWrapper(
+            OscTransform(
+                vertical_velocity=vertical_velocity,
+                horizontal_velocity=horizontal_velocity,
+                look_horizontal_velocity=look_horizontal_velocity,
+            )
+        ).wrap_actuator(
+            SmoothOscActuator(osc_host, osc_port, delta_time=actuator_delta_time)
+        ),
+    )
