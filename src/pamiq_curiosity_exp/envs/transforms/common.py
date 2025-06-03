@@ -23,9 +23,7 @@ def compose(
         A composed function that applies all input functions in sequence.
 
     Examples:
-        >>> add_one = lambda x: x + 1
-        >>> multiply_two = lambda x: x * 2
-        >>> composed = compose(add_one, multiply_two)
+        >>> composed = compose(lambda x: x + 1, lambda x: x * 2)
         >>> composed(5)  # (5 + 1) * 2 = 12
         12
     """
