@@ -110,3 +110,18 @@ class TestStackedHiddenState:
 
         with pytest.raises(ValueError, match="Batch shape mismatch"):
             qlstm(x, hidden)
+
+    def test_forward_with_no_len(self, qlstm):
+        x = torch.randn(DIM)
+        hidden = torch.randn(DEPTH, DIM)
+
+        x, hidden_out = qlstm.forward_with_no_len(x, hidden)
+        assert x.shape == (DIM,)
+        assert hidden_out.shape == (DEPTH, DIM)
+
+        x = torch.randn(1, 2, 3, DIM)
+        hidden = torch.randn(1, 2, 3, DEPTH, DIM)
+
+        x, hidden_out = qlstm.forward_with_no_len(x, hidden)
+        assert x.shape == (1, 2, 3, DIM)
+        assert hidden_out.shape == (1, 2, 3, DEPTH, DIM)
