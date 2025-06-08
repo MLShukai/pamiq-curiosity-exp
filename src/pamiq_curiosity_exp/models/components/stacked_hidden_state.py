@@ -34,7 +34,7 @@ class StackedHiddenState(nn.Module):
             hidden_stack: None or hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         Returns:
             The output tensor of shape (*batch, len, dim) or (len, dim)
-            The stacked hidden state tensor of shape (*batch, depth, len, dim) or (depth, len, dim).
+            The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         """
         if hidden_stack is not None:
             if x.shape[:-2] != hidden_stack.shape[:-2]:
@@ -87,4 +87,4 @@ class StackedHiddenState(nn.Module):
             The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         """
         x, hidden_out = self.forward(x.unsqueeze(-2), hidden_stack)
-        return x.squeeze(-2), hidden_out.squeeze(-2)
+        return x.squeeze(-2), hidden_out

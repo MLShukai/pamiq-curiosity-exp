@@ -26,7 +26,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
     def test_batch_len_without_hidden(self, qlstm):
         """Test with batch and length dimensions, without hidden state."""
@@ -35,7 +35,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x, None)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
     def test_batch_len_default_hidden(self, qlstm):
         """Test with batch and length dimensions, using default hidden
@@ -45,7 +45,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x)  # No hidden parameter
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
     def test_no_batch_len_with_hidden(self, qlstm):
         """Test without batch dimension, with hidden state."""
@@ -56,7 +56,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden_out.shape == (DEPTH, LEN, DIM)
+        assert hidden_out.shape == (DEPTH, DIM)
 
     def test_no_batch_len_without_hidden(self, qlstm):
         """Test without batch dimension, without hidden state."""
@@ -65,7 +65,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x, None)
         assert x.shape == x_shape
-        assert hidden_out.shape == (DEPTH, LEN, DIM)
+        assert hidden_out.shape == (DEPTH, DIM)
 
     def test_many_batch_shape_with_hidden(self, qlstm):
         """Test with multiple batch dimensions, providing hidden state."""
@@ -76,7 +76,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden_out.shape == (1, 2, 3, BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (1, 2, 3, BATCH, DEPTH, DIM)
 
     def test_many_batch_shape_without_hidden(self, qlstm):
         """Test with multiple batch dimensions, without hidden state."""
@@ -85,7 +85,7 @@ class TestStackedHiddenState:
 
         x, hidden_out = qlstm(x, None)
         assert x.shape == x_shape
-        assert hidden_out.shape == (1, 2, 3, BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (1, 2, 3, BATCH, DEPTH, DIM)
 
     def test_batch_shape_mismatch(self, qlstm):
         """Test error when batch shapes don't match."""
@@ -110,18 +110,3 @@ class TestStackedHiddenState:
 
         with pytest.raises(ValueError, match="Batch shape mismatch"):
             qlstm(x, hidden)
-
-    def test_forward_with_no_len(self, qlstm):
-        x = torch.randn(DIM)
-        hidden = torch.randn(DEPTH, DIM)
-
-        x, hidden_out = qlstm.forward_with_no_len(x, hidden)
-        assert x.shape == (DIM,)
-        assert hidden_out.shape == (DEPTH, DIM)
-
-        x = torch.randn(1, 2, 3, DIM)
-        hidden = torch.randn(1, 2, 3, DEPTH, DIM)
-
-        x, hidden_out = qlstm.forward_with_no_len(x, hidden)
-        assert x.shape == (1, 2, 3, DIM)
-        assert hidden_out.shape == (1, 2, 3, DEPTH, DIM)
