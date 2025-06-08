@@ -172,7 +172,7 @@ class QLSTMLayer(nn.Module):
         h = torch.addcmul(h_inner_chunk, hidden[:, torch.newaxis, :], forget.cumprod(1))
 
         y = self.tanh(h) * self.sigmoid(self.fc_output_gate(x))
-        return y, h
+        return y, h[:, -1, :]
 
 
 class QLSTMBlock(nn.Module):
