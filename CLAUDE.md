@@ -30,13 +30,13 @@ This is a reinforcement learning research project for curiosity-driven explorati
 
 ### Core Components
 
-**Agents** (`src/pamiq_curiosity_exp/agents/`)
+**Agents** (`src/exp/agents/`)
 
 - `IntegratedCuriosityFramework`: Main agent combining visual encoding with curiosity-driven action selection
 - `AdversarialCuriosityAgent`: Uses forward dynamics prediction errors as intrinsic rewards
 - `UnimodalEncodingAgent`: Handles observation encoding
 
-**Models** (`src/pamiq_curiosity_exp/models/`)
+**Models** (`src/exp/models/`)
 
 - JEPA (Joint Embedding Predictive Architecture): Self-supervised visual representation learning
   - Context Encoder: Processes masked patches
@@ -44,13 +44,13 @@ This is a reinforcement learning research project for curiosity-driven explorati
   - Predictor: Maps context to target representations
 - Components: Transformer, QLSTM, positional embeddings, image patchifiers
 
-**Environment** (`src/pamiq_curiosity_exp/envs/`)
+**Environment** (`src/exp/envs/`)
 
 - VRChat integration with OSC protocol for avatar control
 - Image transforms for preprocessing (resize, crop, standardize)
 - Discrete action space: movement, look, jump, run
 
-**Trainers** (`src/pamiq_curiosity_exp/trainers/`)
+**Trainers** (`src/exp/trainers/`)
 
 - `JEPATrainer`: Implements self-supervised learning loop
 - `MultiBlockMaskCollator2d`: Creates training masks for JEPA
