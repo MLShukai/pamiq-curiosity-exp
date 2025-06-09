@@ -62,14 +62,14 @@ class StackedHiddenFD(nn.Module):
 
     @override
     def forward(
-        self, obs: Tensor, action: Tensor, hidden: Tensor | None = None
+        self, obs: Tensor, action: Tensor, hidden: Tensor
     ) -> tuple[Distribution, Tensor]:
         """Forward pass to predict next observation distribution.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
             action: Action tensor. shape is (*batch, len, num_token, action_chocies)
-            hidden: Hidden state from previous timestep or None. shape is (*batch, depth, dim)
+            hidden: Hidden state from previous timestep. shape is (*batch, depth, dim)
 
         Returns:
             A tuple containing:
@@ -83,7 +83,7 @@ class StackedHiddenFD(nn.Module):
 
     @override
     def __call__(
-        self, obs: Tensor, action: Tensor, hidden: Tensor | None = None
+        self, obs: Tensor, action: Tensor, hidden: Tensor
     ) -> tuple[Distribution, Tensor]:
         """Override __call__ with proper type annotations.
 
@@ -92,14 +92,14 @@ class StackedHiddenFD(nn.Module):
         return super().__call__(obs, action, hidden)
 
     def forward_with_no_len(
-        self, obs: Tensor, action: Tensor, hidden: Tensor | None = None
+        self, obs: Tensor, action: Tensor, hidden: Tensor
     ) -> tuple[Distribution, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
             action: Action tensor. shape is (*batch, num_token, action_chocies)
-            hidden: Hidden state from previous timestep or None. shape is (*batch, depth, dim)
+            hidden: Hidden state from previous timestep. shape is (*batch, depth, dim)
 
         Returns:
             A tuple containing:
