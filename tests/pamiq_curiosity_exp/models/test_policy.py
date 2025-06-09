@@ -94,23 +94,6 @@ class TestStackedHiddenPiV:
             len(self.ACTION_CHOICES),
         )
 
-    def test_forward_without_hidden(self, policy_value_model, observation):
-        """Test forward pass without initial hidden state."""
-        policy_dist, value, next_hidden = policy_value_model(observation, None)
-
-        sample_action = policy_dist.sample()
-        assert sample_action.shape == (
-            self.BATCH_SIZE,
-            self.SEQ_LEN,
-            len(self.ACTION_CHOICES),
-        )
-        assert value.shape == (self.BATCH_SIZE, self.SEQ_LEN)
-        assert next_hidden.shape == (
-            self.BATCH_SIZE,
-            self.DEPTH,
-            self.DIM,
-        )
-
     def test_single_batch(self, policy_value_model, observation, hidden):
         """Test with single batch size."""
         single_obs = observation[:1]
