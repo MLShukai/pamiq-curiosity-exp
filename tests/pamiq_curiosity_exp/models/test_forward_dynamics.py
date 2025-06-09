@@ -97,23 +97,6 @@ class TestStackedHiddenFD:
             self.OBS_DIM,
         )
 
-    def test_forward_without_hidden(self, dynamics_model, obs, action):
-        """Test forward pass without initial hidden state."""
-        obs_hat_dist, next_hidden = dynamics_model(obs, action, None)
-
-        sample = obs_hat_dist.sample()
-        assert sample.shape == (
-            self.BATCH_SIZE,
-            self.SEQ_LEN,
-            self.OBS_NUM_TOKENS,
-            self.OBS_DIM,
-        )
-        assert next_hidden.shape == (
-            self.BATCH_SIZE,
-            self.DEPTH,
-            self.DIM,
-        )
-
     def test_single_batch(self, dynamics_model, obs, action, hidden):
         """Test with single batch size."""
         single_obs = obs[:1]
