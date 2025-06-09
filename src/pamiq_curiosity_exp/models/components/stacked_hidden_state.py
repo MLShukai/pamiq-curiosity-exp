@@ -25,7 +25,9 @@ class StackedHiddenState(nn.Module):
 
     @override
     def forward(
-        self, x: Tensor, hidden_stack: Tensor | None = None
+        self,
+        x: Tensor,
+        hidden_stack: Tensor,
     ) -> tuple[Tensor, Tensor]:
         """Apply the stacked hidden state module.
 
@@ -36,28 +38,23 @@ class StackedHiddenState(nn.Module):
             The output tensor of shape (*batch, len, dim) or (len, dim)
             The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         """
-        if hidden_stack is not None:
-            if x.shape[:-2] != hidden_stack.shape[:-2]:
-                raise ValueError("Batch shape mismatch between x and hidden_stack")
-            if x.size(-1) != hidden_stack.size(-1):
-                raise ValueError("Feature dim mismatch between x and hidden_stack")
+        if x.shape[:-2] != hidden_stack.shape[:-2]:
+            raise ValueError("Batch shape mismatch between x and hidden_stack")
+        if x.size(-1) != hidden_stack.size(-1):
+            raise ValueError("Feature dim mismatch between x and hidden_stack")
 
         no_batch = x.ndim < 3
         if no_batch:
             x = x.unsqueeze(0)
-            if hidden_stack is not None:
-                hidden_stack = hidden_stack.unsqueeze(0)
+            hidden_stack = hidden_stack.unsqueeze(0)
 
         batch_shape = x.shape[:-2]
         x = x.reshape(-1, *x.shape[len(batch_shape) :])
-        if hidden_stack is not None:
-            hidden_stack = hidden_stack.reshape(
-                -1, *hidden_stack.shape[len(batch_shape) :]
-            )
+        hidden_stack = hidden_stack.reshape(-1, *hidden_stack.shape[len(batch_shape) :])
 
         hidden_out_list = []
         for i, module in enumerate(self.module_list):
-            hidden = hidden_stack[:, i, :] if hidden_stack is not None else None
+            hidden = hidden_stack[:, i, :]
             x, hidden_out = module(x, hidden)
             hidden_out_list.append(hidden_out)
 
@@ -75,13 +72,13 @@ class StackedHiddenState(nn.Module):
         return x, hidden_out_stack
 
     def forward_with_no_len(
-        self, x: Tensor, hidden_stack: Tensor | None = None
+        self, x: Tensor, hidden_stack: Tensor
     ) -> tuple[Tensor, Tensor]:
         """Apply the stacked hidden state module with data has no len dim.
 
         Args:
             x: The input tensor of shape (*batch, dim) or (dim, )
-            hidden_stack: None or hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
+            hidden_stack: Hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         Returns:
             The output tensor of shape (*batch, dim) or (dim, )
             The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
