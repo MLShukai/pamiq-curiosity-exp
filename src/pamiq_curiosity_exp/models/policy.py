@@ -50,7 +50,7 @@ class StackedHiddenPiV(nn.Module):
 
     @override
     def forward(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self, observation: Tensor, hidden: Tensor
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Process observation and compute policy and value outputs.
 
@@ -70,13 +70,13 @@ class StackedHiddenPiV(nn.Module):
 
     @override
     def __call__(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self, observation: Tensor, hidden: Tensor
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Override __call__ with proper type annotations."""
         return super().__call__(observation, hidden)
 
     def forward_with_no_len(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self, observation: Tensor, hidden: Tensor
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
