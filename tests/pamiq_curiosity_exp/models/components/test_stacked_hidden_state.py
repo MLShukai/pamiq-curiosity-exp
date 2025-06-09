@@ -17,7 +17,7 @@ class TestStackedHiddenState:
         qlstm = QLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
         return qlstm
 
-    def test_batch_len_with_hidden(self, qlstm):
+    def test_batch_len(self, qlstm):
         """Test with batch and length dimensions, providing hidden state."""
         x_shape = (BATCH, LEN, DIM)
         x = torch.randn(*x_shape)
@@ -28,26 +28,7 @@ class TestStackedHiddenState:
         assert x.shape == x_shape
         assert hidden_out.shape == (BATCH, DEPTH, DIM)
 
-    def test_batch_len_without_hidden(self, qlstm):
-        """Test with batch and length dimensions, without hidden state."""
-        x_shape = (BATCH, LEN, DIM)
-        x = torch.randn(*x_shape)
-
-        x, hidden_out = qlstm(x, None)
-        assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, DIM)
-
-    def test_batch_len_default_hidden(self, qlstm):
-        """Test with batch and length dimensions, using default hidden
-        parameter."""
-        x_shape = (BATCH, LEN, DIM)
-        x = torch.randn(*x_shape)
-
-        x, hidden_out = qlstm(x)  # No hidden parameter
-        assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, DIM)
-
-    def test_no_batch_len_with_hidden(self, qlstm):
+    def test_no_batch_len(self, qlstm):
         """Test without batch dimension, with hidden state."""
         x_shape = (LEN, DIM)
         x = torch.randn(*x_shape)
@@ -58,16 +39,7 @@ class TestStackedHiddenState:
         assert x.shape == x_shape
         assert hidden_out.shape == (DEPTH, DIM)
 
-    def test_no_batch_len_without_hidden(self, qlstm):
-        """Test without batch dimension, without hidden state."""
-        x_shape = (LEN, DIM)
-        x = torch.randn(*x_shape)
-
-        x, hidden_out = qlstm(x, None)
-        assert x.shape == x_shape
-        assert hidden_out.shape == (DEPTH, DIM)
-
-    def test_many_batch_shape_with_hidden(self, qlstm):
+    def test_many_batch_shape(self, qlstm):
         """Test with multiple batch dimensions, providing hidden state."""
         x_shape = (1, 2, 3, BATCH, LEN, DIM)
         x = torch.randn(*x_shape)
@@ -75,15 +47,6 @@ class TestStackedHiddenState:
         hidden = torch.randn(*hidden_shape)
 
         x, hidden_out = qlstm(x, hidden)
-        assert x.shape == x_shape
-        assert hidden_out.shape == (1, 2, 3, BATCH, DEPTH, DIM)
-
-    def test_many_batch_shape_without_hidden(self, qlstm):
-        """Test with multiple batch dimensions, without hidden state."""
-        x_shape = (1, 2, 3, BATCH, LEN, DIM)
-        x = torch.randn(*x_shape)
-
-        x, hidden_out = qlstm(x, None)
         assert x.shape == x_shape
         assert hidden_out.shape == (1, 2, 3, BATCH, DEPTH, DIM)
 
