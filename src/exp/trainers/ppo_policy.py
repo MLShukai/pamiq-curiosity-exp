@@ -18,7 +18,7 @@ from exp.trainers.sampler import RandomTimeSeriesSampler
 OPTIMIZER_NAME = "optimizer"
 
 
-class PPOStackedPiVTrainer(TorchTrainer):
+class PPOStackedHiddenPiVTrainer(TorchTrainer):
     """Trainer for policy using Proximal Policy Optimization (PPO)."""
 
     @override
