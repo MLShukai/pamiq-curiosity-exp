@@ -85,6 +85,7 @@ class TestStackedHiddenFD:
         assert next_hidden.shape == (
             self.BATCH_SIZE,
             self.DEPTH,
+            self.SEQ_LEN,
             self.DIM,
         )
 
@@ -114,7 +115,7 @@ class TestStackedHiddenFD:
             self.OBS_NUM_TOKENS,
             self.OBS_DIM,
         )
-        assert single_next_hidden.shape == (1, self.DEPTH, self.DIM)
+        assert single_next_hidden.shape == (1, self.DEPTH, self.SEQ_LEN, self.DIM)
 
     def test_forward_with_no_len(self, dynamics_model, hidden):
         """Test forward_with_no_len for inference without sequence
@@ -137,7 +138,11 @@ class TestStackedHiddenFD:
         # Check output shapes
         sample = obs_hat_dist.sample()
         assert sample.shape == (self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
-        assert next_hidden.shape == (self.BATCH_SIZE, self.DEPTH, self.DIM)
+        assert next_hidden.shape == (
+            self.BATCH_SIZE,
+            self.DEPTH,
+            self.DIM,
+        )
 
         # Check distribution properties
         log_prob = obs_hat_dist.log_prob(sample)

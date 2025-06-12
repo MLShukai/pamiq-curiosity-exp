@@ -35,8 +35,8 @@ class TestQLSTM:
 
         x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
 
-        x, hidden_out = qlstm(x, hidden_out)
+        x, hidden_out = qlstm(x, hidden_out[:, :, -1, :])
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)

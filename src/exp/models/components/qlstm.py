@@ -167,10 +167,10 @@ class QLSTMLayer(nn.Module):
             .transpose(2, 1)
         )
 
-        h = torch.addcmul(h_inner_chunk, hidden[:, torch.newaxis, :], forget.cumprod(1))
+        h = torch.addcmul(h_inner_chunk, hidden[:, None, :], forget.cumprod(1))
 
         y = self.tanh(h) * self.sigmoid(self.fc_output_gate(x))
-        return y, h[:, -1, :]
+        return y, h
 
 
 class QLSTMBlock(nn.Module):
@@ -198,13 +198,13 @@ class QLSTMBlock(nn.Module):
 
         Args:
             x: The input tensor of shape (batch, len, dim).
-            hidden: The hidden state tensor of shape (batch, dim).
+            hidden: The hidden state tensor of shape (batch, len, dim).
         Returns:
             The output tensor of shape (batch, len, dim) and the new hidden state tensor of shape (batch, len, dim).
         """
         x_ = x
         x = self.norm_qlstm(x)
-        x, hidden_out = self.qlstm(x, hidden)
+        x, hidden = self.qlstm(x, hidden)
         x = self.dropout(x)
         x = x + x_
 
@@ -214,7 +214,7 @@ class QLSTMBlock(nn.Module):
         x = self.dropout(x)
         x = x + x_
 
-        return x, hidden_out
+        return x, hidden
 
 
 class QLSTM(StackedHiddenState):
