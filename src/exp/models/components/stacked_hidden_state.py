@@ -24,29 +24,29 @@ class StackedHiddenState(nn.Module):
         self.module_list = module_list
 
     @override
-    def forward(
-        self,
-        x: Tensor,
-        hidden_stack: Tensor,
-    ) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, hidden_stack: Tensor) -> tuple[Tensor, Tensor]:
         """Apply the stacked hidden state module.
 
         Args:
-            x: The input tensor of shape (*batch, len, dim) or (len, dim)
-            hidden_stack: None or hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
+            x: The input tensor of shape (*batch, len, dim) or (len, dim) or (*batch, dim) or (dim).
+            hidden_stack: The hidden state tensor of shape (*batch, depth, len, dim) or (depth, len, dim) or (*batch, depth, dim) or (depth, dim).
         Returns:
-            The output tensor of shape (*batch, len, dim) or (len, dim)
-            The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
+            The output tensor of shape (*batch, len, dim) or (len, dim) or (*batch, dim) or (dim).
+            The stacked hidden state tensor of shape (*batch, depth, len, dim) or (depth, len, dim) or (*batch, depth, dim) or (depth, dim).
         """
+        no_batch = len(hidden_stack.shape) < 3
+        if no_batch:
+            x = x.unsqueeze(0)
+            hidden_stack = hidden_stack.unsqueeze(0)
+
+        no_len = len(x.shape) < 3
+        if no_len:
+            x = x.unsqueeze(1)
+
         if x.shape[:-2] != hidden_stack.shape[:-2]:
             raise ValueError("Batch shape mismatch between x and hidden_stack")
         if x.size(-1) != hidden_stack.size(-1):
             raise ValueError("Feature dim mismatch between x and hidden_stack")
-
-        no_batch = x.ndim < 3
-        if no_batch:
-            x = x.unsqueeze(0)
-            hidden_stack = hidden_stack.unsqueeze(0)
 
         batch_shape = x.shape[:-2]
         x = x.reshape(-1, *x.shape[len(batch_shape) :])
@@ -54,8 +54,7 @@ class StackedHiddenState(nn.Module):
 
         hidden_out_list = []
         for i, module in enumerate(self.module_list):
-            hidden = hidden_stack[:, i, :]
-            x, hidden_out = module(x, hidden)
+            x, hidden_out = module(x, hidden_stack[:, i, :])
             hidden_out_list.append(hidden_out)
 
         hidden_out_stack = torch.stack(hidden_out_list).transpose(1, 0)
@@ -64,6 +63,10 @@ class StackedHiddenState(nn.Module):
         hidden_out_stack = hidden_out_stack.view(
             *batch_shape, *hidden_out_stack.shape[1:]
         )
+
+        if no_len:
+            x = x.squeeze(1)
+            hidden_out_stack = hidden_out_stack.squeeze(2)
 
         if no_batch:
             x = x.squeeze(0)
@@ -84,4 +87,4 @@ class StackedHiddenState(nn.Module):
             The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         """
         x, hidden_out = self.forward(x.unsqueeze(-2), hidden_stack)
-        return x.squeeze(-2), hidden_out
+        return x.squeeze(-2), hidden_out.squeeze(-2)

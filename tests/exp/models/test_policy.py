@@ -76,6 +76,7 @@ class TestStackedHiddenPiV:
         assert next_hidden.shape == (
             self.BATCH_SIZE,
             self.DEPTH,
+            self.SEQ_LEN,
             self.DIM,
         )
 
@@ -104,7 +105,7 @@ class TestStackedHiddenPiV:
         sample_action = policy_dist.sample()
         assert sample_action.shape == (1, self.SEQ_LEN, len(self.ACTION_CHOICES))
         assert value.shape == (1, self.SEQ_LEN)
-        assert next_hidden.shape == (1, self.DEPTH, self.DIM)
+        assert next_hidden.shape == (1, self.DEPTH, self.SEQ_LEN, self.DIM)
 
     def test_forward_with_no_len(self, policy_value_model, hidden):
         """Test forward_with_no_len for inference without sequence
@@ -121,7 +122,11 @@ class TestStackedHiddenPiV:
         sample_action = policy_dist.sample()
         assert sample_action.shape == (self.BATCH_SIZE, len(self.ACTION_CHOICES))
         assert value.shape == (self.BATCH_SIZE,)
-        assert next_hidden.shape == (self.BATCH_SIZE, self.DEPTH, self.DIM)
+        assert next_hidden.shape == (
+            self.BATCH_SIZE,
+            self.DEPTH,
+            self.DIM,
+        )
 
         # Check distribution properties
         log_prob = policy_dist.log_prob(sample_action)
