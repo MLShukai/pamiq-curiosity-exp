@@ -1,0 +1,9 @@
+# @package _global_
+
+# specify here default configuration
+# order of defaults determines the order in which configs override each other
+defaults:
+  - _self_
+
+# You can specify `hydra.job_logging.root.level`
+log_level: INFO
