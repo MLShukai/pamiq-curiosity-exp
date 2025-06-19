@@ -74,22 +74,3 @@ class StackedHiddenPiV(nn.Module):
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Override __call__ with proper type annotations."""
         return super().__call__(observation, hidden)
-
-    def forward_with_no_len(
-        self, observation: Tensor, hidden: Tensor
-    ) -> tuple[Distribution, Tensor, Tensor]:
-        """Forward with data which has no len dim. (for inference procedure.)
-
-        Args:
-            observation: Input observation tensor (*batch, num_token, obs_dim)
-            hidden: Hidden state from previous timestep (*batch, depth, dim)
-
-        Returns:
-            A tuple containing:
-                - Distribution representing the policy (action probabilities)
-                - Tensor containing the estimated state value
-                - Updated hidden state tensor for use in next forward pass
-        """
-        obs_flat = self.obs_flatten(observation)
-        x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
-        return self.policy_head(x), self.value_head(x), hidden
