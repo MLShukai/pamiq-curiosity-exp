@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 from typing import override
@@ -13,6 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
 from exp.models.forward_dynamics import StackedHiddenFD
+from exp.utils import average_exponentially
 
 from .sampler import RandomTimeSeriesSampler
 
@@ -35,6 +37,8 @@ class StackedHiddenFDTrainer(TorchTrainer):
         max_samples: int = 1,
         batch_size: int = 1,
         max_epochs: int = 1,
+        imagination_length: int = 1,
+        imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
         min_buffer_size: int = 0,
         min_new_data_count: int = 0,
@@ -48,23 +52,32 @@ class StackedHiddenFDTrainer(TorchTrainer):
             max_samples: Max number of sample from dataset in 1 epoch.
             batch_size: Data sample size of 1 batch.
             max_epochs: Maximum number of epochs to train per training session.
+            imagination_length: Length of the imagination sequence.
+            imagenation_average_method: Method to average the loss over the imagination sequence.
             data_user_name: Name of the data user providing training data.
             min_buffer_size: Minimum buffer size required before training starts.
             min_new_data_count: Minimum number of new data points required for training.
         """
-        if min_buffer_size < seq_len + 1:
-            raise ValueError("Buffer size must be greater than sequence length + 1.")
+        if imagination_length < 1:
+            raise ValueError("Imagination length must be greater than 0")
+
+        if min_buffer_size < imagination_length + seq_len:
+            raise ValueError(
+                "Buffer size must be greater than imagination length + sequence length."
+            )
         super().__init__(data_user_name, min_buffer_size, min_new_data_count)
 
         self.partial_optimizer = partial_optimizer
         self.partial_sampler = partial(
             RandomTimeSeriesSampler,
-            sequence_length=seq_len + 1,
+            sequence_length=seq_len + imagination_length,
             max_samples=max_samples,
         )
         self.partial_dataloader = partial(DataLoader, batch_size=batch_size)
         self.max_epochs = max_epochs
         self.data_user_name = data_user_name
+        self.imagination_length = imagination_length
+        self.imagination_average_method = imagination_average_method
 
         self.global_step = 0
 
@@ -145,23 +158,50 @@ class StackedHiddenFDTrainer(TorchTrainer):
             for batch in dataloader:
                 observations, actions, hiddens = batch
                 observations = observations.to(device)
-                actions = actions[:, :-1].to(device)
-                obs, obs_next, hiddens = (
-                    observations[:, :-1],
-                    observations[:, 1:],
+                actions = actions.to(device)
+                obs_imaginations, hiddens = (
+                    observations[:, : -self.imagination_length],
                     hiddens[:, 0].to(device),
                 )
 
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
-                obs_next_hat_dist, _ = self.forward_dynamics.model(
-                    obs, actions, hiddens
-                )
-                loss = -obs_next_hat_dist.log_prob(obs_next).mean()
+                loss_imaginations: list[Tensor] = []
+                for i in range(self.imagination_length):
+                    action_imaginations = actions[
+                        :, i : -self.imagination_length + i
+                    ]  # a_i:i+T-H, (B, T-H, *)
+                    obs_targets = observations[
+                        :,
+                        i + 1 : observations.size(1) - self.imagination_length + i + 1,
+                    ]  # o_i+1:T-H+i+1, (B, T-H, *)
+                    if i > 0:
+                        action_imaginations = action_imaginations.flatten(
+                            0, 1
+                        )  # (B', *)
+                        obs_targets = obs_targets.flatten(0, 1)  # (B', *)
 
+                    obses_next_hat_dist, next_hiddens = self.forward_dynamics.model(
+                        obs_imaginations, action_imaginations, hiddens
+                    )
+                    loss = -obses_next_hat_dist.log_prob(obs_targets).mean()
+                    loss_imaginations.append(loss)
+                    obs_imaginations = obses_next_hat_dist.rsample()
+
+                    if i == 0:
+                        obs_imaginations = obs_imaginations.flatten(
+                            0, 1
+                        )  # (B, T-H, *) -> (B', *)
+                        hiddens = next_hiddens.movedim(2, 1).flatten(
+                            0, 1
+                        )  # h'_i, (B, D, T-H, *) -> (B, T-H, D, *) -> (B', D, *)
+
+                loss = self.imagination_average_method(torch.stack(loss_imaginations))
                 loss.backward()
 
-                metrics = {"loss": loss.item()}
+                metrics = {"loss/average": loss.item()}
+                for i, loss_item in enumerate(loss_imaginations, start=1):
+                    metrics[f"loss/imagination_{i}"] = loss_item.item()
 
                 metrics["grad norm"] = (
                     torch.cat(

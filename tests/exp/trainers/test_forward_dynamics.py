@@ -69,6 +69,7 @@ class TestStackedHiddenFDTrainer:
             max_samples=4,
             batch_size=2,
             max_epochs=1,
+            imagination_length=2,
             min_buffer_size=self.LEN,
             min_new_data_count=4,
         )
@@ -116,3 +117,31 @@ class TestStackedHiddenFDTrainer:
         trainer.global_step = -1
         trainer.load_state(trainer_path)
         assert trainer.global_step == global_step
+
+    def test_imagination_length_validation(self, mocker: MockerFixture):
+        """Test that imagination_length must be greater than 0."""
+        mocker.patch("exp.trainers.forward_dynamics.mlflow")
+        with pytest.raises(
+            ValueError, match="Imagination length must be greater than 0"
+        ):
+            StackedHiddenFDTrainer(
+                partial(AdamW, lr=1e-4, weight_decay=0.04),
+                seq_len=self.LEN_SEQ,
+                imagination_length=0,
+                min_buffer_size=self.LEN,
+            )
+
+    def test_buffer_size_validation(self, mocker: MockerFixture):
+        """Test that buffer size must be greater than imagination_length +
+        seq_len."""
+        mocker.patch("exp.trainers.forward_dynamics.mlflow")
+        with pytest.raises(
+            ValueError,
+            match="Buffer size must be greater than imagination length \\+ sequence length",
+        ):
+            StackedHiddenFDTrainer(
+                partial(AdamW, lr=1e-4, weight_decay=0.04),
+                seq_len=10,
+                imagination_length=5,
+                min_buffer_size=14,  # Less than seq_len + imagination_length
+            )
