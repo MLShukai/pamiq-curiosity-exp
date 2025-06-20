@@ -62,14 +62,18 @@ class StackedHiddenFD(nn.Module):
 
     @override
     def forward(
-        self, obs: Tensor, action: Tensor, hidden: Tensor
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor]:
         """Forward pass to predict next observation distribution.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
             action: Action tensor. shape is (*batch, len, num_token, action_chocies)
-            hidden: Hidden state from previous timestep. shape is (*batch, depth, dim)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
 
         Returns:
             A tuple containing:
@@ -83,7 +87,10 @@ class StackedHiddenFD(nn.Module):
 
     @override
     def __call__(
-        self, obs: Tensor, action: Tensor, hidden: Tensor
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor]:
         """Override __call__ with proper type annotations.
 
@@ -92,14 +99,18 @@ class StackedHiddenFD(nn.Module):
         return super().__call__(obs, action, hidden)
 
     def forward_with_no_len(
-        self, obs: Tensor, action: Tensor, hidden: Tensor
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
             action: Action tensor. shape is (*batch, num_token, action_chocies)
-            hidden: Hidden state from previous timestep. shape is (*batch, depth, dim)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
 
         Returns:
             A tuple containing:

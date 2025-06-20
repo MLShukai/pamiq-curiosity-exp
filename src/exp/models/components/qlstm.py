@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import override
 
 import torch
@@ -143,17 +144,21 @@ class QLSTMLayer(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
 
+    __call__: Callable[[Tensor, Tensor | None], tuple[Tensor, Tensor]]
+
     @override
-    def forward(self, x: Tensor, hidden: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, hidden: Tensor | None = None) -> tuple[Tensor, Tensor]:
         """Apply the QLSTM layer.
 
         Args:
             x: The input tensor of shape (batch, len, dim).
-            hidden: The hidden state tensor of shape (batch, dim).
+            hidden: Optional hidden state tensor of shape (batch, dim). If None, initialized to zeros.
         Returns:
             The output tensor of shape (batch, len, dim) and the new hidden state tensor of shape (batch, len, dim).
         """
         batch, len, dim = x.shape
+        if hidden is None:
+            hidden = torch.zeros(batch, dim, device=x.device, dtype=x.dtype)
 
         forget = F.sigmoid(self.fc_forget(x))  # (batch, len, dim)
 
@@ -193,12 +198,12 @@ class QLSTMBlock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     @override
-    def forward(self, x: Tensor, hidden: Tensor) -> tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor, hidden: Tensor | None = None) -> tuple[Tensor, Tensor]:
         """Apply the QLSTM block.
 
         Args:
             x: The input tensor of shape (batch, len, dim).
-            hidden: The hidden state tensor of shape (batch, len, dim).
+            hidden: Optional hidden state tensor of shape (batch, len, dim). If None, initialized to zeros.
         Returns:
             The output tensor of shape (batch, len, dim) and the new hidden state tensor of shape (batch, len, dim).
         """
