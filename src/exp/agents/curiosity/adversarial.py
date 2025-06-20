@@ -26,21 +26,21 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     def __init__(
         self,
-        initial_forward_dynamics_hidden: Tensor,
-        initial_policy_hidden: Tensor,
         max_imagination_steps: int = 1,
         reward_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         log_every_n_steps: int = 1,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> None:
         """Initialize the AdversarialCuriosityAgent.
 
         Args:
-            initial_forward_dynamics_hidden: Initial hidden state tensor for the forward dynamics model.
-            initial_policy_hidden: Initial hidden state tensor for the policy model.
             max_imagination_steps: Maximum number of steps to imagine into the future. Must be >= 1. Defaults to 1.
             reward_average_method: Function to average rewards across imagination steps.
-                Takes a tensor of rewards (imagination_steps,) and returns a scalar reward. Defaults to torch.mean.
+                Takes a tensor of rewards (imagination_steps,) and returns a scalar reward. Defaults to average_exponentially.
             log_every_n_steps: Frequency of logging metrics to MLflow. Defaults to 1.
+            device: Device to run computations on. Defaults to None.
+            dtype: Data type for tensors. Defaults to None.
 
         Raises:
             ValueError: If max_imagination_steps is less than 1.
@@ -52,10 +52,12 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
                 f"`max_imagination_steps` must be >= 1! Your input: {max_imagination_steps}"
             )
 
-        self.head_forward_dynamics_hidden_state = initial_forward_dynamics_hidden
-        self.policy_hidden_state = initial_policy_hidden
+        self.head_forward_dynamics_hidden_state = None
+        self.policy_hidden_state = None
         self.max_imagination_steps = max_imagination_steps
         self.reward_average_method = reward_average_method
+        self.device = device
+        self.dtype = dtype
 
         self.metrics: dict[str, float] = {}
         self.scheduler = StepIntervalScheduler(log_every_n_steps, self.log_metrics)
@@ -81,11 +83,13 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     # ------ INTERACTION PROCESS ------
 
-    head_forward_dynamics_hidden_state: Tensor  # (depth, dim)
-    policy_hidden_state: Tensor  # (depth, dim)
+    head_forward_dynamics_hidden_state: Tensor | None  # (depth, dim) or None
+    policy_hidden_state: Tensor | None  # (depth, dim) or None
     obs_dist_imaginations: Distribution  # (imaginations, dim)
     obs_imaginations: Tensor  # (imaginations, dim)
-    forward_dynamics_hidden_imaginations: Tensor  # (imaginations, depth, dim)
+    forward_dynamics_hidden_imaginations: (
+        Tensor | None
+    )  # (imaginations, depth, dim) or None
     step_data_policy: dict[str, Tensor]
     step_data_fd: dict[str, Tensor]
 
@@ -99,12 +103,8 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         super().setup()
         self.step_data_fd, self.step_data_policy = {}, {}
 
-        device = self.head_forward_dynamics_hidden_state.device
-        dtype = self.head_forward_dynamics_hidden_state.dtype
-        self.forward_dynamics_hidden_imaginations = torch.empty(
-            0, device=device, dtype=dtype
-        )
-        self.obs_imaginations = torch.empty(0, device=device, dtype=dtype)
+        self.forward_dynamics_hidden_imaginations = None
+        self.obs_imaginations = torch.empty(0, device=self.device, dtype=self.dtype)
         self.initial_step = True
 
     @override
@@ -137,7 +137,7 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             Selected action to be executed in the environment
         """
         observation = observation.to(
-            device=self.obs_imaginations.device, dtype=self.obs_imaginations.dtype
+            device=self.device, dtype=self.dtype
         )  # convert type and send to device
 
         # ==============================================================================
@@ -159,9 +159,11 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         #                               Policy Process
         # ==============================================================================
 
-        self.step_data_policy[DataKey.HIDDEN] = (
-            self.policy_hidden_state.cpu()
-        )  # Store before update
+        if self.policy_hidden_state is not None:
+            self.step_data_policy[DataKey.HIDDEN] = (
+                self.policy_hidden_state.cpu()
+            )  # Store before update
+
         action_dist: Distribution
         value: Tensor
         action_dist, value, self.policy_hidden_state = self.policy_value(
@@ -176,16 +178,15 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         obs_imaginations = torch.cat(
             [observation[torch.newaxis], self.obs_imaginations]
         )[: self.max_imagination_steps]  # (imaginations, dim)
-        hidden_imaginations = torch.cat(
-            [
-                self.head_forward_dynamics_hidden_state[torch.newaxis],
-                self.forward_dynamics_hidden_imaginations,
-            ]
-        )[: self.max_imagination_steps]  # (imaginations, depth, dim)
-
-        self.step_data_fd[DataKey.HIDDEN] = (  # Store before update
-            self.head_forward_dynamics_hidden_state.cpu()
-        )
+        if self.head_forward_dynamics_hidden_state is None:
+            hidden_imaginations = None
+        else:
+            hidden_list = [self.head_forward_dynamics_hidden_state[torch.newaxis]]
+            if self.forward_dynamics_hidden_imaginations is not None:
+                hidden_list.append(self.forward_dynamics_hidden_imaginations)
+            hidden_imaginations = torch.cat(hidden_list)[
+                : self.max_imagination_steps
+            ]  # (imaginations, depth, dim)
 
         obs_dist_imaginations, hidden_imaginations = self.forward_dynamics(
             obs_imaginations,
@@ -204,6 +205,10 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.step_data_fd[DataKey.ACTION] = self.step_data_policy[DataKey.ACTION] = (
             action.cpu()
         )
+        if self.head_forward_dynamics_hidden_state is not None:
+            self.step_data_fd[DataKey.HIDDEN] = (
+                self.head_forward_dynamics_hidden_state.cpu()
+            )
         self.collector_forward_dynamics.collect(self.step_data_fd)
 
         # Store for next loop
@@ -214,7 +219,9 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.obs_dist_imaginations = obs_dist_imaginations
         self.obs_imaginations = obs_imaginations
         self.forward_dynamics_hidden_imaginations = hidden_imaginations
-        self.head_forward_dynamics_hidden_state = hidden_imaginations[0]
+        self.head_forward_dynamics_hidden_state = (
+            hidden_imaginations[0] if hidden_imaginations is not None else None
+        )
 
         self.scheduler.update()
         self.global_step += 1
@@ -238,6 +245,7 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         """Save agent state to disk.
 
         Saves forward dynamics hidden state, policy hidden state, and global step counter.
+        Hidden states can be None.
 
         Args:
             path: Directory path where to save the state
@@ -245,11 +253,13 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         super().save_state(path)
         path.mkdir(exist_ok=True)
 
-        torch.save(
-            self.head_forward_dynamics_hidden_state,
-            path / "head_forward_dynamics_hidden_state.pt",
-        )
-        torch.save(self.policy_hidden_state, path / "policy_hidden_state.pt")
+        if self.head_forward_dynamics_hidden_state is not None:
+            torch.save(
+                self.head_forward_dynamics_hidden_state,
+                path / "head_forward_dynamics_hidden_state.pt",
+            )
+        if self.policy_hidden_state is not None:
+            torch.save(self.policy_hidden_state, path / "policy_hidden_state.pt")
         (path / "global_step").write_text(str(self.global_step), "utf-8")
 
     @override
@@ -257,17 +267,23 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         """Load agent state from disk.
 
         Restores forward dynamics hidden state, policy hidden state, and global step counter.
+        Hidden states are set to None if the corresponding files don't exist.
 
         Args:
             path: Directory path from where to load the state
         """
         super().load_state(path)
-        self.head_forward_dynamics_hidden_state = torch.load(
-            path / "head_forward_dynamics_hidden_state.pt",
-            map_location=self.head_forward_dynamics_hidden_state.device,
-        )
-        self.policy_hidden_state = torch.load(
-            path / "policy_hidden_state.pt",
-            map_location=self.policy_hidden_state.device,
-        )
+
+        fd_hidden_path = path / "head_forward_dynamics_hidden_state.pt"
+        if fd_hidden_path.exists():
+            self.head_forward_dynamics_hidden_state = torch.load(
+                fd_hidden_path, map_location=self.device
+            )
+
+        policy_hidden_path = path / "policy_hidden_state.pt"
+        if policy_hidden_path.exists():
+            self.policy_hidden_state = torch.load(
+                policy_hidden_path, map_location=self.device
+            )
+
         self.global_step = int((path / "global_step").read_text("utf-8"))
