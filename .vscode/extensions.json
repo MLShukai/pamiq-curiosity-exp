@@ -2,6 +2,7 @@
     "recommendations": [
       "ms-python.python",
       "tamasfe.even-better-toml",
-      "github.vscode-github-actions"
+      "github.vscode-github-actions",
+      "gesonanko.python-hydra-yaml"
     ]
 }

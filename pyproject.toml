@@ -25,6 +25,7 @@ packages = ["src/exp"]
 
 [dependency-groups]
 dev = [
+    "hydra-yaml-lsp>=0.1.1",
     "pre-commit>=4.2.0",
     "pyright>=1.1.398,!=1.1.401",
     "pytest>=8.3.5",
