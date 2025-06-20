@@ -1,6 +1,5 @@
 import pytest
 import torch
-from pamiq_core import DataBuffer, InferenceModel, TrainingModel
 from pamiq_core.testing import (
     connect_components,
     create_mock_buffer,
@@ -63,12 +62,7 @@ class TestAdversarialCuriosityAgent:
 
     @pytest.fixture
     def agent(self, models, buffers, mock_mlflow):
-        initial_fd_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        initial_policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-
         agent = AdversarialCuriosityAgent(
-            initial_forward_dynamics_hidden=initial_fd_hidden,
-            initial_policy_hidden=initial_policy_hidden,
             max_imagination_steps=3,
             log_every_n_steps=5,
         )
@@ -78,18 +72,13 @@ class TestAdversarialCuriosityAgent:
 
     def test_initialization(self):
         """Test agent initialization."""
-        initial_fd_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        initial_policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-
         agent = AdversarialCuriosityAgent(
-            initial_forward_dynamics_hidden=initial_fd_hidden,
-            initial_policy_hidden=initial_policy_hidden,
             max_imagination_steps=2,
             log_every_n_steps=10,
         )
 
-        assert torch.equal(agent.head_forward_dynamics_hidden_state, initial_fd_hidden)
-        assert torch.equal(agent.policy_hidden_state, initial_policy_hidden)
+        assert agent.head_forward_dynamics_hidden_state is None
+        assert agent.policy_hidden_state is None
         assert agent.max_imagination_steps == 2
         assert agent.global_step == 0
 
@@ -97,8 +86,6 @@ class TestAdversarialCuriosityAgent:
         """Test that agent raises error for invalid max_imagination_steps."""
         with pytest.raises(ValueError, match="`max_imagination_steps` must be >= 1"):
             AdversarialCuriosityAgent(
-                initial_forward_dynamics_hidden=torch.zeros(DEPTH, HIDDEN_DIM),
-                initial_policy_hidden=torch.zeros(DEPTH, HIDDEN_DIM),
                 max_imagination_steps=0,
             )
 
@@ -133,13 +120,14 @@ class TestAdversarialCuriosityAgent:
         assert DataKey.OBSERVATION in fd_data
         assert DataKey.ACTION in fd_data
         assert DataKey.HIDDEN in fd_data
+        # HIDDEN key is only present after first step when hidden is not None
 
         policy_data = spy_policy_collect.call_args_list[-1][0][0]
         assert DataKey.OBSERVATION in policy_data
         assert DataKey.ACTION in policy_data
         assert DataKey.ACTION_LOG_PROB in policy_data
-        assert DataKey.VALUE in policy_data
         assert DataKey.HIDDEN in policy_data
+        assert DataKey.VALUE in policy_data
         assert DataKey.REWARD in policy_data
 
     def test_logging(self, agent: AdversarialCuriosityAgent, mock_mlflow):
@@ -172,16 +160,39 @@ class TestAdversarialCuriosityAgent:
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
-        new_agent = AdversarialCuriosityAgent(
-            initial_forward_dynamics_hidden=torch.zeros(DEPTH, HIDDEN_DIM),
-            initial_policy_hidden=torch.zeros(DEPTH, HIDDEN_DIM),
-        )
+        new_agent = AdversarialCuriosityAgent()
 
         new_agent.load_state(save_path)
 
+        assert new_agent.head_forward_dynamics_hidden_state is not None
         assert torch.equal(
             new_agent.head_forward_dynamics_hidden_state,
             agent.head_forward_dynamics_hidden_state,
         )
+        assert new_agent.policy_hidden_state is not None
         assert torch.equal(new_agent.policy_hidden_state, agent.policy_hidden_state)
         assert new_agent.global_step == 42
+
+    def test_save_and_load_state_with_none_hidden(
+        self, agent: AdversarialCuriosityAgent, tmp_path
+    ):
+        """Test state saving and loading when hidden states are None."""
+        agent.global_step = 100
+        agent.head_forward_dynamics_hidden_state = None
+        agent.policy_hidden_state = None
+
+        # Save state
+        save_path = tmp_path / "agent_state_none"
+        agent.save_state(save_path)
+
+        assert not (save_path / "head_forward_dynamics_hidden_state.pt").exists()
+        assert not (save_path / "policy_hidden_state.pt").exists()
+        assert (save_path / "global_step").exists()
+
+        # Create new agent and load state
+        new_agent = AdversarialCuriosityAgent()
+        new_agent.load_state(save_path)
+
+        assert new_agent.head_forward_dynamics_hidden_state is None
+        assert new_agent.policy_hidden_state is None
+        assert new_agent.global_step == 100

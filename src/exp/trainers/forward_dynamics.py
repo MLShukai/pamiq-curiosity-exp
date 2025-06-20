@@ -181,9 +181,15 @@ class StackedHiddenFDTrainer(TorchTrainer):
                         )  # (B', *)
                         obs_targets = obs_targets.flatten(0, 1)  # (B', *)
 
-                    obses_next_hat_dist, next_hiddens = self.forward_dynamics.model(
+                    if i == 0:
+                        forward_method = self.forward_dynamics.model.__call__
+                    else:
+                        forward_method = self.forward_dynamics.model.forward_with_no_len
+
+                    obses_next_hat_dist, next_hiddens = forward_method(
                         obs_imaginations, action_imaginations, hiddens
                     )
+
                     loss = -obses_next_hat_dist.log_prob(obs_targets).mean()
                     loss_imaginations.append(loss)
                     obs_imaginations = obses_next_hat_dist.rsample()
