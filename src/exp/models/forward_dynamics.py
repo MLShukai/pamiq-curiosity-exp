@@ -90,3 +90,22 @@ class StackedHiddenFD(nn.Module):
         See forward() method for full documentation.
         """
         return super().__call__(obs, action, hidden)
+
+    def forward_with_no_len(
+        self, obs: Tensor, action: Tensor, hidden: Tensor
+    ) -> tuple[Distribution, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
+            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            hidden: Hidden state from previous timestep. shape is (*batch, depth, dim)
+
+        Returns:
+            A tuple containing:
+                - Distribution representing predicted next observation.
+                - Updated hidden state tensor for use in next prediction.
+        """
+        x = self._flatten_obs_action(obs, action)  # (*batch, dim)
+        x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
+        return self.obs_hat_dist_head(x), next_hidden
