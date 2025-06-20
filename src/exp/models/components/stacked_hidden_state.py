@@ -30,11 +30,11 @@ class StackedHiddenState(nn.Module):
         """Apply the stacked hidden state module.
 
         Args:
-            x: The input tensor of shape (*batch, len, dim) or (len, dim) or (*batch, dim) or (dim).
+            x: The input tensor of shape (*batch, len, dim) or (len, dim) or (dim).
             hidden_stack: Optional hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
                 If None, the hidden state is initialized to zeros.
         Returns:
-            The output tensor of shape (*batch, len, dim) or (len, dim) or (*batch, dim) or (dim).
+            The output tensor of shape (*batch, len, dim) or (len, dim) or (dim).
             The stacked hidden state tensor of shape (*batch, depth, len, dim) or (depth, len, dim) or (*batch, depth, dim) or (depth, dim).
         """
         no_batch = x.ndim < 3
