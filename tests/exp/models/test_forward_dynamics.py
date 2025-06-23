@@ -147,3 +147,49 @@ class TestStackedHiddenFD:
         # Check distribution properties
         log_prob = obs_hat_dist.log_prob(sample)
         assert log_prob.shape == (self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+
+    def test_forward_no_hidden(self, dynamics_model, obs, action):
+        """Test forward pass without providing hidden state."""
+        # Run forward pass without hidden
+        obs_hat_dist, next_hidden = dynamics_model(obs, action)
+
+        # Check output types and shapes
+        sample = obs_hat_dist.sample()
+        assert sample.shape == (
+            self.BATCH_SIZE,
+            self.SEQ_LEN,
+            self.OBS_NUM_TOKENS,
+            self.OBS_DIM,
+        )
+        assert next_hidden.shape == (
+            self.BATCH_SIZE,
+            self.DEPTH,
+            self.SEQ_LEN,
+            self.DIM,
+        )
+
+    def test_forward_with_no_len_no_hidden(self, dynamics_model):
+        """Test forward_with_no_len without providing hidden state."""
+        # Create inputs without sequence length dimension
+        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        action_no_len = torch.stack(
+            [
+                torch.randint(0, choice, (self.BATCH_SIZE,))
+                for choice in self.ACTION_CHOICES
+            ],
+            dim=-1,
+        )
+
+        # Run forward pass without hidden
+        obs_hat_dist, next_hidden = dynamics_model.forward_with_no_len(
+            obs_no_len, action_no_len
+        )
+
+        # Check output shapes
+        sample = obs_hat_dist.sample()
+        assert sample.shape == (self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        assert next_hidden.shape == (
+            self.BATCH_SIZE,
+            self.DEPTH,
+            self.DIM,
+        )
