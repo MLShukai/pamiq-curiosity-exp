@@ -2,3 +2,6 @@
 
 _target_: exp.agents.curiosity.adversarial.AdversarialCuriosityAgent
 max_imagination_steps: ${shared.max_imagination_steps}
+
+device: ${shared.device}
+dtype: ${shared.dtype}
