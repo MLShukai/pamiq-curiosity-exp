@@ -2,7 +2,6 @@
 
 from typing import override
 
-import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Distribution
@@ -50,13 +49,14 @@ class StackedHiddenPiV(nn.Module):
 
     @override
     def forward(
-        self, observation: Tensor, hidden: Tensor
+        self, observation: Tensor, hidden: Tensor | None = None
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Process observation and compute policy and value outputs.
 
         Args:
             observation: Input observation tensor (*batch, len, num_token, obs_dim)
-            hidden: Hidden state tensor from previous timestep (*batch, depth, dim)
+            hidden: Optional hidden state tensor from previous timestep (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros.
 
         Returns:
             A tuple containing:
@@ -70,7 +70,27 @@ class StackedHiddenPiV(nn.Module):
 
     @override
     def __call__(
-        self, observation: Tensor, hidden: Tensor
+        self, observation: Tensor, hidden: Tensor | None = None
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Override __call__ with proper type annotations."""
         return super().__call__(observation, hidden)
+
+    def forward_with_no_len(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            observation: Input observation tensor (*batch, num_token, obs_dim)
+            hidden: Optional hidden state from previous timestep (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros.
+
+        Returns:
+            A tuple containing:
+                - Distribution representing the policy (action probabilities)
+                - Tensor containing the estimated state value
+                - Updated hidden state tensor for use in next forward pass
+        """
+        obs_flat = self.obs_flatten(observation)
+        x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
+        return self.policy_head(x), self.value_head(x), hidden
