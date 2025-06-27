@@ -1251,6 +1251,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pamiq-core", extra = ["torch"] },
     { name = "pamiq-vrchat" },
+    { name = "rootutils" },
     { name = "torchvision" },
 ]
 
@@ -1273,6 +1274,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pamiq-core", extras = ["torch"], specifier = ">=0.3.1" },
     { name = "pamiq-vrchat", specifier = ">=0.1.0" },
+    { name = "rootutils", specifier = ">=1.0.7" },
     { name = "torchvision", specifier = ">=0.22.0" },
 ]
 
@@ -1698,6 +1700,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-dotenv"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/b0/4bc07ccd3572a2f9df7e6782f52b0c6c90dcbb803ac4a167702d7d0dfe1e/python_dotenv-1.1.1.tar.gz", hash = "sha256:a8a6399716257f45be6a007360200409fce5cda2661e3dec71d23dc15f6189ab", size = 41978, upload-time = "2025-06-24T04:21:07.341Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/ed/539768cf28c661b5b068d66d96a2f155c4971a5d55684a514c1a0e0dec2f/python_dotenv-1.1.1-py3-none-any.whl", hash = "sha256:31f23644fe2602f88ff55e1f5c79ba497e01224ee7737937930c448e4d0e24dc", size = 20556, upload-time = "2025-06-24T04:21:06.073Z" },
+]
+
+[[package]]
 name = "python-osc"
 version = "1.9.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1767,6 +1778,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760", size = 131218, upload-time = "2024-05-29T15:37:49.536Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6", size = 64928, upload-time = "2024-05-29T15:37:47.027Z" },
+]
+
+[[package]]
+name = "rootutils"
+version = "1.0.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dotenv" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/9e/62489bd92acc537ed902fc3ebc0e055e8a96c6ca3071dfdecd9c513176ec/rootutils-1.0.7.tar.gz", hash = "sha256:7e2444cdbf4a73a907875fb109d55a38b4ee21313cef305bf59fadbf540440bc", size = 5730, upload-time = "2023-05-19T13:05:21.837Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/17/1e8ba0be5b52aa7a18f0df7bd6ab31345a3a4f515d6beac6a765fcacaaa3/rootutils-1.0.7-py3-none-any.whl", hash = "sha256:89f1994e6d0f499db7aca7f90edc146801cb33c8565a15c7cee4a4e4fc8c6eef", size = 6403, upload-time = "2023-05-19T13:05:19.416Z" },
 ]
 
 [[package]]

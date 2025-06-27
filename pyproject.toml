@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.2.6",
     "pamiq-core[torch]>=0.3.1",
     "pamiq-vrchat>=0.1.0",
+    "rootutils>=1.0.7",
     "torchvision>=0.22.0",
 ]
 

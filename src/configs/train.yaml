@@ -5,5 +5,13 @@
 defaults:
   - _self_
 
+  - paths: default
+  - hydra: default
+
+  # You can specify configuration values that are shared among all config files.
+  - shared: default
+
 # You can specify `hydra.job_logging.root.level`
 log_level: INFO
+
+task_name: "task_name"

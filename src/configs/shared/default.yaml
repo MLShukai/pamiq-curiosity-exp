@@ -5,5 +5,5 @@ image:
 
 max_imagination_steps: 1
 
-device: ${torch.device:"cuda:0"}
-dtype: ${torch.dtype:"float32"}
+device: cuda:0
+dtype: float32
