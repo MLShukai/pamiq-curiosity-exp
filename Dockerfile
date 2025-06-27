@@ -31,8 +31,8 @@ ENV UV_LINK_MODE=copy
 RUN echo 'eval "$(uv generate-shell-completion bash)"' >> ~/.bashrc \
 && make venv \
 && uv run pre-commit install \
-&& "eval '$(uv run python scripts/launch.py -sc install=bash)'" >> ~/.bashrc \
-&& "source /workspace/.venv/bin/activate" >> ~/.bashrc
+&& echo "eval '$(uv run python scripts/launch.py -sc install=bash)'" >> ~/.bashrc \
+&& echo "source /workspace/.venv/bin/activate" >> ~/.bashrc
 
 # Console setup
 CMD [ "bash" ]
