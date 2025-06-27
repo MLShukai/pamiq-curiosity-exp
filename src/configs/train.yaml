@@ -5,6 +5,7 @@
 defaults:
   - _self_
 
+  - interaction: default
   - paths: default
   - hydra: default
 

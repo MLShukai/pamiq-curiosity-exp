@@ -1,6 +1,6 @@
 defaults:
-  - /environment: vrchat
-  - /agent: adversarial
+  - environment: vrchat
+  - agent: adversarial
 
 _target_: pamiq_core.FixedIntervalInteraction.with_sleep_adjustor
 interval: 0.1 # 10 fps.
