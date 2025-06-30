@@ -4,11 +4,15 @@ from typing import Any
 import hydra
 from omegaconf import DictConfig, open_dict
 from pamiq_core import Interaction
-from pamiq_core.torch import TorchTrainingModel
+from pamiq_core.torch import TorchTrainer, TorchTrainingModel
 
 from exp.models import ModelName
 
 logger = logging.getLogger(__name__)
+
+# Fixed parameters
+PATCH_SIZE = 12
+JEPA_BATCH_SIZE = 32
 
 
 def instantiate_interaction(cfg: DictConfig) -> Interaction[Any, Any]:
@@ -28,7 +32,7 @@ def instantiate_models(cfg: DictConfig) -> dict[ModelName, TorchTrainingModel[An
     logger.info("Instantiating JEPA models...")
     context_encoder, target_encoder, predictor, avg_pool_infer = create_image_jepa(
         image_size=(cfg.shared.image.height, cfg.shared.image.width),
-        patch_size=12,
+        patch_size=PATCH_SIZE,
         in_channels=(cfg.shared.image.channels),
         hidden_dim=432,
         embed_dim=128,
@@ -91,3 +95,43 @@ def instantiate_models(cfg: DictConfig) -> dict[ModelName, TorchTrainingModel[An
             policy_value, has_inference_model=True, device=device, dtype=dtype
         ),
     }
+
+
+def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
+    logger.info("Instantiating Trainers...")
+    from functools import partial
+
+    from torch.optim import AdamW
+
+    # JEPA Trainer
+    logger.info("Instantiating JEPA Trainer...")
+    from exp.models.components.image_patchifier import ImagePatchifier
+    from exp.trainers.jepa import JEPATrainer, MultiBlockMaskCollator2d
+
+    jepa = JEPATrainer(
+        partial(AdamW, lr=1e-4),
+        collate_fn=MultiBlockMaskCollator2d(
+            num_patches=ImagePatchifier.compute_num_patches(
+                image_size=(
+                    cfg.shared.image.height,
+                    cfg.shared.image.width,
+                ),
+                patch_size=PATCH_SIZE,
+            ),
+            mask_scale=(0.025, 0.125),  # 2.5%-12.5% of patches masked per mask.
+            n_masks=4,
+            min_keep=7,
+        ),
+        batch_size=JEPA_BATCH_SIZE,
+        min_new_data_count=128,
+    )
+
+    trainer_cfg = cfg.trainers
+
+    logger.info("Instantiating Forward Dynamics Trainer...")
+    forward_dynamics = hydra.utils.instantiate(trainer_cfg.forward_dynamics)
+
+    logger.info("Instantiating Policy Trainer...")
+    policy_value = hydra.utils.instantiate(trainer_cfg.policy)
+
+    return {"jepa": jepa, "forward_dynamics": forward_dynamics, "policy": policy_value}

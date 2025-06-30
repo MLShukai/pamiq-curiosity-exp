@@ -5,7 +5,11 @@ import mlflow
 import rootutils
 from omegaconf import DictConfig, OmegaConf
 
-from exp.instantiations import instantiate_interaction, instantiate_models
+from exp.instantiations import (
+    instantiate_interaction,
+    instantiate_models,
+    instantiate_trainers,
+)
 from exp.oc_resolvers import register_custom_resolvers
 
 # Register OmegaConf custom resolvers.
@@ -33,6 +37,8 @@ def main(cfg: DictConfig) -> None:
     instantiate_interaction(cfg)
 
     instantiate_models(cfg)
+
+    instantiate_trainers(cfg)
 
 
 if __name__ == "__main__":

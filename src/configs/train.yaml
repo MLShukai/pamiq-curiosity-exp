@@ -7,6 +7,7 @@ defaults:
 
   - interaction: default
   - models: stacked_hiddens
+  - trainers: stacked_hiddens
 
   - paths: default
   - hydra: default

@@ -40,7 +40,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
         imagination_length: int = 1,
         imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
-        min_buffer_size: int = 0,
+        min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
         """Initialize the StackedHiddenFDTrainer.
@@ -61,6 +61,8 @@ class StackedHiddenFDTrainer(TorchTrainer):
         if imagination_length < 1:
             raise ValueError("Imagination length must be greater than 0")
 
+        if min_buffer_size is None:
+            min_buffer_size = imagination_length + seq_len
         if min_buffer_size < imagination_length + seq_len:
             raise ValueError(
                 "Buffer size must be greater than imagination length + sequence length."

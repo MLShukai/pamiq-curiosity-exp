@@ -1,0 +1,11 @@
+_target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVTrainer
+partial_optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 1e-4
+gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
+gae_lambda: 0.95
+norm_advantage: true
+seq_len: 256
+max_samples: 32
+min_new_data_count: 128

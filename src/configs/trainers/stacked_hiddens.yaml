@@ -1,0 +1,3 @@
+defaults:
+  - forward_dynamics: stacked_hidden
+  - policy: stacked_hidden
