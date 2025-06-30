@@ -3,6 +3,7 @@
       "ms-python.python",
       "tamasfe.even-better-toml",
       "github.vscode-github-actions",
-      "gesonanko.python-hydra-yaml"
+      "gesonanko.python-hydra-yaml",
+      "kawamataryo.copy-python-dotted-path"
     ]
 }
