@@ -5,7 +5,7 @@ import mlflow
 import rootutils
 from omegaconf import DictConfig, OmegaConf
 
-from exp.instantiations import instantiate_interaction
+from exp.instantiations import instantiate_interaction, instantiate_models
 from exp.oc_resolvers import register_custom_resolvers
 
 # Register OmegaConf custom resolvers.
@@ -30,7 +30,9 @@ def main(cfg: DictConfig) -> None:
 
     mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
 
-    instantiate_interaction(cfg.interaction)
+    instantiate_interaction(cfg)
+
+    instantiate_models(cfg)
 
 
 if __name__ == "__main__":

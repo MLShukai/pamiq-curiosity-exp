@@ -6,6 +6,8 @@ defaults:
   - _self_
 
   - interaction: default
+  - models: stacked_hiddens
+
   - paths: default
   - hydra: default
 
