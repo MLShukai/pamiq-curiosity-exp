@@ -383,10 +383,6 @@ class AveragePoolInfer:
         )
 
 
-from .components.image_patchifier import ImagePatchifier
-from .components.positional_embeddings import get_2d_positional_embeddings
-
-
 def create_image_jepa(
     image_size: size_2d,
     patch_size: size_2d,
@@ -427,6 +423,9 @@ def create_image_jepa(
         for efficiency. The target encoder should be updated using exponential moving
         average of the context encoder parameters during training.
     """
+    from .components.image_patchifier import ImagePatchifier
+    from .components.positional_embeddings import get_2d_positional_embeddings
+
     patchifier = ImagePatchifier(
         patch_size,
         in_channels=in_channels,
@@ -463,27 +462,3 @@ def create_image_jepa(
     )
 
     return context_encoder, target_encoder, predictor, infer
-
-
-def compute_image_jepa_output_patch_count(
-    image_size: size_2d,
-    patch_size: size_2d,
-    output_downsample: size_2d,
-) -> int:
-    """Compute the final number of patches after Image JEPA encoding and
-    pooling.
-
-    Args:
-        image_size: Input image dimensions as (height, width) or single int for square images.
-        patch_size: Patch dimensions as (height, width) or single int for square patches.
-        output_downsample: Downsampling factor for pooling as (height, width) or single int.
-
-    Returns:
-        Final number of patches after encoding and pooling operations.
-    """
-    avg_pool = AveragePoolInfer(
-        ndim=2,
-        num_patches=ImagePatchifier.compute_num_patches(image_size, patch_size),
-        kernel_size=output_downsample,
-    )
-    return avg_pool.output_patch_count
