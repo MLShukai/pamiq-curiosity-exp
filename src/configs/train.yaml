@@ -10,6 +10,8 @@ defaults:
   - trainers: stacked_hiddens
   - buffers: stacked_hiddens
 
+  - launch: default
+
   - paths: default
   - hydra: default
 

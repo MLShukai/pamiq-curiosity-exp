@@ -22,7 +22,7 @@ def instantiate_interaction(cfg: DictConfig) -> Interaction[Any, Any]:
     return hydra.utils.instantiate(cfg.interaction)
 
 
-def instantiate_models(cfg: DictConfig) -> dict[ModelName, TorchTrainingModel[Any]]:
+def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
     logger.info("Instantiating Models...")
     device, dtype = cfg.shared.device, cfg.shared.dtype
 
@@ -68,7 +68,7 @@ def instantiate_models(cfg: DictConfig) -> dict[ModelName, TorchTrainingModel[An
 
         models[ModelName(name)] = hydra.utils.instantiate(model_cfg)
 
-    return models
+    return models  # pyright: ignore
 
 
 def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
@@ -108,7 +108,7 @@ def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
     return trainers_dict
 
 
-def instantiate_buffers(cfg: DictConfig) -> Mapping[BufferName, DataBuffer[Any]]:
+def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any]]:
     logger.info("Instantiating DataBuffers...")
     from exp.trainers.jepa import JEPATrainer
 
@@ -123,4 +123,4 @@ def instantiate_buffers(cfg: DictConfig) -> Mapping[BufferName, DataBuffer[Any]]
     for name, buffer_cfg in cfg.buffers.items():
         logger.info(f"Instantiating DataBuffer: '{name}'")
         buffers_dict[BufferName(name)] = hydra.utils.instantiate(buffer_cfg)
-    return buffers_dict
+    return buffers_dict  # pyright: ignore

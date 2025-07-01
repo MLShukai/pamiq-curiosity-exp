@@ -4,6 +4,7 @@ import hydra
 import mlflow
 import rootutils
 from omegaconf import DictConfig, OmegaConf
+from pamiq_core import LaunchConfig, launch
 
 from exp.instantiations import (
     instantiate_buffers,
@@ -35,13 +36,16 @@ def main(cfg: DictConfig) -> None:
 
     mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
 
-    instantiate_interaction(cfg)
-
-    instantiate_models(cfg)
-
-    instantiate_trainers(cfg)
-
-    instantiate_buffers(cfg)
+    with mlflow.start_run():
+        launch(
+            interaction=instantiate_interaction(cfg),
+            models=instantiate_models(cfg),
+            data=instantiate_buffers(cfg),
+            trainers=instantiate_trainers(cfg),
+            config=LaunchConfig(
+                **cfg.launch,
+            ),
+        )
 
 
 if __name__ == "__main__":
