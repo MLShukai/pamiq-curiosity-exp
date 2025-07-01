@@ -1,11 +1,13 @@
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import hydra
 from omegaconf import DictConfig
-from pamiq_core import Interaction
+from pamiq_core import DataBuffer, Interaction
 from pamiq_core.torch import TorchTrainer, TorchTrainingModel
 
+from exp.data import BufferName, DataKey
 from exp.models import ModelName
 
 logger = logging.getLogger(__name__)
@@ -104,3 +106,21 @@ def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
         trainers_dict[name] = hydra.utils.instantiate(trainer_cfg)
 
     return trainers_dict
+
+
+def instantiate_buffers(cfg: DictConfig) -> Mapping[BufferName, DataBuffer[Any]]:
+    logger.info("Instantiating DataBuffers...")
+    from exp.trainers.jepa import JEPATrainer
+
+    buffers_dict = {
+        BufferName.IMAGE: JEPATrainer.create_buffer(
+            batch_size=JEPA_BATCH_SIZE,
+            iteration_count=16,
+            expected_survival_length=10 * 60 * 60,  # 10fps 1hour.
+        )
+    }
+
+    for name, buffer_cfg in cfg.buffers.items():
+        logger.info(f"Instantiating DataBuffer: '{name}'")
+        buffers_dict[BufferName(name)] = hydra.utils.instantiate(buffer_cfg)
+    return buffers_dict

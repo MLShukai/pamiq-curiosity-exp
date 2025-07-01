@@ -5,6 +5,7 @@ from typing import override
 import mlflow
 import torch
 from pamiq_core import DataUser
+from pamiq_core.data.impls import SequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
@@ -270,6 +271,21 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         """Load trainer state from disk."""
         super().load_state(path)
         self.global_step = int((path / "global_step").read_text("utf-8"))
+
+    @staticmethod
+    def create_buffer(max_size: int) -> SequentialBuffer[Tensor]:
+        """Create data buffer for this trainer."""
+        return SequentialBuffer(
+            [
+                DataKey.OBSERVATION,
+                DataKey.HIDDEN,
+                DataKey.ACTION,
+                DataKey.ACTION_LOG_PROB,
+                DataKey.REWARD,
+                DataKey.VALUE,
+            ],
+            max_size=max_size,
+        )
 
 
 def compute_advantage(

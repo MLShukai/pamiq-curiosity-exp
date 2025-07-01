@@ -6,6 +6,7 @@ import rootutils
 from omegaconf import DictConfig, OmegaConf
 
 from exp.instantiations import (
+    instantiate_buffers,
     instantiate_interaction,
     instantiate_models,
     instantiate_trainers,
@@ -39,6 +40,8 @@ def main(cfg: DictConfig) -> None:
     instantiate_models(cfg)
 
     instantiate_trainers(cfg)
+
+    instantiate_buffers(cfg)
 
 
 if __name__ == "__main__":
