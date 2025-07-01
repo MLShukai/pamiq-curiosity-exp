@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 import hydra
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig
 from pamiq_core import Interaction
 from pamiq_core.torch import TorchTrainer, TorchTrainingModel
 
