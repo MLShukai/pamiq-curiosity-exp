@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 def main(cfg: DictConfig) -> None:
     cfg_view = cfg.copy()
     OmegaConf.resolve(cfg_view)
-    print(OmegaConf.to_yaml(cfg_view))
-    # Convert device and dtype string object to pytorch object.
+    logger.info(f"Loaded configuration:\n{OmegaConf.to_yaml(cfg_view)}")
 
+    # Convert device and dtype string object to pytorch object.
     shared_cfg = cfg.shared
     shared_cfg.device = f"${{torch.device:{shared_cfg.device}}}"
     shared_cfg.dtype = f"${{torch.dtype:{shared_cfg.dtype}}}"
