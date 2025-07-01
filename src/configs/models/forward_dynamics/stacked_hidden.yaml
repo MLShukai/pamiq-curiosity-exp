@@ -1,8 +1,0 @@
-_target_: exp.models.forward_dynamics.StackedHiddenFD
-dim: 1024
-core_model:
-  _target_: exp.models.components.qlstm.QLSTM
-  dim: 1024
-  dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-  depth: 8
-  dropout: 0.1
