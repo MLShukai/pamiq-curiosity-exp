@@ -13,6 +13,7 @@ from exp.instantiations import (
     instantiate_trainers,
 )
 from exp.oc_resolvers import register_custom_resolvers
+from exp.utils import flatten_config
 
 # Register OmegaConf custom resolvers.
 register_custom_resolvers()
@@ -37,6 +38,8 @@ def main(cfg: DictConfig) -> None:
     mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
 
     with mlflow.start_run():
+        log_config(cfg_view)
+
         launch(
             interaction=instantiate_interaction(cfg),
             models=instantiate_models(cfg),
@@ -46,6 +49,13 @@ def main(cfg: DictConfig) -> None:
                 **cfg.launch,
             ),
         )
+
+
+def log_config(cfg: DictConfig) -> None:
+    mlflow.log_text(OmegaConf.to_yaml(cfg), "config.yaml")
+
+    log_targets = ["interaction", "models", "trainers", "buffers"]
+    mlflow.log_params(flatten_config({key: cfg[key] for key in log_targets}))
 
 
 if __name__ == "__main__":
