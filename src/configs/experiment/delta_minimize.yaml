@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - override /interaction/agent: delta_minimize
+  - override /trainers: stacked_hiddens
+  - override /models: stacked_hiddens
+
+shared:
+  max_imagination_steps: 5
+  dtype: bfloat16
+
+trainers:
+  policy:
+    gamma: 0.999
+
+experiment_name: "delta_minimize"
+
+tags:
+  model_type: "stacked_hiddens"
+  reward_type: "delta_minimize"
