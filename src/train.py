@@ -1,8 +1,10 @@
 import logging
+from datetime import datetime
 
 import hydra
 import mlflow
 import rootutils
+from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
 from omegaconf import DictConfig, OmegaConf
 from pamiq_core import LaunchConfig, launch
 
@@ -40,6 +42,10 @@ def main(cfg: DictConfig) -> None:
     mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
 
     with mlflow.start_run(tags=cfg.tags, log_system_metrics=True) as run:
+        mlflow.set_tag(
+            MLFLOW_RUN_NAME,
+            f"{cfg.experiment_name} {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}",
+        )
         set_global_run_id(run.info.run_id)
 
         log_config(cfg_view)
