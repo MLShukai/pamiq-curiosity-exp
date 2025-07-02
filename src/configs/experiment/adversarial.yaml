@@ -17,3 +17,4 @@ experiment_name: "adversarial"
 
 tags:
   model_type: "stacked_hiddens"
+  reward_type: "adversarial"
