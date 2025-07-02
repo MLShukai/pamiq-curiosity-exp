@@ -24,6 +24,7 @@ policy:
   gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
   gae_lambda: 0.95
   norm_advantage: true
+  entropy_coef: 0.01
   seq_len: 256
   max_samples: 32
   min_new_data_count: 128

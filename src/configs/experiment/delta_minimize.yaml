@@ -11,7 +11,7 @@ shared:
 
 trainers:
   policy:
-    gamma: 0.999
+    gamma: 0.99 # 100 step 先まで考慮
 
 experiment_name: "delta_minimize"
 
