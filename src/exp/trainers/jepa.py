@@ -11,6 +11,7 @@ import mlflow
 import torch
 import torch.nn.functional as F
 from pamiq_core import DataUser
+from pamiq_core.data.impls import RandomReplacementBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
@@ -176,7 +177,6 @@ class JEPATrainer(TorchTrainer):
                 targets_for_predictor = targets_for_predictor.to(device)
 
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
-                print(data.shape)
                 # target encoder
                 with torch.no_grad():
                     latent_from_target_encoder: Tensor = self.target_encoder(data)
@@ -251,6 +251,19 @@ class JEPATrainer(TorchTrainer):
         """Load trainer state from disk."""
         super().load_state(path)
         self.global_step = int((path / "global_step").read_text("utf-8"))
+
+    @staticmethod
+    def create_buffer(
+        batch_size: int,
+        iteration_count: int,
+        expected_survival_length: int,
+    ) -> RandomReplacementBuffer[Tensor]:
+        """Create data buffer for this trainer."""
+        return RandomReplacementBuffer[Tensor](
+            [DataKey.OBSERVATION],
+            max_size=iteration_count * batch_size,
+            expected_survival_length=expected_survival_length,
+        )
 
 
 class MultiBlockMaskCollator2d:

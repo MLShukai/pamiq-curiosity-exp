@@ -5,6 +5,7 @@ from typing import override
 import mlflow
 import torch
 from pamiq_core import DataUser
+from pamiq_core.data.impls import SequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
@@ -36,7 +37,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         entropy_coef: float = 0.0,
         vfunc_coef: float = 0.5,
         data_user_name: str = BufferName.POLICY,
-        min_buffer_size: int = 1,
+        min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
         """Initialize the PPO Policy trainer.
@@ -62,6 +63,8 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
             raise ValueError(f"gamma must be in range [0, 1], got {gamma}")
         if not (0 <= gae_lambda <= 1):
             raise ValueError(f"gae_lambda must be in range [0, 1], got {gae_lambda}")
+        if min_buffer_size is None:
+            min_buffer_size = seq_len
         if min_buffer_size < seq_len:
             raise ValueError(
                 f"min_buffer_size ({min_buffer_size}) must be at least seq_len ({seq_len})"
@@ -268,6 +271,21 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         """Load trainer state from disk."""
         super().load_state(path)
         self.global_step = int((path / "global_step").read_text("utf-8"))
+
+    @staticmethod
+    def create_buffer(max_size: int) -> SequentialBuffer[Tensor]:
+        """Create data buffer for this trainer."""
+        return SequentialBuffer(
+            [
+                DataKey.OBSERVATION,
+                DataKey.HIDDEN,
+                DataKey.ACTION,
+                DataKey.ACTION_LOG_PROB,
+                DataKey.REWARD,
+                DataKey.VALUE,
+            ],
+            max_size=max_size,
+        )
 
 
 def compute_advantage(

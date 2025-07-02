@@ -11,6 +11,7 @@ from exp.models.jepa import (
     AveragePoolInfer,
     Encoder,
     Predictor,
+    compute_image_jepa_output_patch_count,
     create_image_jepa,
 )
 
@@ -591,3 +592,27 @@ class TestCreateImageJEPA:
 
         # Check that actual output matches expected patch dimensions
         assert output.shape[1] == infer.output_patch_count
+
+
+class TestComputeImageJepaOutputPatchCount:
+    @pytest.mark.parametrize(
+        "image_size,patch_size,output_downsample,expected",
+        [
+            # Basic square cases
+            (64, 8, 1, 64),  # 8x8 patches, no downsampling
+            (64, 8, 2, 16),  # 8x8 patches, 2x2 downsampling -> 4x4
+            (128, 16, 4, 4),  # 8x8 patches, 4x4 downsampling -> 2x2
+            (224, 16, 2, 49),  # 14x14 patches, 2x2 downsampling -> 7x7
+            # Rectangular image cases
+            ((96, 128), (16, 32), 2, 6),  # 6x4 patches, 2x2 -> 3x2
+            ((64, 96), 8, (1, 2), 48),  # 8x12 patches, 1x2 -> 8x6
+        ],
+    )
+    def test_patch_count_calculation(
+        self, image_size, patch_size, output_downsample, expected
+    ):
+        """Test patch count calculation with various parameters."""
+        result = compute_image_jepa_output_patch_count(
+            image_size, patch_size, output_downsample
+        )
+        assert result == expected

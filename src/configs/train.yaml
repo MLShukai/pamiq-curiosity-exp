@@ -1,0 +1,30 @@
+# @package _global_
+
+# specify here default configuration
+# order of defaults determines the order in which configs override each other
+defaults:
+  - _self_
+
+  - interaction: default
+  - models: stacked_hiddens
+  - trainers: stacked_hiddens
+  - buffers: stacked_hiddens
+
+  - launch: default
+
+  - paths: default
+  - hydra: default
+
+  # You can specify configuration values that are shared among all config files.
+  - shared: default
+
+  # experiment configs allow for version control of specific hyperparameters
+  - experiment: null
+
+# You can specify `hydra.job_logging.root.level`
+log_level: INFO
+
+experiment_name: "default"
+
+tags:
+  name: ${experiment_name}

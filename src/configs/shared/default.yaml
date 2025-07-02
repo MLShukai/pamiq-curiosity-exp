@@ -1,0 +1,9 @@
+image:
+  height: 144
+  width: 144
+  channels: 3
+
+max_imagination_steps: 1
+
+device: cuda:0
+dtype: float32

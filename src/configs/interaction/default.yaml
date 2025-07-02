@@ -1,0 +1,11 @@
+defaults:
+  - environment: vrchat
+  - agent: adversarial
+
+_target_: pamiq_core.FixedIntervalInteraction.with_sleep_adjustor
+interval: 0.1 # 10 fps.
+
+agent:
+  _target_: exp.agents.integration.IntegratedCuriosityFramework
+  unimodal_encoding:
+    _target_: exp.agents.unimodal_encoding.UnimodalEncodingAgent

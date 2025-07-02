@@ -6,6 +6,7 @@ from typing import override
 import mlflow
 import torch
 from pamiq_core import DataUser
+from pamiq_core.data.impls import SequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
@@ -40,7 +41,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
         imagination_length: int = 1,
         imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
-        min_buffer_size: int = 0,
+        min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
         """Initialize the StackedHiddenFDTrainer.
@@ -61,6 +62,8 @@ class StackedHiddenFDTrainer(TorchTrainer):
         if imagination_length < 1:
             raise ValueError("Imagination length must be greater than 0")
 
+        if min_buffer_size is None:
+            min_buffer_size = imagination_length + seq_len
         if min_buffer_size < imagination_length + seq_len:
             raise ValueError(
                 "Buffer size must be greater than imagination length + sequence length."
@@ -239,3 +242,10 @@ class StackedHiddenFDTrainer(TorchTrainer):
         """Load trainer state from disk."""
         super().load_state(path)
         self.global_step = int((path / "global_step").read_text("utf-8"))
+
+    @staticmethod
+    def create_buffer(max_size: int) -> SequentialBuffer[Tensor]:
+        """Create data buffer for this trainer."""
+        return SequentialBuffer(
+            [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
+        )
