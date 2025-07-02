@@ -12,6 +12,8 @@ services:
       # Time zone
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
+      # Log dir
+      - ${LOG_DIR:-./logs}:/workspace/logs
     environment:
       - PYRIGHT_PYTHON_FORCE_VERSION=latest
     tty: true
