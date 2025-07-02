@@ -150,9 +150,9 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             )
 
             reward = self.reward_average_method(reward_imaginations)
-            self.metrics["reward"] = reward.cpu().item()
+            self.metrics["reward"] = reward.item()
 
-            self.step_data_policy[DataKey.REWARD] = reward
+            self.step_data_policy[DataKey.REWARD] = reward.cpu()
             if DataKey.HIDDEN in self.step_data_policy:
                 self.collector_policy.collect(self.step_data_policy)
 
