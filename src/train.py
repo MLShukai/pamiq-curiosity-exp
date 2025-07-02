@@ -12,7 +12,7 @@ from exp.instantiations import (
     instantiate_models,
     instantiate_trainers,
 )
-from exp.mlflow import flatten_config
+from exp.mlflow import flatten_config, set_global_run_id
 from exp.oc_resolvers import register_custom_resolvers
 
 # Register OmegaConf custom resolvers.
@@ -39,7 +39,9 @@ def main(cfg: DictConfig) -> None:
 
     mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
 
-    with mlflow.start_run(tags=cfg.tags, log_system_metrics=True):
+    with mlflow.start_run(tags=cfg.tags, log_system_metrics=True) as run:
+        set_global_run_id(run.info.run_id)
+
         log_config(cfg_view)
 
         launch(

@@ -54,3 +54,16 @@ def convert_value_for_mlflow(value: Any) -> str | int | float | bool:
     if isinstance(value, str | int | float | bool):
         return value
     return str(value)
+
+
+# Global Variable for run id.
+_mlflow_run_id: str | None = None
+
+
+def get_global_run_id() -> str | None:
+    return _mlflow_run_id
+
+
+def set_global_run_id(run_id: str) -> None:
+    global _mlflow_run_id
+    _mlflow_run_id = run_id

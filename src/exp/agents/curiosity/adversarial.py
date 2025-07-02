@@ -10,6 +10,7 @@ from torch import Tensor
 from torch.distributions import Distribution
 
 from exp.data import BufferName, DataKey
+from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.utils import average_exponentially
 
@@ -237,6 +238,7 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         mlflow.log_metrics(
             {f"curiosity-agent/{k}": v for k, v in self.metrics.items()},
             self.global_step,
+            run_id=get_global_run_id(),
         )
 
     # ------ State Persistence ------

@@ -13,6 +13,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
 from exp.data import BufferName, DataKey
+from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.models.forward_dynamics import StackedHiddenFD
 from exp.utils import average_exponentially
@@ -226,6 +227,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
                 mlflow.log_metrics(
                     {f"forward-dynamics/{k}": v for k, v in metrics.items()},
                     self.global_step,
+                    run_id=get_global_run_id(),
                 )
                 self.optimizers[OPTIMIZER_NAME].step()
                 self.global_step += 1

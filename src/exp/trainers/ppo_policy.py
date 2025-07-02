@@ -12,6 +12,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
 from exp.data import BufferName, DataKey
+from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.models.policy import StackedHiddenPiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
@@ -255,6 +256,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
                         for tag, v in metrics.items()
                     },
                     self.global_step,
+                    run_id=get_global_run_id(),
                 )
 
                 self.global_step += 1
