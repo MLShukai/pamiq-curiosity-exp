@@ -2,7 +2,6 @@ import logging
 
 import hydra
 import mlflow
-import mlflow.system_metrics
 import rootutils
 from omegaconf import DictConfig, OmegaConf
 from pamiq_core import LaunchConfig, launch

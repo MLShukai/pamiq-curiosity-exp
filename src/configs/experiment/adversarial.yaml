@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - override /interaction/agent: adversarial
+  - override /trainers: stacked_hiddens
+  - override /models: stacked_hiddens
+
+shared:
+  max_imagination_steps: 3
+
+trainers:
+  policy:
+    gamma: 0.0 # Set purery adversarial cost function.
+
+experiment_name: "adversarial"
+
+tags:
+  model_type: "stacked_hiddens"
