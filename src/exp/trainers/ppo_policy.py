@@ -65,10 +65,10 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         if not (0 <= gae_lambda <= 1):
             raise ValueError(f"gae_lambda must be in range [0, 1], got {gae_lambda}")
         if min_buffer_size is None:
-            min_buffer_size = seq_len
-        if min_buffer_size < seq_len:
+            min_buffer_size = seq_len + 1
+        if min_buffer_size < seq_len + 1:
             raise ValueError(
-                f"min_buffer_size ({min_buffer_size}) must be at least seq_len ({seq_len})"
+                f"min_buffer_size ({min_buffer_size}) must be at least seq_len ({seq_len} + 1)"
             )
         super().__init__(data_user_name, min_buffer_size, min_new_data_count)
 
