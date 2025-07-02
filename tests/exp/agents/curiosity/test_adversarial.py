@@ -112,8 +112,14 @@ class TestAdversarialCuriosityAgent:
         assert agent.global_step == 2
 
         # Verify data collection
+        assert spy_fd_collect.call_count == 1
+        assert spy_policy_collect.call_count == 0  # Only called after first step
+
+        # Third step
+        action = agent.step(observation)
+        assert agent.global_step == 3
         assert spy_fd_collect.call_count == 2
-        assert spy_policy_collect.call_count == 1  # Only called after first step
+        assert spy_policy_collect.call_count == 1
 
         # Check collected data keys
         fd_data = spy_fd_collect.call_args_list[-1][0][0]
