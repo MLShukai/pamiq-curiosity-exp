@@ -177,7 +177,6 @@ class JEPATrainer(TorchTrainer):
                 targets_for_predictor = targets_for_predictor.to(device)
 
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
-                print(data.shape)
                 # target encoder
                 with torch.no_grad():
                     latent_from_target_encoder: Tensor = self.target_encoder(data)
