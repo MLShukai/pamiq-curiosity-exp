@@ -12,8 +12,8 @@ from exp.instantiations import (
     instantiate_models,
     instantiate_trainers,
 )
+from exp.mlflow import flatten_config
 from exp.oc_resolvers import register_custom_resolvers
-from exp.utils import flatten_config
 
 # Register OmegaConf custom resolvers.
 register_custom_resolvers()
