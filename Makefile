@@ -71,3 +71,13 @@ docker-down-volume:  ## Stop docker containers with removing volumes.
 
 docker-attach: ## Attach to development container
 	docker compose $(BASE_COMPOSE) exec dev bash
+
+# -----------------
+#  MLflow Server
+# -----------------
+
+MLFLOW_HOST ?= 0.0.0.0
+MLFLOW_PORT ?= 5000
+
+mlflow:
+	uv run mlflow ui --backend-store-uri logs/mlflow --host $(MLFLOW_HOST) --port $(MLFLOW_PORT)

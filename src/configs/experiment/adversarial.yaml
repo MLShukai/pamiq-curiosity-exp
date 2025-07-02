@@ -7,6 +7,7 @@ defaults:
 
 shared:
   max_imagination_steps: 3
+  dtype: bfloat16
 
 trainers:
   policy:

@@ -12,6 +12,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
 from exp.data import BufferName, DataKey
+from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.models.policy import StackedHiddenPiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
@@ -64,10 +65,10 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         if not (0 <= gae_lambda <= 1):
             raise ValueError(f"gae_lambda must be in range [0, 1], got {gae_lambda}")
         if min_buffer_size is None:
-            min_buffer_size = seq_len
-        if min_buffer_size < seq_len:
+            min_buffer_size = seq_len + 1
+        if min_buffer_size < seq_len + 1:
             raise ValueError(
-                f"min_buffer_size ({min_buffer_size}) must be at least seq_len ({seq_len})"
+                f"min_buffer_size ({min_buffer_size}) must be at least seq_len ({seq_len} + 1)"
             )
         super().__init__(data_user_name, min_buffer_size, min_new_data_count)
 
@@ -255,6 +256,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
                         for tag, v in metrics.items()
                     },
                     self.global_step,
+                    run_id=get_global_run_id(),
                 )
 
                 self.global_step += 1

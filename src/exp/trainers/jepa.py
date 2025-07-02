@@ -18,6 +18,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 
 from exp.data import BufferName, DataKey
+from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.models.jepa import Encoder, Predictor
 from exp.utils import size_2d, size_2d_to_int_tuple
@@ -235,6 +236,7 @@ class JEPATrainer(TorchTrainer):
                 mlflow.log_metrics(
                     {f"{self.log_prefix}/{tag}": v for tag, v in metrics.items()},
                     self.global_step,
+                    run_id=get_global_run_id(),
                 )
 
                 self.global_step += 1

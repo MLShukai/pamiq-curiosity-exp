@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 from pamiq_core import DataBuffer, Interaction
 from pamiq_core.torch import TorchTrainer, TorchTrainingModel
 
-from exp.data import BufferName, DataKey
+from exp.data import BufferName
 from exp.models import ModelName
 
 logger = logging.getLogger(__name__)

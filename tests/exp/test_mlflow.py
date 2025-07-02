@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from exp.utils import flatten_config
+from exp.mlflow import flatten_config
 
 
 class TestFlattenConfig:

@@ -81,7 +81,6 @@ class TestPPOStackedHiddenPiVTrainer:
             seq_len=self.SEQ_LEN,
             max_samples=4,
             batch_size=2,
-            min_buffer_size=self.SEQ_LEN,
             min_new_data_count=1,
         )
 
