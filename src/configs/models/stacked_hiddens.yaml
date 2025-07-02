@@ -5,6 +5,9 @@ policy_value:
   has_inference_model: true
   device: ${shared.device}
   dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.policy.StackedHiddenPiV.forward_with_no_len
   model:
     _target_: exp.models.policy.StackedHiddenPiV
     obs_info:
@@ -34,6 +37,9 @@ forward_dynamics:
   has_inference_model: true
   device: ${shared.device}
   dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.forward_dynamics.StackedHiddenFD.forward_with_no_len
   model:
     _target_: exp.models.forward_dynamics.StackedHiddenFD
     obs_info: ${models.policy_value.model.obs_info}
