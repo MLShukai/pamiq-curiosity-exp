@@ -23,6 +23,8 @@ rootutils.setup_root(__file__, indicator="pyproject.toml")
 
 logger = logging.getLogger(__name__)
 
+logging.captureWarnings(True)
+
 
 @hydra.main("./configs", "train", version_base="1.3")
 def main(cfg: DictConfig) -> None:
