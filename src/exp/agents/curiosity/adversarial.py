@@ -153,7 +153,8 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             self.metrics["reward"] = reward.cpu().item()
 
             self.step_data_policy[DataKey.REWARD] = reward
-            self.collector_policy.collect(self.step_data_policy)
+            if DataKey.HIDDEN in self.step_data_policy:
+                self.collector_policy.collect(self.step_data_policy)
 
         # ==============================================================================
         #                               Policy Process
@@ -209,7 +210,7 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             self.step_data_fd[DataKey.HIDDEN] = (
                 self.head_forward_dynamics_hidden_state.cpu()
             )
-        self.collector_forward_dynamics.collect(self.step_data_fd)
+            self.collector_forward_dynamics.collect(self.step_data_fd)
 
         # Store for next loop
         self.step_data_policy[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()
