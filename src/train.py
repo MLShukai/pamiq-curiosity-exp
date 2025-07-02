@@ -2,6 +2,7 @@ import logging
 
 import hydra
 import mlflow
+import mlflow.system_metrics
 import rootutils
 from omegaconf import DictConfig, OmegaConf
 from pamiq_core import LaunchConfig, launch
@@ -37,7 +38,7 @@ def main(cfg: DictConfig) -> None:
 
     mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
 
-    with mlflow.start_run():
+    with mlflow.start_run(tags=cfg.tags, log_system_metrics=True):
         log_config(cfg_view)
 
         launch(

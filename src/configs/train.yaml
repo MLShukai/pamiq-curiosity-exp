@@ -21,4 +21,7 @@ defaults:
 # You can specify `hydra.job_logging.root.level`
 log_level: INFO
 
-task_name: "task_name"
+experiment_name: "default"
+
+tags:
+  name: ${experiment_name}
