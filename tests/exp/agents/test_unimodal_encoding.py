@@ -8,7 +8,7 @@ from pamiq_core.testing import (
 from pytest_mock import MockerFixture
 
 from exp.agents.unimodal_encoding import UnimodalEncodingAgent
-from exp.data import BufferName, DataKey
+from exp.data import BufferName
 from exp.models import ModelName
 
 
@@ -71,5 +71,4 @@ class TestUnimodalEncodingAgent:
 
         spy_collect.assert_called_once()
         call_args = spy_collect.call_args[0][0]
-        assert DataKey.OBSERVATION in call_args
-        assert torch.equal(call_args[DataKey.OBSERVATION], observation)
+        assert torch.equal(call_args, observation)

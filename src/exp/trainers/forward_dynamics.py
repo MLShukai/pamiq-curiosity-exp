@@ -6,7 +6,7 @@ from typing import override
 import mlflow
 import torch
 from pamiq_core import DataUser
-from pamiq_core.data.impls import SequentialBuffer
+from pamiq_core.data.impls import DictSequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
@@ -95,8 +95,8 @@ class StackedHiddenFDTrainer(TorchTrainer):
         during training.
         """
         super().on_data_users_attached()
-        self.forward_dynamics_data_user: DataUser[Tensor] = self.get_data_user(
-            self.data_user_name
+        self.forward_dynamics_data_user: DataUser[dict[str, list[Tensor]]] = (
+            self.get_data_user(self.data_user_name)
         )
 
     @override
@@ -149,9 +149,9 @@ class StackedHiddenFDTrainer(TorchTrainer):
 
         data = self.forward_dynamics_data_user.get_data()
         dataset = TensorDataset(
-            torch.stack(list(data[DataKey.OBSERVATION])),
-            torch.stack(list(data[DataKey.ACTION])),
-            torch.stack(list(data[DataKey.HIDDEN])),
+            torch.stack(data[DataKey.OBSERVATION]),
+            torch.stack(data[DataKey.ACTION]),
+            torch.stack(data[DataKey.HIDDEN]),
         )
         sampler = self.partial_sampler(dataset=dataset)
         dataloader = self.partial_dataloader(dataset=dataset, sampler=sampler)
@@ -246,8 +246,8 @@ class StackedHiddenFDTrainer(TorchTrainer):
         self.global_step = int((path / "global_step").read_text("utf-8"))
 
     @staticmethod
-    def create_buffer(max_size: int) -> SequentialBuffer[Tensor]:
+    def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
-        return SequentialBuffer(
+        return DictSequentialBuffer(
             [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
         )
