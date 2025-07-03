@@ -1,12 +1,9 @@
 forward_dynamics:
   _target_: exp.trainers.forward_dynamics.StackedHiddenFDTrainer
   partial_optimizer:
-    _target_: torch.optim.SGD
+    _target_: torch.optim.AdamW
     _partial_: true
     lr: 1e-4
-    momentum: 0.9
-    nesterov: true
-    weight_decay: 1e-4
   seq_len: 256
   max_samples: 32
   imagination_length:  ${shared.max_imagination_steps}
@@ -15,12 +12,9 @@ forward_dynamics:
 policy:
   _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVTrainer
   partial_optimizer:
-    _target_: torch.optim.SGD
+    _target_: torch.optim.AdamW
     _partial_: true
     lr: 1e-4
-    momentum: 0.9
-    nesterov: true
-    weight_decay: 1e-4
   gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
   gae_lambda: 0.95
   norm_advantage: true
