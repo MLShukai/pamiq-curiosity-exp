@@ -5,7 +5,7 @@ from typing import override
 import mlflow
 import torch
 from pamiq_core import DataUser
-from pamiq_core.data.impls import SequentialBuffer
+from pamiq_core.data.impls import DictSequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
@@ -93,7 +93,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         """Set up data user references when they are attached to the
         trainer."""
         super().on_data_users_attached()
-        self.policy_data_user: DataUser[Tensor] = self.get_data_user(
+        self.policy_data_user: DataUser[dict[str, list[Tensor]]] = self.get_data_user(
             self.data_user_name
         )
 
@@ -194,7 +194,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         data = self.policy_data_user.get_data()
 
         tensors = {
-            key: torch.stack(list(data[key])[:-1])
+            key: torch.stack(data[key][:-1])
             for key in [
                 DataKey.OBSERVATION,
                 DataKey.HIDDEN,
@@ -209,7 +209,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         advantages = compute_advantage(
             rewards=tensors[DataKey.REWARD],
             values=tensors[DataKey.VALUE],
-            final_next_value=list(data[DataKey.VALUE])[-1],
+            final_next_value=data[DataKey.VALUE][-1],
             gamma=self.gamma,
             gae_lambda=self.gae_lambda,
         )
@@ -275,9 +275,9 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         self.global_step = int((path / "global_step").read_text("utf-8"))
 
     @staticmethod
-    def create_buffer(max_size: int) -> SequentialBuffer[Tensor]:
+    def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
-        return SequentialBuffer(
+        return DictSequentialBuffer(
             [
                 DataKey.OBSERVATION,
                 DataKey.HIDDEN,

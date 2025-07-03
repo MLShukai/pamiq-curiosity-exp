@@ -108,7 +108,7 @@ def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
     return trainers_dict
 
 
-def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any]]:
+def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any, Any]]:
     logger.info("Instantiating DataBuffers...")
     from exp.trainers.jepa import JEPATrainer
 

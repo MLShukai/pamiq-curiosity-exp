@@ -53,7 +53,7 @@ def main(cfg: DictConfig) -> None:
         launch(
             interaction=instantiate_interaction(cfg),
             models=instantiate_models(cfg),
-            data=instantiate_buffers(cfg),
+            buffers=instantiate_buffers(cfg),
             trainers=instantiate_trainers(cfg),
             config=LaunchConfig(
                 **cfg.launch,

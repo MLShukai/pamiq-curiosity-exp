@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 import torch
-from pamiq_core.data.impls import SequentialBuffer
+from pamiq_core.data.impls import DictSequentialBuffer
 from pamiq_core.testing import connect_components
 from pamiq_core.torch import TorchTrainingModel
 from pytest_mock import MockerFixture
@@ -52,7 +52,7 @@ class TestStackedHiddenFDTrainer:
     @pytest.fixture
     def data_buffers(self):
         return {
-            BufferName.FORWARD_DYNAMICS: SequentialBuffer(
+            BufferName.FORWARD_DYNAMICS: DictSequentialBuffer(
                 [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=self.LEN
             )
         }
