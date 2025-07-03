@@ -1,20 +1,20 @@
 # @package _global_
 
 defaults:
-  - override /interaction/agent: adversarial
+  - override /interaction/agent: delta_minimize
   - override /trainers: stacked_hiddens
   - override /models: stacked_hiddens
 
 shared:
-  max_imagination_steps: 3
+  max_imagination_steps: 5
   dtype: bfloat16
 
 trainers:
   policy:
-    gamma: 0.0 # Set purery adversarial cost function.
+    gamma: 0.99 # 100 step 先まで考慮
 
-experiment_name: "adversarial"
+experiment_name: "delta_minimize"
 
 tags:
   model_type: "stacked_hiddens"
-  reward_type: "adversarial"
+  reward_type: "delta_minimize"

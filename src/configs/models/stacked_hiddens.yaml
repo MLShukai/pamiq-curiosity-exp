@@ -24,7 +24,7 @@ policy_value:
     action_choices:
       _target_: hydra.utils.get_object
       path: exp.envs.vrchat.OSC_ACTION_CHOICES
-    dim: 1024
+    dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
       dim: 1024
@@ -47,7 +47,7 @@ forward_dynamics:
       _target_: exp.models.utils.ActionInfo
       choices: ${models.policy_value.model.action_choices}
       dim: ${..dim}
-    dim: 1024
+    dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
       dim: 1024
