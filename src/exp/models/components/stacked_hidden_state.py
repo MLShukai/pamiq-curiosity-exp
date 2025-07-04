@@ -1,4 +1,4 @@
-from typing import override
+from typing import Generic, TypeVar, override
 
 import torch
 import torch.nn as nn
@@ -91,3 +91,43 @@ class StackedHiddenState(nn.Module):
         """
         x, hidden_out = self.forward(x.unsqueeze(-2), hidden_stack)
         return x.squeeze(-2), hidden_out.squeeze(-2)
+
+
+T = TypeVar("T")
+
+
+class StackedLastHiddenState(Generic[T], nn.Module):
+    """Stacked hidden state that returns only the last hidden state."""
+
+    def __init__(self, module_list: nn.ModuleList):
+        """Initialize the StackedHiddenState module.
+
+        Args:
+            module_list: A list of modules to apply to the input tensor and the hidden state tensor.
+        """
+        super().__init__()
+        self.module_list = module_list
+
+    @override
+    def forward(
+        self, x: Tensor, hidden_list: list[T] | None = None
+    ) -> tuple[Tensor, list[T]]:
+        """Apply the stacked hidden state module.
+
+        Args:
+            x: The input tensor of shape (*batch, len, dim)
+            hidden_list: Optional list of hidden state tensors for each module.
+                If None, the hidden state is initialized to zeros.
+                This is a list of elements whose leaf nodes are tensors of appropriate shape (*batch, *)
+        Returns:
+            The output tensor of shape (*batch, len, dim).
+            The stacked hidden state is a list of elements whose leaf nodes are tensors of appropriate shape (*batch, *)
+        """
+        next_hidden_list = []
+        for i, module in enumerate(self.module_list):
+            hidden = hidden_list[i] if hidden_list is not None else None
+
+            x, hidden_next = module(x, hidden)
+
+            next_hidden_list.append(hidden_next)
+        return x, next_hidden_list

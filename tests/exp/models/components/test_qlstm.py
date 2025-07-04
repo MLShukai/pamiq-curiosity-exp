@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from exp.models.components.qlstm import QLSTM, scan
+from exp.models.components.qlstm import QLSTM, LastHiddenQLSTM, scan
 
 BATCH = 4
 DEPTH = 8
@@ -54,3 +54,27 @@ class TestQLSTM:
         x, hidden_out = qlstm(x, hidden_out[:, :, -1, :])
         assert x.shape == x_shape
         assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+
+
+class TestLastHiddenQLSTM:
+    @pytest.fixture
+    def last_hidden_qlstm(self):
+        last_hidden_qlstm = LastHiddenQLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
+        return last_hidden_qlstm
+
+    def test_last_hidden_qlstm(self, last_hidden_qlstm):
+        """Test LastHiddenQLSTM with provided hidden state."""
+        x_shape = (BATCH, LEN, DIM)
+        x = torch.randn(*x_shape)
+        hidden_element_shape = (BATCH, DIM)
+        hidden = [torch.randn(*hidden_element_shape) for _ in range(DEPTH)]
+
+        x, hidden_out = last_hidden_qlstm(x, hidden)
+        assert x.shape == x_shape
+        for h in hidden_out:
+            assert h.shape == (BATCH, DIM)
+
+        x, hidden_out = last_hidden_qlstm(x, hidden_out)
+        assert x.shape == x_shape
+        for h in hidden_out:
+            assert h.shape == (BATCH, DIM)
