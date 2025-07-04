@@ -20,11 +20,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pulseaudio \
     bash-completion \
     tmux \
+    # Install Nodejs
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash \
+    && apt-get install -y nodejs \
 && apt-get clean \
 && rm -rf /var/lib/apt/lists/* \
 # Setup Bash Completion
 && echo '[[ $PS1 && -f /usr/share/bash-completion/bash_completion ]] && \
     . /usr/share/bash-completion/bash_completion' >> ~/.bashrc
+
+# Setup Claude Code
+RUN npm install -g @anthropic-ai/claude-code
 
 # Setup uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
