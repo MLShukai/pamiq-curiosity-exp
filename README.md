@@ -23,29 +23,31 @@ VRChat環境における好奇心駆動型強化学習の実験リポジトリ
 ### セットアップ手順
 
 1. **VRChatの準備**
-   
+
    [pamiq-vrchat](https://github.com/MLShukai/pamiq-vrchat)のREADMEに従って、ホストマシンでVRChat環境をセットアップする。
 
 2. **必要なソフトウェアのインストール**
-    - git
-    - make
-    - docker
+
+   - git
+   - make
+   - docker
 
 3. **実験環境の構築**
+
    ```bash
    # このリポジトリをクローン
    git clone https://github.com/MLShukai/pamiq-curiosity-exp.git
    cd pamiq-curiosity-exp
-   
+
    # Dockerイメージをビルド（GPUサポート付き）
    make docker-build
-   
+
    # VRChatとOBSを起動しておく（重要！）
-   
+
    # Dockerコンテナを起動
    # LOG_DIRは実験ログを保存する場所を指定（デフォルトは./logs）
    make docker-up LOG_DIR=/path/to/log_dir
-   
+
    # コンテナに接続
    make docker-attach
    ```
@@ -138,10 +140,12 @@ src/
 1. **既存の実験設定を参考に新しい設定ファイルを作成**
 
 2. **必要に応じてコンポーネントを修正**
+
    - 新しい好奇心メカニズムが必要な場合は`src/exp/agents/curiosity/`に実装
    - モデル構造を変更する場合は`src/configs/models/`に設定を追加
 
 3. **テストを書いて動作確認**
+
    ```bash
    # 新しいコードのテストを実行
    uv run pytest tests/exp/agents/test_my_new_agent.py -v
