@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from exp.models.components.qlstm import QLSTM
+from exp.models.components.qlstm import QLSTM, LastHiddenQLSTM
 
 BATCH = 4
 DEPTH = 8
@@ -90,3 +90,33 @@ class TestStackedHiddenState:
 
         with pytest.raises(ValueError, match=error_msg):
             qlstm(x, hidden)
+
+
+class TestLastHiddenQLSTM:
+    @pytest.fixture
+    def last_hidden_qlstm(self):
+        return LastHiddenQLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
+
+    @pytest.mark.parametrize(
+        "x_shape,depth,hidden_element_shape",
+        [
+            ((BATCH, LEN, DIM), DEPTH, (BATCH, DIM)),
+            (
+                (1, 2, 3, BATCH, LEN, DIM),
+                DEPTH,
+                (1, 2, 3, BATCH, DIM),
+            ),
+        ],
+    )
+    def test_forward_with_hidden(
+        self, last_hidden_qlstm, x_shape, depth, hidden_element_shape
+    ):
+        """Test forward pass with provided hidden state."""
+        x = torch.randn(*x_shape)
+        hidden = [torch.randn(*hidden_element_shape) for _ in range(depth)]
+
+        x_out, hidden_out = last_hidden_qlstm(x, hidden)
+        assert x_out.shape == x_shape
+        assert len(hidden_out) == depth
+        for h in hidden_out:
+            assert h.shape == hidden_element_shape

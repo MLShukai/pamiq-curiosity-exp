@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from .stacked_hidden_state import StackedHiddenState
+from .stacked_hidden_state import StackedHiddenState, StackedLastHiddenState
 
 
 class RMSNorm(nn.Module):
@@ -222,6 +222,44 @@ class QLSTMBlock(nn.Module):
         return x, hidden
 
 
+class LastHiddenQLSTMBlock(nn.Module):
+    """QLSTM Block that returns only the last hidden state."""
+
+    def __init__(self, dim: int, dim_ff_hidden: int, dropout: float):
+        """Initialize the LastHiddenQLSTMBlock.
+
+        Args:
+            dim: The number of features in the input.
+            dim_ff_hidden: The number of features in the hidden layer.
+            dropout: The dropout rate.
+        """
+        super().__init__()
+        self.qlstm_block = QLSTMBlock(dim, dim_ff_hidden, dropout)
+
+    @override
+    def forward(self, x: Tensor, hidden: Tensor | None = None) -> tuple[Tensor, Tensor]:
+        """Apply the LastHiddenQLSTMBlock.
+
+        Args:
+            x: The input tensor of shape (batch, len, dim).
+            hidden: Optional hidden state tensor of shape (batch, dim). If None, initialized to zeros.
+        Returns:
+            The output tensor of shape (batch, len, dim) and the last hidden state tensor of shape (batch, dim).
+        """
+        batch_shape = x.shape[:-2]
+        x = x.reshape(-1, *x.shape[len(batch_shape) :])
+        hidden = (
+            hidden.reshape(-1, *hidden.shape[len(batch_shape) :])
+            if hidden is not None
+            else None
+        )
+        x, hidden_next = self.qlstm_block(x, hidden)
+        hidden_next = hidden_next[:, -1, :]
+        x = x.view(*batch_shape, *x.shape[1:])
+        hidden_next = hidden_next.view(*batch_shape, *hidden_next.shape[1:])
+        return x, hidden_next
+
+
 class QLSTM(StackedHiddenState):
     """QLSTM, which is a stack of QLSTM blocks."""
 
@@ -237,5 +275,27 @@ class QLSTM(StackedHiddenState):
         super().__init__(
             nn.ModuleList(
                 [QLSTMBlock(dim, dim_ff_hidden, dropout) for _ in range(depth)]
+            )
+        )
+
+
+class LastHiddenQLSTM(StackedLastHiddenState):
+    """QLSTM that returns only the last hidden state."""
+
+    def __init__(self, depth: int, dim: int, dim_ff_hidden: int, dropout: float):
+        """Initialize the LastHiddenQLSTM.
+
+        Args:
+            depth: The number of QLSTM blocks.
+            dim: The number of features in the input.
+            dim_ff_hidden: The number of features in the hidden layer.
+            dropout: The dropout rate.
+        """
+        super().__init__(
+            nn.ModuleList(
+                [
+                    LastHiddenQLSTMBlock(dim, dim_ff_hidden, dropout)
+                    for _ in range(depth)
+                ]
             )
         )
