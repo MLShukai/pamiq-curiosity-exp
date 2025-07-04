@@ -121,14 +121,21 @@ class TestDeltaMinimizeAgent:
         # Verify data collection
         assert spy_fd_collect.call_count == 2  # Called after first and second step
         assert spy_policy_collect.call_count == 1  # Called after second step
+        fd_data_prev = spy_fd_collect.call_args_list[-1][0][0]
+        policy_data_prev = spy_policy_collect.call_args_list[-1][0][0]
 
+        action = agent.step(observation)
         # Check collected data keys
+        fd_data = spy_fd_collect.call_args_list[-1][0][0]
+        assert fd_data is not fd_data_prev
         fd_data = spy_fd_collect.call_args_list[-1][0][0]
         assert DataKey.OBSERVATION in fd_data
         assert DataKey.ACTION in fd_data
         assert DataKey.HIDDEN in fd_data
 
         policy_data = spy_policy_collect.call_args_list[-1][0][0]
+        policy_data = spy_policy_collect.call_args_list[-1][0][0]
+        assert policy_data is not policy_data_prev
         assert DataKey.OBSERVATION in policy_data
         assert DataKey.ACTION in policy_data
         assert DataKey.ACTION_LOG_PROB in policy_data
