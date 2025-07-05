@@ -40,3 +40,11 @@ class TestDictIntermittentChunkBuffer:
         for i in range(500):
             buffer.add({"key1": i, "key2": i, "key3": i, "key4": i})
             _ = len(buffer)
+
+    def test_keys(self, buffer: DictIntermittentChunkBuffer[int]):
+        """Test the keys of the buffer."""
+        for i in range(500):
+            buffer.add({"key1": i, "key2": i, "key3": i, "key4": i})
+
+        data = buffer.get_data()
+        assert set(data.keys()) == {"key1", "key2", "key3", "key4"}
