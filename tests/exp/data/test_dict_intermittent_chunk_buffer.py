@@ -14,7 +14,7 @@ class TestDictIntermittentChunkBuffer:
         return DictIntermittentChunkBuffer[int](
             intermittent_key_first_add_steps={"key1": 2, "key2": 3},
             chunk_key_first_add_steps={"key3": 4, "key4": 5},
-            get_interval=5,
+            get_interval=6,
             max_size=50,
         )
 
