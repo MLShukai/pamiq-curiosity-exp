@@ -31,7 +31,7 @@ class ChunkBuffer[T](DataBuffer[T, list[list[T]]]):
         """
         super().__init__(max_size)
 
-        assert first_add_steps < first_store_steps
+        assert first_add_steps <= first_store_steps
         self._get_interval = get_interval
         self._first_add_steps = first_add_steps
         self._first_store_steps = first_store_steps
