@@ -114,7 +114,7 @@ class StackedLastHiddenState[T](nn.Module):
         Args:
             x: The input tensor of shape (*batch, len, dim)
             hidden_list: Optional list of hidden state tensors for each module.
-                If None, the hidden state is initialized to zeros.
+                If None, the hidden state is initialized internally.
                 This is a list of elements whose leaf nodes are tensors of appropriate shape (*batch, *)
         Returns:
             The output tensor of shape (*batch, len, dim).
