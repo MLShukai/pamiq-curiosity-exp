@@ -1,7 +1,7 @@
 """Defines forward dynamics models."""
 
 from collections.abc import Callable
-from typing import Any, override
+from typing import Any, TypeVar, override
 
 import torch
 import torch.nn as nn
@@ -123,7 +123,7 @@ class StackedHiddenFD(nn.Module):
         return self.obs_hat_dist_head(x), next_hidden
 
 
-class StackedLastHiddenFD(nn.Module):
+class StackedLastHiddenFD[H](nn.Module):
     """Forward dynamics using StackedLastHiddenState model variants for core
     model."""
 
@@ -174,8 +174,8 @@ class StackedLastHiddenFD(nn.Module):
         self,
         obs: Tensor,
         action: Tensor,
-        hidden: Any | None = None,
-    ) -> tuple[Distribution, Any]:
+        hidden: H | None = None,
+    ) -> tuple[Distribution, H]:
         """Forward pass to predict next observation distribution.
 
         Args:
@@ -194,4 +194,4 @@ class StackedLastHiddenFD(nn.Module):
         obs_hat_dist = self.obs_hat_dist_head(x)
         return obs_hat_dist, next_hidden
 
-    __call__: Callable[[Tensor, Tensor, Any | None], tuple[Distribution, Any]]
+    __call__: Callable[[Tensor, Tensor, H | None], tuple[Distribution, H]]
