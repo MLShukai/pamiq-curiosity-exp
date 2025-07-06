@@ -93,10 +93,7 @@ class StackedHiddenState(nn.Module):
         return x.squeeze(-2), hidden_out.squeeze(-2)
 
 
-T = TypeVar("T")
-
-
-class StackedLastHiddenState(Generic[T], nn.Module):
+class StackedLastHiddenState[T](nn.Module):
     """Stacked hidden state that returns only the last hidden state."""
 
     def __init__(self, module_list: nn.ModuleList):
