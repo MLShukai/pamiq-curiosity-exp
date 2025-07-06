@@ -1,5 +1,6 @@
 """Defines forward dynamics models."""
 
+from collections.abc import Callable
 from typing import Any, override
 
 import torch
@@ -173,15 +174,15 @@ class StackedLastHiddenFD(nn.Module):
         self,
         obs: Tensor,
         action: Tensor,
-        hidden: list[Any] | None = None,
-    ) -> tuple[Distribution, Tensor]:
+        hidden: Any | None = None,
+    ) -> tuple[Distribution, Any]:
         """Forward pass to predict next observation distribution.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
             action: Action tensor. shape is (*batch, len, num_token, action_chocies)
-            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
-                If None, the hidden state is initialized to zeros
+            hidden: Optional hidden state from previous timestep.
+                If None, the hidden state is initialized to internally
 
         Returns:
             A tuple containing:
@@ -193,15 +194,4 @@ class StackedLastHiddenFD(nn.Module):
         obs_hat_dist = self.obs_hat_dist_head(x)
         return obs_hat_dist, next_hidden
 
-    @override
-    def __call__(
-        self,
-        obs: Tensor,
-        action: Tensor,
-        hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(obs, action, hidden)
+    __call__: Callable[[Tensor, Tensor, Any | None], tuple[Distribution, Any]]
