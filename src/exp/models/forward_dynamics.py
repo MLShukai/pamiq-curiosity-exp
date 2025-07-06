@@ -1,6 +1,6 @@
 """Defines forward dynamics models."""
 
-from typing import override
+from typing import Any, override
 
 import torch
 import torch.nn as nn
@@ -173,7 +173,7 @@ class StackedLastHiddenFD(nn.Module):
         self,
         obs: Tensor,
         action: Tensor,
-        hidden: Tensor | None = None,
+        hidden: list[Any] | None = None,
     ) -> tuple[Distribution, Tensor]:
         """Forward pass to predict next observation distribution.
 
