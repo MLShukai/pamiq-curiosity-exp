@@ -78,3 +78,19 @@ class TestLastHiddenQLSTM:
         assert x.shape == x_shape
         for h in hidden_out:
             assert h.shape == (BATCH, DIM)
+
+    def test_no_batch(self, last_hidden_qlstm):
+        """Test LastHiddenQLSTM with provided hidden state."""
+        x_shape = (LEN, DIM)
+        x = torch.randn(*x_shape)
+        hidden = None
+
+        x, hidden = last_hidden_qlstm(x, hidden)
+        assert x.shape == x_shape
+        for h in hidden:
+            assert h.shape == (DIM,)
+
+        x, hidden = last_hidden_qlstm(x, hidden)
+        assert x.shape == x_shape
+        for h in hidden:
+            assert h.shape == (DIM,)

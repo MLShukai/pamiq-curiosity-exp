@@ -246,6 +246,11 @@ class LastHiddenQLSTMBlock(nn.Module):
         Returns:
             The output tensor of shape (batch, len, dim) and the last hidden state tensor of shape (batch, dim).
         """
+        is_batch = x.ndim > 2
+        if not is_batch:
+            x = x.unsqueeze(0)
+            hidden = hidden.unsqueeze(0) if hidden is not None else None
+
         batch_shape = x.shape[:-2]
         x = x.reshape(-1, *x.shape[len(batch_shape) :])
         hidden = (
@@ -257,6 +262,9 @@ class LastHiddenQLSTMBlock(nn.Module):
         hidden_next = hidden_next[:, -1, :]
         x = x.view(*batch_shape, *x.shape[1:])
         hidden_next = hidden_next.view(*batch_shape, *hidden_next.shape[1:])
+        if not is_batch:
+            x = x.squeeze(0)
+            hidden_next = hidden_next.squeeze(0)
         return x, hidden_next
 
 
