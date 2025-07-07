@@ -40,7 +40,7 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
         output_downsample=3,
     )
 
-    models = {
+    models: dict[str, TorchTrainingModel[Any]] = {
         ModelName.IMAGE_JEPA_CONTEXT_ENCODER: TorchTrainingModel(
             context_encoder,
             has_inference_model=False,
@@ -66,9 +66,9 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
     for name, model_cfg in cfg.models.items():
         logger.info(f"Instantiating model: '{name}' ...")
 
-        models[ModelName(name)] = hydra.utils.instantiate(model_cfg)
+        models[name] = hydra.utils.instantiate(model_cfg)
 
-    return models  # pyright: ignore
+    return models
 
 
 def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
@@ -112,7 +112,7 @@ def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any, Any]]:
     logger.info("Instantiating DataBuffers...")
     from exp.trainers.jepa import JEPATrainer
 
-    buffers_dict = {
+    buffers_dict: dict[str, DataBuffer[Any, Any]] = {
         BufferName.IMAGE: JEPATrainer.create_buffer(
             batch_size=JEPA_BATCH_SIZE,
             iteration_count=16,
@@ -122,5 +122,5 @@ def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any, Any]]:
 
     for name, buffer_cfg in cfg.buffers.items():
         logger.info(f"Instantiating DataBuffer: '{name}'")
-        buffers_dict[BufferName(name)] = hydra.utils.instantiate(buffer_cfg)
-    return buffers_dict  # pyright: ignore
+        buffers_dict[str(name)] = hydra.utils.instantiate(buffer_cfg)
+    return buffers_dict
