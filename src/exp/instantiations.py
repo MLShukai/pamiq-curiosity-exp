@@ -66,7 +66,7 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
     for name, model_cfg in cfg.models.items():
         logger.info(f"Instantiating model: '{name}' ...")
 
-        models[name] = hydra.utils.instantiate(model_cfg)
+        models[str(name)] = hydra.utils.instantiate(model_cfg)
 
     return models
 
