@@ -2,15 +2,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import override
 
-import mlflow
 import torch
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
 from torch.distributions import Distribution
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
-from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.utils import average_exponentially
 
@@ -41,7 +40,7 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
             max_imagination_steps: Maximum number of steps to imagine into the future. Must be >= 1.
             reward_average_method: Function to average prediction errors across imagination steps.
                 Takes a tensor of errors (imagination_steps,) and returns a scalar error.
-            log_every_n_steps: Frequency of logging metrics to MLflow.
+            log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
 
@@ -246,16 +245,14 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
         return action
 
     def log_metrics(self) -> None:
-        """Log collected metrics to MLflow.
+        """Log collected metrics to Aim.
 
-        Writes all metrics in the metrics dictionary to MLflow with the
+        Writes all metrics in the metrics dictionary to Aim with the
         current global step.
         """
-        mlflow.log_metrics(
-            {f"delta-minimize-agent/{k}": v for k, v in self.metrics.items()},
-            self.global_step,
-            run_id=get_global_run_id(),
-        )
+        if run := get_global_run():
+            for k, v in self.metrics.items():
+                run.track(v, name=f"delta-minimize-agent/{k}", step=self.global_step)
 
     # ------ State Persistence ------
 

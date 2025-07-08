@@ -60,7 +60,7 @@ This is a reinforcement learning research project for curiosity-driven explorati
 - PAMIQ Core framework for agent-based learning
 - PAMIQ VRChat for environment interaction
 - PyTorch for deep learning
-- MLflow for experiment tracking
+- AIM for experiment tracking
 
 ### Testing Guidelines
 

@@ -57,11 +57,11 @@ class TestDeltaMinimizeAgent:
         }
 
     @pytest.fixture
-    def mock_mlflow(self, mocker: MockerFixture):
-        return mocker.patch("exp.agents.curiosity.delta_minimize.mlflow")
+    def mock_aim_run(self, mocker: MockerFixture):
+        return mocker.patch("exp.agents.curiosity.delta_minimize.get_global_run")
 
     @pytest.fixture
-    def agent(self, models, buffers, mock_mlflow):
+    def agent(self, models, buffers, mock_aim_run):
         agent = DeltaMinimizeAgent(
             max_imagination_steps=3,
             log_every_n_steps=5,
@@ -143,8 +143,11 @@ class TestDeltaMinimizeAgent:
         assert DataKey.VALUE in policy_data
         assert DataKey.REWARD in policy_data
 
-    def test_logging(self, agent: DeltaMinimizeAgent, mock_mlflow):
+    def test_logging(self, agent: DeltaMinimizeAgent, mock_aim_run):
         """Test metrics logging."""
+        # Create a mock run object
+        mock_run = mock_aim_run.return_value
+
         agent.setup()
         observation = torch.randn(OBSERVATION_DIM)
 
@@ -153,11 +156,19 @@ class TestDeltaMinimizeAgent:
             agent.step(observation)
 
         # Should log on step 5 (log_every_n_steps=5)
-        mock_mlflow.log_metrics.assert_called()
-        call_args = mock_mlflow.log_metrics.call_args[0][0]
-        assert "delta-minimize-agent/reward" in call_args
-        assert "delta-minimize-agent/value" in call_args
-        assert "delta-minimize-agent/error" in call_args
+        mock_run.track.assert_called()
+
+        # Verify that the correct metrics were tracked
+        # Get all track calls
+        track_calls = mock_run.track.call_args_list
+
+        # Extract metric names from all calls
+        tracked_metrics = {call[1]["name"] for call in track_calls}
+
+        # Verify expected metrics were tracked
+        assert "delta-minimize-agent/reward" in tracked_metrics
+        assert "delta-minimize-agent/value" in tracked_metrics
+        assert "delta-minimize-agent/error" in tracked_metrics
 
     def test_save_and_load_state(self, agent: DeltaMinimizeAgent, tmp_path):
         """Test state saving and loading functionality."""

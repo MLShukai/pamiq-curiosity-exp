@@ -61,7 +61,7 @@ class TestJEPATrainer:
 
     @pytest.fixture
     def trainer(self, partial_optimizer, collate_fn, mocker: MockerFixture):
-        mocker.patch("exp.trainers.jepa.mlflow")
+        mocker.patch("exp.trainers.jepa.get_global_run")
         return JEPATrainer(
             partial_optimizer,
             collate_fn=collate_fn,
