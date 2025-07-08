@@ -38,7 +38,7 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             max_imagination_steps: Maximum number of steps to imagine into the future. Must be >= 1. Defaults to 1.
             reward_average_method: Function to average rewards across imagination steps.
                 Takes a tensor of rewards (imagination_steps,) and returns a scalar reward. Defaults to average_exponentially.
-            log_every_n_steps: Frequency of logging metrics to MLflow. Defaults to 1.
+            log_every_n_steps: Frequency of logging metrics to Aim. Defaults to 1.
             device: Device to run computations on. Defaults to None.
             dtype: Data type for tensors. Defaults to None.
 
@@ -229,9 +229,9 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         return action
 
     def log_metrics(self) -> None:
-        """Log collected metrics to MLflow.
+        """Log collected metrics to Aim.
 
-        Writes all metrics in the metrics dictionary to MLflow with the
+        Writes all metrics in the metrics dictionary to Aim with the
         current global step.
         """
         if run := get_global_run():

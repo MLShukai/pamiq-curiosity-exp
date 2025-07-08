@@ -142,7 +142,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
             - Calculates the loss
             - Backpropagates the loss
             - Updates the model parameters
-        3. Logs the loss to MLflow
+        3. Logs the loss to Aim
         4. Increments the global step counter
         """
 

@@ -40,7 +40,7 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
             max_imagination_steps: Maximum number of steps to imagine into the future. Must be >= 1.
             reward_average_method: Function to average prediction errors across imagination steps.
                 Takes a tensor of errors (imagination_steps,) and returns a scalar error.
-            log_every_n_steps: Frequency of logging metrics to MLflow.
+            log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
 
@@ -245,9 +245,9 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
         return action
 
     def log_metrics(self) -> None:
-        """Log collected metrics to MLflow.
+        """Log collected metrics to Aim.
 
-        Writes all metrics in the metrics dictionary to MLflow with the
+        Writes all metrics in the metrics dictionary to Aim with the
         current global step.
         """
         if run := get_global_run():

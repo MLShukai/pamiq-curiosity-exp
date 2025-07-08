@@ -67,7 +67,7 @@ class JEPATrainer(TorchTrainer):
                 model registry.
             data_user_name: Name of the data user providing training data.
             collate_fn: Collator function for sampling input data, encoder mask and predictor target.
-            log_prefix: Prefix for training metrics in MLflow logging.
+            log_prefix: Prefix for training metrics in Aim logging.
             target_encoder_update_moving_average: Momentum coefficient for updating
                 the target encoder from the context encoder (higher values mean
                 slower updates, default: 0.996 based on original I-JEPA).

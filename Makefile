@@ -73,7 +73,7 @@ docker-attach: ## Attach to development container
 	docker compose $(BASE_COMPOSE) exec dev bash
 
 # -----------------
-#  MLflow Server
+#  AIM Server
 # -----------------
 
 AIM_HOST ?= 0.0.0.0
