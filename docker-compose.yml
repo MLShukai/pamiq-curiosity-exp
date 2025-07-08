@@ -1,5 +1,6 @@
 services:
   dev:
+    container_name: pamiq-curiosity-exp_${USER}
     image: pamiq-curiosity-exp:${USER}
     build:
       context: .
