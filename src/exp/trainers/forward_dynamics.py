@@ -3,7 +3,6 @@ from functools import partial
 from pathlib import Path
 from typing import override
 
-import mlflow
 import torch
 from pamiq_core import DataUser
 from pamiq_core.data.impls import DictSequentialBuffer
@@ -12,8 +11,8 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
-from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.models.forward_dynamics import StackedHiddenFD
 from exp.utils import average_exponentially
@@ -224,11 +223,12 @@ class StackedHiddenFDTrainer(TorchTrainer):
                     .norm()
                     .item()
                 )
-                mlflow.log_metrics(
-                    {f"forward-dynamics/{k}": v for k, v in metrics.items()},
-                    self.global_step,
-                    run_id=get_global_run_id(),
-                )
+
+                if run := get_global_run():
+                    for k, v in metrics.items():
+                        run.track(
+                            v, name=f"forward-dynamics/{k}", step=self.global_step
+                        )
                 self.optimizers[OPTIMIZER_NAME].step()
                 self.global_step += 1
 

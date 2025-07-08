@@ -16,5 +16,5 @@ trainers:
 experiment_name: "delta_minimize"
 
 tags:
-  model_type: "stacked_hiddens"
-  reward_type: "delta_minimize"
+  - "stacked_hiddens"
+  - "delta_minimize"

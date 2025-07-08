@@ -1,20 +1,19 @@
 import logging
 from datetime import datetime
 
+import aim
 import hydra
-import mlflow
 import rootutils
-from mlflow.utils.mlflow_tags import MLFLOW_RUN_NAME
 from omegaconf import DictConfig, OmegaConf
 from pamiq_core import LaunchConfig, launch
 
+from exp.aim_utils import flatten_config, set_global_run
 from exp.instantiations import (
     instantiate_buffers,
     instantiate_interaction,
     instantiate_models,
     instantiate_trainers,
 )
-from exp.mlflow import flatten_config, set_global_run_id
 from exp.oc_resolvers import register_custom_resolvers
 
 # Register OmegaConf custom resolvers.
@@ -39,15 +38,24 @@ def main(cfg: DictConfig) -> None:
     shared_cfg.device = f"${{torch.device:{shared_cfg.device}}}"
     shared_cfg.dtype = f"${{torch.dtype:{shared_cfg.dtype}}}"
 
-    mlflow.set_tracking_uri(cfg.paths.mlflow_dir)
+    # Initialize Aim Run
+    aim_run = aim.Run(
+        repo=cfg.paths.aim_dir,
+        experiment=cfg.experiment_name,
+        system_tracking_interval=10,  # Track system metrics every 10 seconds
+    )
+    aim_run.name = (
+        f"{cfg.experiment_name} {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}"
+    )
 
-    with mlflow.start_run(tags=cfg.tags, log_system_metrics=True) as run:
-        mlflow.set_tag(
-            MLFLOW_RUN_NAME,
-            f"{cfg.experiment_name} {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}",
-        )
-        set_global_run_id(run.info.run_id)
+    # Set tags if available
+    if cfg.tags:
+        for tag in cfg.tags:
+            aim_run.add_tag(tag)
 
+    set_global_run(aim_run)
+
+    try:
         log_config(cfg_view)
 
         launch(
@@ -59,13 +67,21 @@ def main(cfg: DictConfig) -> None:
                 **cfg.launch,
             ),
         )
+    finally:
+        # Ensure the run is closed properly
+        aim_run.close()
 
 
 def log_config(cfg: DictConfig) -> None:
-    mlflow.log_text(OmegaConf.to_yaml(cfg), "config.yaml")
+    from exp.aim_utils import get_global_run
 
-    log_targets = ["interaction", "models", "trainers", "buffers"]
-    mlflow.log_params(flatten_config({key: cfg[key] for key in log_targets}))
+    run = get_global_run()
+    if run:
+        # Log flattened parameters
+        log_targets = ["interaction", "models", "trainers", "buffers"]
+        params = flatten_config({key: cfg[key] for key in log_targets})
+        for key, value in params.items():
+            run[key] = value
 
 
 if __name__ == "__main__":

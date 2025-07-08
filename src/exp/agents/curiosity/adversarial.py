@@ -2,15 +2,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import override
 
-import mlflow
 import torch
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
 from torch.distributions import Distribution
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
-from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.utils import average_exponentially
 
@@ -235,11 +234,9 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         Writes all metrics in the metrics dictionary to MLflow with the
         current global step.
         """
-        mlflow.log_metrics(
-            {f"curiosity-agent/{k}": v for k, v in self.metrics.items()},
-            self.global_step,
-            run_id=get_global_run_id(),
-        )
+        if run := get_global_run():
+            for k, v in self.metrics.items():
+                run.track(v, name=f"curiosity-agent/{k}", step=self.global_step)
 
     # ------ State Persistence ------
 

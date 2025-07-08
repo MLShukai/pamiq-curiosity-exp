@@ -73,7 +73,7 @@ class TestPPOStackedHiddenPiVTrainer:
         self,
         mocker: MockerFixture,
     ):
-        mocker.patch("exp.trainers.ppo_policy.mlflow")
+        mocker.patch("exp.trainers.ppo_policy.get_global_run")
         return PPOStackedHiddenPiVTrainer(
             partial_optimizer=partial(AdamW, lr=3e-4),
             gamma=0.99,
@@ -86,7 +86,7 @@ class TestPPOStackedHiddenPiVTrainer:
 
     def test_init_validation(self, mocker: MockerFixture):
         """Test initialization parameter validation."""
-        mocker.patch("exp.trainers.ppo_policy.mlflow")
+        mocker.patch("exp.trainers.ppo_policy.get_global_run")
 
         # Test invalid gamma
         with pytest.raises(ValueError, match="gamma must be in range"):

@@ -2,7 +2,6 @@ from functools import partial
 from pathlib import Path
 from typing import override
 
-import mlflow
 import torch
 from pamiq_core import DataUser
 from pamiq_core.data.impls import DictSequentialBuffer
@@ -11,8 +10,8 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
-from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.models.policy import StackedHiddenPiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
@@ -248,16 +247,12 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
                 metrics = {k: v.item() for k, v in outputs.items()}
                 metrics["grad_norm"] = grad_norm.item()
 
-                mlflow.log_metrics(
-                    {
-                        f"ppo-policy/{tag}": v.item()
-                        if isinstance(v, torch.Tensor)
-                        else v
-                        for tag, v in metrics.items()
-                    },
-                    self.global_step,
-                    run_id=get_global_run_id(),
-                )
+                if run := get_global_run():
+                    for tag, v in metrics.items():
+                        value = v.item() if isinstance(v, torch.Tensor) else v
+                        run.track(
+                            value, name=f"ppo-policy/{tag}", step=self.global_step
+                        )
 
                 self.global_step += 1
 
