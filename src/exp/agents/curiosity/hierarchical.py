@@ -153,7 +153,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             next_level_action = (
                 self.prev_action_list[i + 1]
                 if i + 1 < self.num_hierarchical_levels
-                else surprisal_vector
+                else latent
             )
             policy_value = self.policy_value_list[i]
             prev_policy_hidden_state = self.prev_policy_hidden_list[i]
