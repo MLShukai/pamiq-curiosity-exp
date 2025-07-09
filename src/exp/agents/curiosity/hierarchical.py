@@ -40,7 +40,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             dtype: Data type for tensors. Defaults to None.
 
         Raises:
-            ValueError: If max_imagination_steps is less than 1.
+            ValueError: If num_hierarchical_levels is less than 1.
         """
         super().__init__()
         if num_hierarchical_levels < 1:
