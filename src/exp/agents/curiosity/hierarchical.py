@@ -58,6 +58,9 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.prev_policy_hidden_list: list[None | Tensor] = [
             None
         ] * num_hierarchical_levels
+        self.surprisal_coefficient_vector_list: list[None | Tensor] = [
+            None
+        ] * num_hierarchical_levels
 
         self.device = device
         self.dtype = dtype
@@ -135,15 +138,17 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             )
             self.prev_fd_hidden_list[i] = fd_hidden
             surprisal_vector = -obs_dist.log_prob(observation)
-            reward_vector = (
-                torch.where(
+            surprisal_coefficient_vector = self.surprisal_coefficient_vector_list[i]
+            if surprisal_coefficient_vector is None:
+                surprisal_coefficient_vector = torch.where(
                     torch.rand(surprisal_vector.shape, device=self.device)
                     < i / (self.num_hierarchical_levels - 1),
                     1,
                     -1,
                 )
-                * surprisal_vector
-            )
+                self.surprisal_coefficient_vector_list[i] = surprisal_coefficient_vector
+
+            reward_vector = surprisal_coefficient_vector * surprisal_vector
             self.prev_reward_vector_list[i] = reward_vector
             next_level_action = (
                 self.prev_action_list[i + 1]
@@ -222,6 +227,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 "prev_fd_hidden_list": self.prev_fd_hidden_list,
                 "prev_reward_vector_list": self.prev_reward_vector_list,
                 "prev_policy_hidden_list": self.prev_policy_hidden_list,
+                "surprisal_coefficient_vector_list": self.surprisal_coefficient_vector_list,
             },
             path / "hierarchical_curiosity_agent_state.pt",
         )
@@ -247,3 +253,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.prev_fd_hidden_list = prev_states["prev_fd_hidden_list"]
         self.prev_reward_vector_list = prev_states["prev_reward_vector_list"]
         self.prev_policy_hidden_list = prev_states["prev_policy_hidden_list"]
+        self.surprisal_coefficient_vector_list = prev_states[
+            "surprisal_coefficient_vector_list"
+        ]
