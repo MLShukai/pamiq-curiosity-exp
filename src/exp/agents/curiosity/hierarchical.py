@@ -184,11 +184,10 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
         self.scheduler.update()
         self.global_step += 1
-        return (
-            self.prev_action_list[0]
-            if self.prev_action_list[0] is not None
-            else torch.zeros(0)
-        )  # dummy
+
+        if (action := self.prev_action_list[0]) is None:
+            raise ValueError
+        return action
 
     def log_metrics(self) -> None:
         """Log collected metrics to Aim.
