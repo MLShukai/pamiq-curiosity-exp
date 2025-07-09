@@ -94,18 +94,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             for i in range(self.num_hierarchical_levels)
         ]
 
-    # ------ INTERACTION PROCESS ------
-
-    head_forward_dynamics_hidden_state: Tensor | None  # (depth, dim) or None
-    policy_hidden_state: Tensor | None  # (depth, dim) or None
-    obs_dist_imaginations: Distribution  # (imaginations, dim)
-    obs_imaginations: Tensor  # (imaginations, dim)
-    forward_dynamics_hidden_imaginations: (
-        Tensor | None
-    )  # (imaginations, depth, dim) or None
-    step_data_policy: dict[str, Tensor]
-    step_data_fd: dict[str, Tensor]
-
     @override
     def setup(self) -> None:
         """Initialize agent state."""
