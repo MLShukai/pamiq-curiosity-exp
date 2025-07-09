@@ -95,11 +95,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         ]
 
     @override
-    def setup(self) -> None:
-        """Initialize agent state."""
-        super().setup()
-
-    @override
     def step(self, observation: Tensor) -> Tensor:
         """Execute the common step procedure for the curiosity-driven agent.
 
