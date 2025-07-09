@@ -202,7 +202,12 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         """
         if run := get_global_run():
             for k, v in self.metrics.items():
-                run.track(v, name=f"curiosity-agent/{k}", step=self.global_step)
+                run.track(
+                    v,
+                    name=f"curiosity-agent/{k}",
+                    step=self.global_step,
+                    context={"curiosity": "hierarchical"},
+                )
 
     # ------ State Persistence ------
 
