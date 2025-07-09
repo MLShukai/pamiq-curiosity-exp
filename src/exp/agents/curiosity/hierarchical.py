@@ -133,7 +133,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 self.collector_forward_dynamics_list[i].collect(step_data_fd.copy())
 
             forward_dynamics = self.forward_dynamics_list[i]
-            obs_dist, fd_hidden = forward_dynamics(
+            obs_dist, latent, fd_hidden = forward_dynamics(
                 prev_observation, prev_action, prev_fd_hidden
             )
             self.prev_fd_hidden_list[i] = fd_hidden
@@ -185,7 +185,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 self.metrics["reward" + str(i)] = reward.item()
                 step_data_policy[DataKey.REWARD] = reward.cpu()
                 self.collector_policy_list[i].collect(step_data_policy.copy())
-            observation = surprisal_vector
+            observation = latent
 
         self.scheduler.update()
         self.global_step += 1

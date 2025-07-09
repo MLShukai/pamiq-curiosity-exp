@@ -34,8 +34,17 @@ class TestHierarchicalCuriosityAgent:
             torch.zeros(3, OBSERVATION_DIM), torch.ones(3, OBSERVATION_DIM)
         )
         hidden = torch.zeros(3, DEPTH, HIDDEN_DIM)
-        forward_dynamics_model_0.inference_model.return_value = (obs_dist, hidden)
-        forward_dynamics_model_1.inference_model.return_value = (obs_dist, hidden)
+        latent = torch.zeros(3, OBSERVATION_DIM)
+        forward_dynamics_model_0.inference_model.return_value = (
+            obs_dist,
+            latent,
+            hidden,
+        )
+        forward_dynamics_model_1.inference_model.return_value = (
+            obs_dist,
+            latent,
+            hidden,
+        )
 
         # Mock policy value model behavior
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
