@@ -116,10 +116,22 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         )  # convert type and send to device
 
         for i in range(self.num_hierarchical_levels):
+            # ==============================================================================
+            #                           Forward Dynamics Process
+            # ==============================================================================
+
+            forward_dynamics = self.forward_dynamics_list[i]
+
             prev_observation = self.prev_observation_list[i]
-            self.prev_observation_list[i] = observation
             prev_action = self.prev_action_list[i]
             prev_fd_hidden = self.prev_fd_hidden_list[i]
+
+            obs_dist, latent, fd_hidden = forward_dynamics(
+                prev_observation, prev_action, prev_fd_hidden
+            )
+
+            self.prev_observation_list[i] = observation
+            self.prev_fd_hidden_list[i] = fd_hidden
 
             if (
                 prev_observation is not None
@@ -132,11 +144,10 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 step_data_fd[DataKey.HIDDEN] = prev_fd_hidden.cpu()
                 self.collector_forward_dynamics_list[i].collect(step_data_fd.copy())
 
-            forward_dynamics = self.forward_dynamics_list[i]
-            obs_dist, latent, fd_hidden = forward_dynamics(
-                prev_observation, prev_action, prev_fd_hidden
-            )
-            self.prev_fd_hidden_list[i] = fd_hidden
+            # ==============================================================================
+            #                           Compute Reward
+            # ==============================================================================
+
             surprisal_vector = -obs_dist.log_prob(observation)
             surprisal_coefficient_vector = self.surprisal_coefficient_vector_list[i]
             if surprisal_coefficient_vector is None:
@@ -150,20 +161,30 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
             reward_vector = surprisal_coefficient_vector * surprisal_vector
             self.prev_reward_vector_list[i] = reward_vector
+
+            # ==============================================================================
+            #                           Policy Process
+            # ==============================================================================
+
+            policy_value = self.policy_value_list[i]
+
             next_level_action = (
                 self.prev_action_list[i + 1]
                 if i + 1 < self.num_hierarchical_levels
                 else latent
             )
-            policy_value = self.policy_value_list[i]
             prev_policy_hidden_state = self.prev_policy_hidden_list[i]
+
             action_dist, value, policy_hidden_state = policy_value(
                 observation, next_level_action, prev_policy_hidden_state
             )
+
             action = action_dist.sample()
             self.prev_action_list[i] = action
             self.metrics["value" + str(i)] = value.item()
+
             self.prev_policy_hidden_list[i] = policy_hidden_state
+
             if next_level_action is not None and prev_policy_hidden_state is not None:
                 step_data_policy = {}
                 step_data_policy[DataKey.OBSERVATION] = observation.cpu()
@@ -185,7 +206,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 self.metrics["reward" + str(i)] = reward.item()
                 step_data_policy[DataKey.REWARD] = reward.cpu()
                 self.collector_policy_list[i].collect(step_data_policy.copy())
-            observation = latent
+
+            observation = latent  # pass latent as observation to next level
 
         self.scheduler.update()
         self.global_step += 1
