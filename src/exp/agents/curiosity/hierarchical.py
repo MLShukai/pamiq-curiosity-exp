@@ -48,20 +48,16 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.num_hierarchical_levels = num_hierarchical_levels
 
         self.prev_observation_list: list[None | Tensor] = [
-            None for _ in range(num_hierarchical_levels)
-        ]
-        self.prev_action_list: list[None | Tensor] = [
-            None for _ in range(num_hierarchical_levels)
-        ]
-        self.prev_fd_hidden_list: list[None | Tensor] = [
-            None for _ in range(num_hierarchical_levels)
-        ]
+            None
+        ] * num_hierarchical_levels
+        self.prev_action_list: list[None | Tensor] = [None] * num_hierarchical_levels
+        self.prev_fd_hidden_list: list[None | Tensor] = [None] * num_hierarchical_levels
         self.prev_reward_vector_list: list[None | Tensor] = [
-            None for _ in range(num_hierarchical_levels)
-        ]
+            None
+        ] * num_hierarchical_levels
         self.prev_policy_hidden_list: list[None | Tensor] = [
-            None for _ in range(num_hierarchical_levels)
-        ]
+            None
+        ] * num_hierarchical_levels
 
         self.device = device
         self.dtype = dtype
