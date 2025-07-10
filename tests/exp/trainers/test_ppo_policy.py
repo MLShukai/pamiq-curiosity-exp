@@ -188,18 +188,12 @@ class TestPPOStackedHiddenPiVLatentTrainer:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
-    OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
 
     @pytest.fixture
     def policy_value_model(self):
-        obs_info = ObsInfo(
-            dim=self.OBS_DIM,
-            dim_hidden=self.OBS_DIM_HIDDEN,
-            num_tokens=self.OBS_NUM_TOKENS,
-        )
         core_model = QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
@@ -207,7 +201,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
             dropout=0.0,
         )
         return StackedHiddenPiVLatent(
-            obs_info=obs_info,
+            obs_dim=self.OBS_DIM,
             action_choices=self.ACTION_CHOICES,
             dim=self.DIM,
             core_model=core_model,
@@ -298,7 +292,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
 
         # Collect policy data
         for _ in range(20):
-            observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
+            observations = torch.randn(self.OBS_DIM)
             hidden = torch.randn(self.DEPTH, self.DIM)
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
@@ -344,18 +338,12 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
-    OBS_NUM_TOKENS = 4
     ACTION_DIM = 32
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
 
     @pytest.fixture
     def policy_value_model(self):
-        obs_info = ObsInfo(
-            dim=self.OBS_DIM,
-            dim_hidden=self.OBS_DIM_HIDDEN,
-            num_tokens=self.OBS_NUM_TOKENS,
-        )
         core_model = QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
@@ -363,7 +351,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
             dropout=0.0,
         )
         return StackedHiddenContinuousPiVLatent(
-            obs_info=obs_info,
+            obs_dim=self.OBS_DIM,
             action_dim=self.ACTION_DIM,
             dim=self.DIM,
             core_model=core_model,
@@ -458,7 +446,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
 
         # Collect policy data
         for _ in range(20):
-            observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
+            observations = torch.randn(self.OBS_DIM)
             hidden = torch.randn(self.DEPTH, self.DIM)
             actions = torch.randn(self.ACTION_DIM)
             action_log_probs = torch.randn(self.ACTION_DIM)

@@ -106,7 +106,7 @@ class StackedHiddenPiVLatent(nn.Module):
 
     def __init__(
         self,
-        obs_info: ObsInfo,
+        obs_dim: int,
         action_choices: list[int],
         dim: int,
         core_model: StackedHiddenState,
@@ -127,7 +127,7 @@ class StackedHiddenPiVLatent(nn.Module):
         """
         super().__init__()
 
-        self.obs_flatten = LerpStackedFeatures(obs_info.dim, dim, obs_info.num_tokens)
+        self.obs_proj = nn.Linear(obs_dim, dim)
         self.core_model = core_model
         self.policy_head = FCMultiCategoricalHead(dim, action_choices)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
@@ -150,7 +150,7 @@ class StackedHiddenPiVLatent(nn.Module):
                 - Latent representation
                 - Updated hidden state tensor for use in next forward pass
         """
-        obs_flat = self.obs_flatten(observation)
+        obs_flat = self.obs_proj(observation)
         x, hidden_out = self.core_model(obs_flat, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden_out
 
@@ -178,7 +178,7 @@ class StackedHiddenPiVLatent(nn.Module):
                 - Latent representation
                 - Updated hidden state tensor for use in next forward pass
         """
-        obs_flat = self.obs_flatten(observation)
+        obs_flat = self.obs_proj(observation)
         x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden
 
@@ -192,7 +192,7 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
 
     def __init__(
         self,
-        obs_info: ObsInfo,
+        obs_dim: int,
         action_dim: int,
         dim: int,
         core_model: StackedHiddenState,
@@ -213,7 +213,7 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
         """
         super().__init__()
 
-        self.obs_flatten = LerpStackedFeatures(obs_info.dim, dim, obs_info.num_tokens)
+        self.obs_proj = nn.Linear(obs_dim, dim)
         self.core_model = core_model
         self.policy_head = FCDeterministicNormalHead(dim, action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
@@ -236,7 +236,7 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
                 - Latent representation
                 - Updated hidden state tensor for use in next forward pass
         """
-        obs_flat = self.obs_flatten(observation)
+        obs_flat = self.obs_proj(observation)
         x, hidden_out = self.core_model(obs_flat, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden_out
 
@@ -264,6 +264,6 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
                 - Latent representation
                 - Updated hidden state tensor for use in next forward pass
         """
-        obs_flat = self.obs_flatten(observation)
+        obs_flat = self.obs_proj(observation)
         x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden

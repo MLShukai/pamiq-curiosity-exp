@@ -190,17 +190,8 @@ class TestStackedHiddenPiVLatent:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
-    OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [2, 3, 4]
     DIM_FF_HIDDEN = 16
-
-    @pytest.fixture
-    def obs_info(self):
-        return ObsInfo(
-            dim=self.OBS_DIM,
-            dim_hidden=self.OBS_DIM_HIDDEN,
-            num_tokens=self.OBS_NUM_TOKENS,
-        )
 
     @pytest.fixture
     def core_model(self):
@@ -212,9 +203,9 @@ class TestStackedHiddenPiVLatent:
         )
 
     @pytest.fixture
-    def policy_value_model(self, obs_info, core_model):
+    def policy_value_model(self, core_model):
         return StackedHiddenPiVLatent(
-            obs_info=obs_info,
+            obs_dim=self.OBS_DIM,
             action_choices=self.ACTION_CHOICES,
             dim=self.DIM,
             core_model=core_model,
@@ -222,9 +213,7 @@ class TestStackedHiddenPiVLatent:
 
     @pytest.fixture
     def observation(self):
-        return torch.randn(
-            self.BATCH_SIZE, self.SEQ_LEN, self.OBS_NUM_TOKENS, self.OBS_DIM
-        )
+        return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.OBS_DIM)
 
     @pytest.fixture
     def hidden(self):
@@ -293,7 +282,7 @@ class TestStackedHiddenPiVLatent:
         """Test forward_with_no_len for inference without sequence
         dimension."""
         # Create input without sequence length dimension
-        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_DIM)
 
         # Run forward pass
         policy_dist, value, latent, next_hidden = (
@@ -345,7 +334,7 @@ class TestStackedHiddenPiVLatent:
     def test_forward_with_no_len_no_hidden(self, policy_value_model):
         """Test forward_with_no_len without providing hidden state."""
         # Create input without sequence length dimension
-        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_DIM)
 
         # Run forward pass without hidden
         policy_dist, value, latent, next_hidden = (
@@ -372,17 +361,8 @@ class TestStackedHiddenContinuousPiVLatent:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
-    OBS_NUM_TOKENS = 4
     ACTION_DIM = 32
     DIM_FF_HIDDEN = 16
-
-    @pytest.fixture
-    def obs_info(self):
-        return ObsInfo(
-            dim=self.OBS_DIM,
-            dim_hidden=self.OBS_DIM_HIDDEN,
-            num_tokens=self.OBS_NUM_TOKENS,
-        )
 
     @pytest.fixture
     def core_model(self):
@@ -394,9 +374,9 @@ class TestStackedHiddenContinuousPiVLatent:
         )
 
     @pytest.fixture
-    def policy_value_model(self, obs_info, core_model):
+    def policy_value_model(self, core_model):
         return StackedHiddenContinuousPiVLatent(
-            obs_info=obs_info,
+            obs_dim=self.OBS_DIM,
             action_dim=self.ACTION_DIM,
             dim=self.DIM,
             core_model=core_model,
@@ -404,9 +384,7 @@ class TestStackedHiddenContinuousPiVLatent:
 
     @pytest.fixture
     def observation(self):
-        return torch.randn(
-            self.BATCH_SIZE, self.SEQ_LEN, self.OBS_NUM_TOKENS, self.OBS_DIM
-        )
+        return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.OBS_DIM)
 
     @pytest.fixture
     def hidden(self):
@@ -475,7 +453,7 @@ class TestStackedHiddenContinuousPiVLatent:
         """Test forward_with_no_len for inference without sequence
         dimension."""
         # Create input without sequence length dimension
-        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_DIM)
 
         # Run forward pass
         policy_dist, value, latent, next_hidden = (
@@ -527,7 +505,7 @@ class TestStackedHiddenContinuousPiVLatent:
     def test_forward_with_no_len_no_hidden(self, policy_value_model):
         """Test forward_with_no_len without providing hidden state."""
         # Create input without sequence length dimension
-        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_DIM)
 
         # Run forward pass without hidden
         policy_dist, value, latent, next_hidden = (
