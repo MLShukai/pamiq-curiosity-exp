@@ -1,0 +1,7 @@
+# @package interaction.agent.curiosity
+
+_target_: exp.agents.curiosity.hierarchical.HierarchicalCuriosityAgent
+num_hierarchical_levels: ${shared.num_hierarchical_levels}
+
+device: ${shared.device}
+dtype: ${shared.dtype}
