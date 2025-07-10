@@ -51,6 +51,9 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             None
         ] * num_hierarchical_levels
         self.prev_action_list: list[None | Tensor] = [None] * num_hierarchical_levels
+        self.prev_latent_action_list: list[None | Tensor] = [
+            None
+        ] * num_hierarchical_levels
         self.prev_fd_hidden_list: list[None | Tensor] = [None] * num_hierarchical_levels
         self.prev_reward_vector_list: list[None | Tensor] = [
             None
@@ -124,10 +127,11 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
             prev_observation = self.prev_observation_list[i]
             prev_action = self.prev_action_list[i]
+            prev_latent_action = self.prev_latent_action_list[i]
             prev_fd_hidden = self.prev_fd_hidden_list[i]
 
             obs_dist, latent, fd_hidden = forward_dynamics(
-                prev_observation, prev_action, prev_fd_hidden
+                prev_observation, prev_latent_action, prev_fd_hidden
             )
 
             self.prev_observation_list[i] = observation
@@ -175,11 +179,12 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             )
             prev_policy_hidden_state = self.prev_policy_hidden_list[i]
 
-            action_dist, value, policy_hidden_state = policy_value(
+            action_dist, value, latent, policy_hidden_state = policy_value(
                 observation, next_level_action, prev_policy_hidden_state
             )
 
             action = action_dist.sample()
+            self.prev_latent_action_list[i] = latent
             self.prev_action_list[i] = action
             self.metrics["value" + str(i)] = value.item()
 

@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Distribution
 
+from .components.deterministic_normal import FCDeterministicNormalHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead
 from .components.stacked_features import LerpStackedFeatures
@@ -94,3 +95,175 @@ class StackedHiddenPiV(nn.Module):
         obs_flat = self.obs_flatten(observation)
         x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
         return self.policy_head(x), self.value_head(x), hidden
+
+
+class StackedHiddenPiVLatent(nn.Module):
+    """Module with shared models for policy (pi) and value (V) functions with
+    latent output.
+
+    Using StackedHiddenState as core model.
+    """
+
+    def __init__(
+        self,
+        obs_info: ObsInfo,
+        action_choices: list[int],
+        dim: int,
+        core_model: StackedHiddenState,
+    ) -> None:
+        """Initialize the policy-value model.
+
+        Sets up neural network components for computing both policy distributions
+        and value estimates from observations using a shared core model.
+
+        Args:
+            obs_info: Configuration for observation processing including dimensions,
+                hidden dimensions, and number of tokens.
+            action_choices: List specifying the number of choices for each discrete
+                action dimension.
+            dim: Hidden dimension size for the core model and policy/value heads.
+            core_model: The main stacked hidden state model that processes the
+                flattened observation features.
+        """
+        super().__init__()
+
+        self.obs_flatten = LerpStackedFeatures(obs_info.dim, dim, obs_info.num_tokens)
+        self.core_model = core_model
+        self.policy_head = FCMultiCategoricalHead(dim, action_choices)
+        self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
+
+    @override
+    def forward(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+        """Process observation and compute policy and value outputs.
+
+        Args:
+            observation: Input observation tensor (*batch, len, num_token, obs_dim)
+            hidden: Optional hidden state tensor from previous timestep (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros.
+
+        Returns:
+            A tuple containing:
+                - Distribution representing the policy (action probabilities)
+                - Tensor containing the estimated state value
+                - Latent representation
+                - Updated hidden state tensor for use in next forward pass
+        """
+        obs_flat = self.obs_flatten(observation)
+        x, hidden_out = self.core_model(obs_flat, hidden)
+        return self.policy_head(x), self.value_head(x), x, hidden_out
+
+    @override
+    def __call__(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+        """Override __call__ with proper type annotations."""
+        return super().__call__(observation, hidden)
+
+    def forward_with_no_len(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            observation: Input observation tensor (*batch, num_token, obs_dim)
+            hidden: Optional hidden state from previous timestep (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros.
+
+        Returns:
+            A tuple containing:
+                - Distribution representing the policy (action probabilities)
+                - Tensor containing the estimated state value
+                - Latent representation
+                - Updated hidden state tensor for use in next forward pass
+        """
+        obs_flat = self.obs_flatten(observation)
+        x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
+        return self.policy_head(x), self.value_head(x), x, hidden
+
+
+class StackedHiddenContinuousPiVLatent(nn.Module):
+    """Module with shared models for policy (pi) and value (V) functions with
+    latent output.
+
+    Using StackedHiddenState as core model.
+    """
+
+    def __init__(
+        self,
+        obs_info: ObsInfo,
+        action_dim: int,
+        dim: int,
+        core_model: StackedHiddenState,
+    ) -> None:
+        """Initialize the policy-value model.
+
+        Sets up neural network components for computing both policy distributions
+        and value estimates from observations using a shared core model.
+
+        Args:
+            obs_info: Configuration for observation processing including dimensions,
+                hidden dimensions, and number of tokens.
+            action_choices: List specifying the number of choices for each discrete
+                action dimension.
+            dim: Hidden dimension size for the core model and policy/value heads.
+            core_model: The main stacked hidden state model that processes the
+                flattened observation features.
+        """
+        super().__init__()
+
+        self.obs_flatten = LerpStackedFeatures(obs_info.dim, dim, obs_info.num_tokens)
+        self.core_model = core_model
+        self.policy_head = FCDeterministicNormalHead(dim, action_dim)
+        self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
+
+    @override
+    def forward(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+        """Process observation and compute policy and value outputs.
+
+        Args:
+            observation: Input observation tensor (*batch, len, num_token, obs_dim)
+            hidden: Optional hidden state tensor from previous timestep (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros.
+
+        Returns:
+            A tuple containing:
+                - Distribution representing the policy (action probabilities)
+                - Tensor containing the estimated state value
+                - Latent representation
+                - Updated hidden state tensor for use in next forward pass
+        """
+        obs_flat = self.obs_flatten(observation)
+        x, hidden_out = self.core_model(obs_flat, hidden)
+        return self.policy_head(x), self.value_head(x), x, hidden_out
+
+    @override
+    def __call__(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+        """Override __call__ with proper type annotations."""
+        return super().__call__(observation, hidden)
+
+    def forward_with_no_len(
+        self, observation: Tensor, hidden: Tensor | None = None
+    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            observation: Input observation tensor (*batch, num_token, obs_dim)
+            hidden: Optional hidden state from previous timestep (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros.
+
+        Returns:
+            A tuple containing:
+                - Distribution representing the policy (action probabilities)
+                - Tensor containing the estimated state value
+                - Latent representation
+                - Updated hidden state tensor for use in next forward pass
+        """
+        obs_flat = self.obs_flatten(observation)
+        x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
+        return self.policy_head(x), self.value_head(x), x, hidden
