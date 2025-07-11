@@ -221,9 +221,9 @@ class TestHierarchicalCuriosityAgent:
             torch.zeros(DEPTH, HIDDEN_DIM),
             torch.zeros(DEPTH, HIDDEN_DIM),
         ]
-        agent.prev_observation_list = [
-            torch.zeros(OBSERVATION_DIM),
-            torch.zeros(OBSERVATION_DIM),
+        agent.prev_latent_action_list = [
+            torch.zeros(ACTION_DIM),
+            torch.zeros(ACTION_DIM),
         ]
         agent.prev_reward_vector_list = [
             torch.zeros(OBSERVATION_DIM),
@@ -253,25 +253,37 @@ class TestHierarchicalCuriosityAgent:
         for prev_action, new_prev_action in zip(
             agent.prev_action_list, new_agent.prev_action_list
         ):
+            assert prev_action is not None
+            assert new_prev_action is not None
             assert torch.equal(prev_action, new_prev_action)
         for prev_fd_hidden, new_prev_fd_hidden in zip(
             agent.prev_fd_hidden_list, new_agent.prev_fd_hidden_list
         ):
+            assert prev_fd_hidden is not None
+            assert new_prev_fd_hidden is not None
             assert torch.equal(prev_fd_hidden, new_prev_fd_hidden)
         for prev_policy_hidden, new_prev_policy_hidden in zip(
             agent.prev_policy_hidden_list, new_agent.prev_policy_hidden_list
         ):
+            assert prev_policy_hidden is not None
+            assert new_prev_policy_hidden is not None
             assert torch.equal(prev_policy_hidden, new_prev_policy_hidden)
         for prev_observation, new_prev_observation in zip(
             agent.prev_latent_action_list, new_agent.prev_latent_action_list
         ):
+            assert prev_observation is not None
+            assert new_prev_observation is not None
             assert torch.equal(prev_observation, new_prev_observation)
         for prev_reward_vector, new_prev_reward_vector in zip(
             agent.prev_reward_vector_list, new_agent.prev_reward_vector_list
         ):
+            assert prev_reward_vector is not None
+            assert new_prev_reward_vector is not None
             assert torch.equal(prev_reward_vector, new_prev_reward_vector)
         for surprisal_coefficient, new_surprisal_coefficient in zip(
             agent.surprisal_coefficient_vector_list,
             new_agent.surprisal_coefficient_vector_list,
         ):
+            assert surprisal_coefficient is not None
+            assert new_surprisal_coefficient is not None
             assert torch.equal(surprisal_coefficient, new_surprisal_coefficient)
