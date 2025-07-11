@@ -16,7 +16,7 @@ from exp.models import ModelName
 from exp.models.policy import (
     StackedHiddenContinuousPiVLatent,
     StackedHiddenPiV,
-    StackedHiddenPiVLatent,
+    StackedHiddenPiVLatentObsInfo,
 )
 from exp.trainers.sampler import RandomTimeSeriesSampler
 
@@ -289,7 +289,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         )
 
 
-class PPOStackedHiddenPiVLatentTrainer(TorchTrainer):
+class PPOStackedHiddenPiVLatentObsInfoTrainer(TorchTrainer):
     """Trainer for policy using Proximal Policy Optimization (PPO)."""
 
     @override
@@ -373,7 +373,7 @@ class PPOStackedHiddenPiVLatentTrainer(TorchTrainer):
         """Set up model references when they are attached to the trainer."""
         super().on_training_models_attached()
         self.policy_value = self.get_torch_training_model(
-            self.model_name, StackedHiddenPiVLatent
+            self.model_name, StackedHiddenPiVLatentObsInfo
         )
 
     @override

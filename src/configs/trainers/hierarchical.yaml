@@ -38,7 +38,7 @@ forward_dynamics2:
   data_user_name: "forward_dynamics1"
 
 policy0:
-  _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVLatentTrainer
+  _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVLatentObsInfoTrainer
   partial_optimizer:
     _target_: torch.optim.AdamW
     _partial_: true

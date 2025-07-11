@@ -15,12 +15,12 @@ from exp.models.components.qlstm import QLSTM
 from exp.models.policy import (
     StackedHiddenContinuousPiVLatent,
     StackedHiddenPiV,
-    StackedHiddenPiVLatent,
+    StackedHiddenPiVLatentObsInfo,
 )
 from exp.models.utils import ObsInfo
 from exp.trainers.ppo_policy import (
     PPOStackedHiddenContinuousPiVLatentTrainer,
-    PPOStackedHiddenPiVLatentTrainer,
+    PPOStackedHiddenPiVLatentObsInfoTrainer,
     PPOStackedHiddenPiVTrainer,
     compute_advantage,
 )
@@ -188,20 +188,26 @@ class TestPPOStackedHiddenPiVLatentTrainer:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
+    OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
 
     @pytest.fixture
     def policy_value_model(self):
+        obs_info = ObsInfo(
+            dim=self.OBS_DIM,
+            dim_hidden=self.OBS_DIM_HIDDEN,
+            num_tokens=self.OBS_NUM_TOKENS,
+        )
         core_model = QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
             dim_ff_hidden=self.DIM_FF_HIDDEN,
             dropout=0.0,
         )
-        return StackedHiddenPiVLatent(
-            obs_dim=self.OBS_DIM,
+        return StackedHiddenPiVLatentObsInfo(
+            obs_info=obs_info,
             action_choices=self.ACTION_CHOICES,
             dim=self.DIM,
             core_model=core_model,
@@ -233,7 +239,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
         mocker: MockerFixture,
     ):
         mocker.patch("exp.trainers.ppo_policy.get_global_run")
-        return PPOStackedHiddenPiVLatentTrainer(
+        return PPOStackedHiddenPiVLatentObsInfoTrainer(
             partial_optimizer=partial(AdamW, lr=3e-4),
             gamma=0.99,
             gae_lambda=0.95,
@@ -249,7 +255,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
 
         # Test invalid gamma
         with pytest.raises(ValueError, match="gamma must be in range"):
-            PPOStackedHiddenPiVLatentTrainer(
+            PPOStackedHiddenPiVLatentObsInfoTrainer(
                 partial_optimizer=partial(AdamW),
                 gamma=1.5,
                 gae_lambda=0.95,
@@ -257,7 +263,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
 
         # Test invalid gae_lambda
         with pytest.raises(ValueError, match="gae_lambda must be in range"):
-            PPOStackedHiddenPiVLatentTrainer(
+            PPOStackedHiddenPiVLatentObsInfoTrainer(
                 partial_optimizer=partial(AdamW),
                 gamma=0.99,
                 gae_lambda=-0.1,
@@ -267,7 +273,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
         with pytest.raises(
             ValueError, match="min_buffer_size .* must be at least seq_len"
         ):
-            PPOStackedHiddenPiVLatentTrainer(
+            PPOStackedHiddenPiVLatentObsInfoTrainer(
                 partial_optimizer=partial(AdamW),
                 gamma=0.99,
                 gae_lambda=0.95,
@@ -277,7 +283,11 @@ class TestPPOStackedHiddenPiVLatentTrainer:
 
     @parametrize_device
     def test_run(
-        self, device, data_buffers, models, trainer: PPOStackedHiddenPiVLatentTrainer
+        self,
+        device,
+        data_buffers,
+        models,
+        trainer: PPOStackedHiddenPiVLatentObsInfoTrainer,
     ):
         """Test PPO Policy Trainer workflow."""
         models = {
@@ -292,7 +302,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
 
         # Collect policy data
         for _ in range(20):
-            observations = torch.randn(self.OBS_DIM)
+            observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
             hidden = torch.randn(self.DEPTH, self.DIM)
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
@@ -320,7 +330,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
         assert trainer.global_step == global_step
 
     def test_save_and_load_state(
-        self, trainer: PPOStackedHiddenPiVLatentTrainer, tmp_path: Path
+        self, trainer: PPOStackedHiddenPiVLatentObsInfoTrainer, tmp_path: Path
     ):
         """Test saving and loading trainer state."""
         trainer.global_step = 42
