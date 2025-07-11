@@ -31,7 +31,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
-        """Initialize the AdversarialCuriosityAgent.
+        """Initialize the HierarchicalCuriosityAgent.
 
         Args:
             num_hierarchical_levels: Number of hierarchical levels for the agent.
