@@ -191,6 +191,7 @@ class TestStackedHiddenPiVLatentObsInfo:
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
     OBS_NUM_TOKENS = 4
+    NEXT_LEVEL_ACTION_DIM = 8
     ACTION_CHOICES = [2, 3, 4]
     DIM_FF_HIDDEN = 16
 
@@ -215,6 +216,7 @@ class TestStackedHiddenPiVLatentObsInfo:
     def policy_value_model(self, obs_info, core_model):
         return StackedHiddenPiVLatentObsInfo(
             obs_info=obs_info,
+            next_level_action_dim=self.NEXT_LEVEL_ACTION_DIM,
             action_choices=self.ACTION_CHOICES,
             dim=self.DIM,
             core_model=core_model,
@@ -227,14 +229,18 @@ class TestStackedHiddenPiVLatentObsInfo:
         )
 
     @pytest.fixture
+    def next_level_action(self):
+        return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.NEXT_LEVEL_ACTION_DIM)
+
+    @pytest.fixture
     def hidden(self):
         return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM)
 
-    def test_forward(self, policy_value_model, observation, hidden):
+    def test_forward(self, policy_value_model, observation, next_level_action, hidden):
         """Test forward pass of StackedHiddenPiV model."""
         # Run forward pass
         policy_dist, value, latent, next_hidden = policy_value_model(
-            observation, hidden
+            observation, next_level_action, hidden
         )
 
         # Check output types
@@ -274,13 +280,16 @@ class TestStackedHiddenPiVLatentObsInfo:
             len(self.ACTION_CHOICES),
         )
 
-    def test_single_batch(self, policy_value_model, observation, hidden):
+    def test_single_batch(
+        self, policy_value_model, observation, next_level_action, hidden
+    ):
         """Test with single batch size."""
         single_obs = observation[:1]
         single_hidden = hidden[:1]
+        next_level_action_single = next_level_action[:1]
 
         policy_dist, value, latent, next_hidden = policy_value_model(
-            single_obs, single_hidden
+            single_obs, next_level_action_single, single_hidden
         )
 
         sample_action = policy_dist.sample()
@@ -294,10 +303,15 @@ class TestStackedHiddenPiVLatentObsInfo:
         dimension."""
         # Create input without sequence length dimension
         obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        next_level_action_no_len = torch.randn(
+            self.BATCH_SIZE, self.NEXT_LEVEL_ACTION_DIM
+        )
 
         # Run forward pass
         policy_dist, value, latent, next_hidden = (
-            policy_value_model.forward_with_no_len(obs_no_len, hidden)
+            policy_value_model.forward_with_no_len(
+                obs_no_len, next_level_action_no_len, hidden
+            )
         )
 
         # Check output shapes
@@ -315,10 +329,14 @@ class TestStackedHiddenPiVLatentObsInfo:
         log_prob = policy_dist.log_prob(sample_action)
         assert log_prob.shape == (self.BATCH_SIZE, len(self.ACTION_CHOICES))
 
-    def test_forward_no_hidden(self, policy_value_model, observation):
+    def test_forward_no_hidden(
+        self, policy_value_model, observation, next_level_action
+    ):
         """Test forward pass without providing hidden state."""
         # Run forward pass without hidden
-        policy_dist, value, latent, next_hidden = policy_value_model(observation)
+        policy_dist, value, latent, next_hidden = policy_value_model(
+            observation, next_level_action
+        )
 
         # Check output types
         assert isinstance(policy_dist, Distribution)
@@ -346,10 +364,13 @@ class TestStackedHiddenPiVLatentObsInfo:
         """Test forward_with_no_len without providing hidden state."""
         # Create input without sequence length dimension
         obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
+        next_level_action_no_len = torch.randn(
+            self.BATCH_SIZE, self.NEXT_LEVEL_ACTION_DIM
+        )
 
         # Run forward pass without hidden
         policy_dist, value, latent, next_hidden = (
-            policy_value_model.forward_with_no_len(obs_no_len)
+            policy_value_model.forward_with_no_len(obs_no_len, next_level_action_no_len)
         )
 
         # Check output shapes
@@ -372,6 +393,7 @@ class TestStackedHiddenContinuousPiVLatent:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
+    NEXT_LEVEL_ACTION_DIM = 8
     ACTION_DIM = 32
     DIM_FF_HIDDEN = 16
 
@@ -388,6 +410,7 @@ class TestStackedHiddenContinuousPiVLatent:
     def policy_value_model(self, core_model):
         return StackedHiddenContinuousPiVLatent(
             obs_dim=self.OBS_DIM,
+            next_level_action_dim=self.NEXT_LEVEL_ACTION_DIM,
             action_dim=self.ACTION_DIM,
             dim=self.DIM,
             core_model=core_model,
@@ -398,14 +421,18 @@ class TestStackedHiddenContinuousPiVLatent:
         return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.OBS_DIM)
 
     @pytest.fixture
+    def next_level_action(self):
+        return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.NEXT_LEVEL_ACTION_DIM)
+
+    @pytest.fixture
     def hidden(self):
         return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM)
 
-    def test_forward(self, policy_value_model, observation, hidden):
+    def test_forward(self, policy_value_model, observation, next_level_action, hidden):
         """Test forward pass of StackedHiddenPiV model."""
         # Run forward pass
         policy_dist, value, latent, next_hidden = policy_value_model(
-            observation, hidden
+            observation, next_level_action, hidden
         )
 
         # Check output types
@@ -445,13 +472,16 @@ class TestStackedHiddenContinuousPiVLatent:
             self.ACTION_DIM,
         )
 
-    def test_single_batch(self, policy_value_model, observation, hidden):
+    def test_single_batch(
+        self, policy_value_model, observation, next_level_action, hidden
+    ):
         """Test with single batch size."""
         single_obs = observation[:1]
+        single_next_level_action = next_level_action[:1]
         single_hidden = hidden[:1]
 
         policy_dist, value, latent, next_hidden = policy_value_model(
-            single_obs, single_hidden
+            single_obs, single_next_level_action, single_hidden
         )
 
         sample_action = policy_dist.sample()
@@ -465,10 +495,15 @@ class TestStackedHiddenContinuousPiVLatent:
         dimension."""
         # Create input without sequence length dimension
         obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_DIM)
+        next_level_action_no_len = torch.randn(
+            self.BATCH_SIZE, self.NEXT_LEVEL_ACTION_DIM
+        )
 
         # Run forward pass
         policy_dist, value, latent, next_hidden = (
-            policy_value_model.forward_with_no_len(obs_no_len, hidden)
+            policy_value_model.forward_with_no_len(
+                obs_no_len, next_level_action_no_len, hidden
+            )
         )
 
         # Check output shapes
@@ -486,10 +521,14 @@ class TestStackedHiddenContinuousPiVLatent:
         log_prob = policy_dist.log_prob(sample_action)
         assert log_prob.shape == (self.BATCH_SIZE, self.ACTION_DIM)
 
-    def test_forward_no_hidden(self, policy_value_model, observation):
+    def test_forward_no_hidden(
+        self, policy_value_model, observation, next_level_action
+    ):
         """Test forward pass without providing hidden state."""
         # Run forward pass without hidden
-        policy_dist, value, latent, next_hidden = policy_value_model(observation)
+        policy_dist, value, latent, next_hidden = policy_value_model(
+            observation, next_level_action
+        )
 
         # Check output types
         assert isinstance(policy_dist, Distribution)
@@ -517,10 +556,13 @@ class TestStackedHiddenContinuousPiVLatent:
         """Test forward_with_no_len without providing hidden state."""
         # Create input without sequence length dimension
         obs_no_len = torch.randn(self.BATCH_SIZE, self.OBS_DIM)
+        next_level_action_no_len = torch.randn(
+            self.BATCH_SIZE, self.NEXT_LEVEL_ACTION_DIM
+        )
 
         # Run forward pass without hidden
         policy_dist, value, latent, next_hidden = (
-            policy_value_model.forward_with_no_len(obs_no_len)
+            policy_value_model.forward_with_no_len(obs_no_len, next_level_action_no_len)
         )
 
         # Check output shapes

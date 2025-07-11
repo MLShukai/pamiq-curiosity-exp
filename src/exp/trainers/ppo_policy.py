@@ -391,6 +391,7 @@ class PPOStackedHiddenPiVLatentObsInfoTrainer(TorchTrainer):
         """Perform a single training step on a batch of data."""
         (
             observations,
+            next_level_actions,
             hiddens,
             actions,
             action_log_probs,
@@ -402,7 +403,7 @@ class PPOStackedHiddenPiVLatentObsInfoTrainer(TorchTrainer):
 
         # Get new distributions and values
         new_dist, new_values, _, _ = self.policy_value.model(
-            observations, hiddens[:, 0]
+            observations, next_level_actions, hiddens[:, 0]
         )
         new_log_probs = new_dist.log_prob(actions)
         entropy = new_dist.entropy()
@@ -470,6 +471,7 @@ class PPOStackedHiddenPiVLatentObsInfoTrainer(TorchTrainer):
             key: torch.stack(data[key][:-1])
             for key in [
                 DataKey.OBSERVATION,
+                DataKey.NEXT_LEVEL_ACTION,
                 DataKey.HIDDEN,
                 DataKey.ACTION,
                 DataKey.ACTION_LOG_PROB,
@@ -549,6 +551,7 @@ class PPOStackedHiddenPiVLatentObsInfoTrainer(TorchTrainer):
         return DictSequentialBuffer(
             [
                 DataKey.OBSERVATION,
+                DataKey.NEXT_LEVEL_ACTION,
                 DataKey.HIDDEN,
                 DataKey.ACTION,
                 DataKey.ACTION_LOG_PROB,
@@ -661,6 +664,7 @@ class PPOStackedHiddenContinuousPiVLatentTrainer(TorchTrainer):
         """Perform a single training step on a batch of data."""
         (
             observations,
+            next_level_actions,
             hiddens,
             actions,
             action_log_probs,
@@ -672,7 +676,7 @@ class PPOStackedHiddenContinuousPiVLatentTrainer(TorchTrainer):
 
         # Get new distributions and values
         new_dist, new_values, _, _ = self.policy_value.model(
-            observations, hiddens[:, 0]
+            observations, next_level_actions, hiddens[:, 0]
         )
         new_log_probs = new_dist.log_prob(actions)
         entropy = new_dist.entropy()
@@ -740,6 +744,7 @@ class PPOStackedHiddenContinuousPiVLatentTrainer(TorchTrainer):
             key: torch.stack(data[key][:-1])
             for key in [
                 DataKey.OBSERVATION,
+                DataKey.NEXT_LEVEL_ACTION,
                 DataKey.HIDDEN,
                 DataKey.ACTION,
                 DataKey.ACTION_LOG_PROB,
@@ -819,6 +824,7 @@ class PPOStackedHiddenContinuousPiVLatentTrainer(TorchTrainer):
         return DictSequentialBuffer(
             [
                 DataKey.OBSERVATION,
+                DataKey.NEXT_LEVEL_ACTION,
                 DataKey.HIDDEN,
                 DataKey.ACTION,
                 DataKey.ACTION_LOG_PROB,

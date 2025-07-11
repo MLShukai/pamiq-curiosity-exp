@@ -2,6 +2,7 @@
 
 from typing import override
 
+import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Distribution
@@ -107,6 +108,7 @@ class StackedHiddenPiVLatentObsInfo(nn.Module):
     def __init__(
         self,
         obs_info: ObsInfo,
+        next_level_action_dim: int,
         action_choices: list[int],
         dim: int,
         core_model: StackedHiddenState,
@@ -128,18 +130,23 @@ class StackedHiddenPiVLatentObsInfo(nn.Module):
         super().__init__()
 
         self.obs_flatten = LerpStackedFeatures(obs_info.dim, dim, obs_info.num_tokens)
+        self.proj_obs_next_level_action = nn.Linear(dim + next_level_action_dim, dim)
         self.core_model = core_model
         self.policy_head = FCMultiCategoricalHead(dim, action_choices)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
 
     @override
     def forward(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        next_level_action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
         """Process observation and compute policy and value outputs.
 
         Args:
             observation: Input observation tensor (*batch, len, num_token, obs_dim)
+            next_level_action: Latent action tensor (*batch, next_level_action_dim).
             hidden: Optional hidden state tensor from previous timestep (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros.
 
@@ -151,23 +158,32 @@ class StackedHiddenPiVLatentObsInfo(nn.Module):
                 - Updated hidden state tensor for use in next forward pass
         """
         obs_flat = self.obs_flatten(observation)
-        x, hidden_out = self.core_model(obs_flat, hidden)
+        x = torch.cat([obs_flat, next_level_action], dim=-1)
+        x = self.proj_obs_next_level_action(x)
+        x, hidden_out = self.core_model(x, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden_out
 
     @override
     def __call__(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        next_level_action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
         """Override __call__ with proper type annotations."""
-        return super().__call__(observation, hidden)
+        return super().__call__(observation, next_level_action, hidden)
 
     def forward_with_no_len(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        next_level_action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
             observation: Input observation tensor (*batch, num_token, obs_dim)
+            next_level_action: Latent action tensor (*batch, next_level_action_dim).
             hidden: Optional hidden state from previous timestep (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros.
 
@@ -179,6 +195,8 @@ class StackedHiddenPiVLatentObsInfo(nn.Module):
                 - Updated hidden state tensor for use in next forward pass
         """
         obs_flat = self.obs_flatten(observation)
+        x = torch.cat([obs_flat, next_level_action], dim=-1)
+        x = self.proj_obs_next_level_action(x)
         x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden
 
@@ -193,6 +211,7 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
     def __init__(
         self,
         obs_dim: int,
+        next_level_action_dim: int,
         action_dim: int,
         dim: int,
         core_model: StackedHiddenState,
@@ -214,18 +233,23 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
         super().__init__()
 
         self.obs_proj = nn.Linear(obs_dim, dim)
+        self.proj_obs_next_level_action = nn.Linear(dim + next_level_action_dim, dim)
         self.core_model = core_model
         self.policy_head = FCDeterministicNormalHead(dim, action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
 
     @override
     def forward(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        next_level_action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
         """Process observation and compute policy and value outputs.
 
         Args:
             observation: Input observation tensor (*batch, len, num_token, obs_dim)
+            next_level_action: Latent action tensor (*batch, next_level_action_dim).
             hidden: Optional hidden state tensor from previous timestep (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros.
 
@@ -237,23 +261,32 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
                 - Updated hidden state tensor for use in next forward pass
         """
         obs_flat = self.obs_proj(observation)
-        x, hidden_out = self.core_model(obs_flat, hidden)
+        x = torch.cat([obs_flat, next_level_action], dim=-1)
+        x = self.proj_obs_next_level_action(x)
+        x, hidden_out = self.core_model(x, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden_out
 
     @override
     def __call__(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        next_level_action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
         """Override __call__ with proper type annotations."""
-        return super().__call__(observation, hidden)
+        return super().__call__(observation, next_level_action, hidden)
 
     def forward_with_no_len(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        next_level_action: Tensor,
+        hidden: Tensor | None = None,
     ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
             observation: Input observation tensor (*batch, num_token, obs_dim)
+            next_level_action: Latent action tensor (*batch, next_level_action_dim).
             hidden: Optional hidden state from previous timestep (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros.
 
@@ -265,5 +298,7 @@ class StackedHiddenContinuousPiVLatent(nn.Module):
                 - Updated hidden state tensor for use in next forward pass
         """
         obs_flat = self.obs_proj(observation)
-        x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
+        x = torch.cat([obs_flat, next_level_action], dim=-1)
+        x = self.proj_obs_next_level_action(x)
+        x, hidden = self.core_model.forward_with_no_len(x, hidden)
         return self.policy_head(x), self.value_head(x), x, hidden

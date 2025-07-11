@@ -183,12 +183,13 @@ class TestPPOStackedHiddenPiVTrainer:
         assert trainer.global_step == 42
 
 
-class TestPPOStackedHiddenPiVLatentTrainer:
+class TestPPOStackedHiddenPiVLatentObsInfoTrainer:
     DEPTH = 2
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
     OBS_NUM_TOKENS = 4
+    NEXT_LEVEL_ACTION_DIM = 8
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
@@ -208,6 +209,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
         )
         return StackedHiddenPiVLatentObsInfo(
             obs_info=obs_info,
+            next_level_action_dim=self.NEXT_LEVEL_ACTION_DIM,
             action_choices=self.ACTION_CHOICES,
             dim=self.DIM,
             core_model=core_model,
@@ -223,6 +225,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
             BufferName.POLICY: DictSequentialBuffer(
                 [
                     DataKey.OBSERVATION,
+                    DataKey.NEXT_LEVEL_ACTION,
                     DataKey.HIDDEN,
                     DataKey.ACTION,
                     DataKey.ACTION_LOG_PROB,
@@ -303,6 +306,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
         # Collect policy data
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
+            next_level_actions = torch.randn(self.NEXT_LEVEL_ACTION_DIM)
             hidden = torch.randn(self.DEPTH, self.DIM)
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
@@ -314,6 +318,7 @@ class TestPPOStackedHiddenPiVLatentTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: observations,
+                    DataKey.NEXT_LEVEL_ACTION: next_level_actions,
                     DataKey.HIDDEN: hidden,
                     DataKey.ACTION: actions,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
@@ -348,6 +353,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
     DIM = 8
     OBS_DIM = 16
     OBS_DIM_HIDDEN = 12
+    NEXT_LEVEL_ACTION_DIM = 8
     ACTION_DIM = 32
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
@@ -362,6 +368,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
         )
         return StackedHiddenContinuousPiVLatent(
             obs_dim=self.OBS_DIM,
+            next_level_action_dim=self.NEXT_LEVEL_ACTION_DIM,
             action_dim=self.ACTION_DIM,
             dim=self.DIM,
             core_model=core_model,
@@ -377,6 +384,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
             BufferName.POLICY: DictSequentialBuffer(
                 [
                     DataKey.OBSERVATION,
+                    DataKey.NEXT_LEVEL_ACTION,
                     DataKey.HIDDEN,
                     DataKey.ACTION,
                     DataKey.ACTION_LOG_PROB,
@@ -457,6 +465,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
         # Collect policy data
         for _ in range(20):
             observations = torch.randn(self.OBS_DIM)
+            next_level_actions = torch.randn(self.NEXT_LEVEL_ACTION_DIM)
             hidden = torch.randn(self.DEPTH, self.DIM)
             actions = torch.randn(self.ACTION_DIM)
             action_log_probs = torch.randn(self.ACTION_DIM)
@@ -466,6 +475,7 @@ class TestPPOStackedHiddenContinousPiVLatentTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: observations,
+                    DataKey.NEXT_LEVEL_ACTION: next_level_actions,
                     DataKey.HIDDEN: hidden,
                     DataKey.ACTION: actions,
                     DataKey.ACTION_LOG_PROB: action_log_probs,

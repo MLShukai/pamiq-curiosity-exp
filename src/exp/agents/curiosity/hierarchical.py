@@ -192,6 +192,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             if next_level_action is not None and prev_policy_hidden_state is not None:
                 step_data_policy = {}
                 step_data_policy[DataKey.OBSERVATION] = observation.cpu()
+                step_data_policy[DataKey.NEXT_LEVEL_ACTION] = next_level_action.cpu()
                 step_data_policy[DataKey.ACTION] = next_level_action.cpu()
                 step_data_policy[DataKey.HIDDEN] = prev_policy_hidden_state.cpu()
                 step_data_policy[DataKey.ACTION_LOG_PROB] = action_dist.log_prob(
