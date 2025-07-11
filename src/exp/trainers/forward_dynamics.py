@@ -153,7 +153,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
         data = self.forward_dynamics_data_user.get_data()
         dataset = TensorDataset(
             torch.stack(data[DataKey.OBSERVATION]),
-            torch.stack(data[DataKey.ACTION]),
+            torch.stack(data[DataKey.LATENT_ACTION]),
             torch.stack(data[DataKey.HIDDEN]),
         )
         sampler = self.partial_sampler(dataset=dataset)
@@ -253,7 +253,8 @@ class StackedHiddenFDTrainer(TorchTrainer):
     def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
         return DictSequentialBuffer(
-            [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
+            [DataKey.OBSERVATION, DataKey.LATENT_ACTION, DataKey.HIDDEN],
+            max_size=max_size,
         )
 
 
@@ -386,7 +387,7 @@ class StackedHiddenLatentFDTrainer(TorchTrainer):
         data = self.forward_dynamics_data_user.get_data()
         dataset = TensorDataset(
             torch.stack(data[DataKey.OBSERVATION]),
-            torch.stack(data[DataKey.ACTION]),
+            torch.stack(data[DataKey.LATENT_ACTION]),
             torch.stack(data[DataKey.HIDDEN]),
         )
         sampler = self.partial_sampler(dataset=dataset)
@@ -486,7 +487,8 @@ class StackedHiddenLatentFDTrainer(TorchTrainer):
     def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
         return DictSequentialBuffer(
-            [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
+            [DataKey.OBSERVATION, DataKey.LATENT_ACTION, DataKey.HIDDEN],
+            max_size=max_size,
         )
 
 
@@ -619,7 +621,7 @@ class StackedHiddenLatentFDObsInfoTrainer(TorchTrainer):
         data = self.forward_dynamics_data_user.get_data()
         dataset = TensorDataset(
             torch.stack(data[DataKey.OBSERVATION]),
-            torch.stack(data[DataKey.ACTION]),
+            torch.stack(data[DataKey.LATENT_ACTION]),
             torch.stack(data[DataKey.HIDDEN]),
         )
         sampler = self.partial_sampler(dataset=dataset)
@@ -719,5 +721,6 @@ class StackedHiddenLatentFDObsInfoTrainer(TorchTrainer):
     def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
         return DictSequentialBuffer(
-            [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
+            [DataKey.OBSERVATION, DataKey.LATENT_ACTION, DataKey.HIDDEN],
+            max_size=max_size,
         )

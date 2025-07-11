@@ -61,7 +61,8 @@ class TestStackedHiddenFDTrainer:
     def data_buffers(self):
         return {
             BufferName.FORWARD_DYNAMICS: DictSequentialBuffer(
-                [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=self.LEN
+                [DataKey.OBSERVATION, DataKey.LATENT_ACTION, DataKey.HIDDEN],
+                max_size=self.LEN,
             )
         }
 
@@ -104,7 +105,7 @@ class TestStackedHiddenFDTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: torch.randn(1, self.DIM_OBS),
-                    DataKey.ACTION: self.create_action(),
+                    DataKey.LATENT_ACTION: self.create_action(),
                     DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM),
                 }
             )
@@ -188,7 +189,8 @@ class TestStackedHiddenLatentFDTrainer:
     def data_buffers(self):
         return {
             BufferName.FORWARD_DYNAMICS: DictSequentialBuffer(
-                [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=self.LEN
+                [DataKey.OBSERVATION, DataKey.LATENT_ACTION, DataKey.HIDDEN],
+                max_size=self.LEN,
             )
         }
 
@@ -225,7 +227,7 @@ class TestStackedHiddenLatentFDTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: torch.randn(self.DIM_OBS),
-                    DataKey.ACTION: torch.randn(self.ACTION_DIM),
+                    DataKey.LATENT_ACTION: torch.randn(self.ACTION_DIM),
                     DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM),
                 }
             )
@@ -310,7 +312,8 @@ class TestStackedHiddenLatentFDObsInfoTrainer:
     def data_buffers(self):
         return {
             BufferName.FORWARD_DYNAMICS: DictSequentialBuffer(
-                [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=self.LEN
+                [DataKey.OBSERVATION, DataKey.LATENT_ACTION, DataKey.HIDDEN],
+                max_size=self.LEN,
             )
         }
 
@@ -347,7 +350,7 @@ class TestStackedHiddenLatentFDObsInfoTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: torch.randn(1, self.DIM_OBS),
-                    DataKey.ACTION: torch.randn(self.ACTION_DIM),
+                    DataKey.LATENT_ACTION: torch.randn(self.ACTION_DIM),
                     DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM),
                 }
             )

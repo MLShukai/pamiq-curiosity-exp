@@ -129,7 +129,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
             forward_dynamics = self.forward_dynamics_list[i]
 
-            prev_action = self.prev_action_list[i]
             prev_latent_action = self.prev_latent_action_list[i]
             prev_fd_hidden = self.prev_fd_hidden_list[i]
 
@@ -142,12 +141,12 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
             if (
                 observation is not None
-                and prev_action is not None
+                and prev_latent_action is not None
                 and prev_fd_hidden is not None
             ):
                 step_data_fd = {}
                 step_data_fd[DataKey.OBSERVATION] = observation.cpu()
-                step_data_fd[DataKey.ACTION] = prev_action.cpu()
+                step_data_fd[DataKey.LATENT_ACTION] = prev_latent_action.cpu()
                 step_data_fd[DataKey.HIDDEN] = prev_fd_hidden.cpu()
                 self.collector_forward_dynamics_list[i].collect(step_data_fd.copy())
 
@@ -197,7 +196,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 step_data_policy = {}
                 step_data_policy[DataKey.OBSERVATION] = observation.cpu()
                 step_data_policy[DataKey.NEXT_LEVEL_ACTION] = next_level_action.cpu()
-                step_data_policy[DataKey.ACTION] = next_level_action.cpu()
+                step_data_policy[DataKey.ACTION] = action.cpu()
                 step_data_policy[DataKey.HIDDEN] = prev_policy_hidden_state.cpu()
                 step_data_policy[DataKey.ACTION_LOG_PROB] = action_dist.log_prob(
                     action

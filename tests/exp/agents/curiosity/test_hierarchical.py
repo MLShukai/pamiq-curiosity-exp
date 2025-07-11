@@ -168,7 +168,7 @@ class TestHierarchicalCuriosityAgent:
         fd_data = spy_fd_collect_0.call_args_list[-1][0][0]
         assert fd_data is not fd_data_prev
         assert DataKey.OBSERVATION in fd_data
-        assert DataKey.ACTION in fd_data
+        assert DataKey.LATENT_ACTION in fd_data
         assert DataKey.HIDDEN in fd_data
 
         policy_data = spy_policy_collect_0.call_args_list[-1][0][0]
