@@ -2,6 +2,10 @@
 
 _target_: exp.agents.curiosity.hierarchical.HierarchicalCuriosityAgent
 num_hierarchical_levels: ${shared.num_hierarchical_levels}
+prev_latent_action_list_init:
+  - 256
+  - 512
+  - 1024
 
 device: ${shared.device}
 dtype: ${shared.dtype}

@@ -88,6 +88,7 @@ class TestHierarchicalCuriosityAgent:
     def agent(self, models, buffers, mock_aim_run):
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
+            prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
             log_every_n_steps=5,
         )
 
@@ -98,6 +99,7 @@ class TestHierarchicalCuriosityAgent:
         """Test agent initialization."""
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
+            prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
             log_every_n_steps=10,
         )
 
@@ -109,6 +111,7 @@ class TestHierarchicalCuriosityAgent:
         with pytest.raises(ValueError, match="`num_hierarchical_levels` must be >= 1"):
             HierarchicalCuriosityAgent(
                 num_hierarchical_levels=0,
+                prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
             )
 
     def test_setup_step_teardown(
@@ -239,7 +242,10 @@ class TestHierarchicalCuriosityAgent:
         assert (save_path / "hierarchical_curiosity_agent_state.pt").exists()
 
         # Create new agent and load state
-        new_agent = HierarchicalCuriosityAgent(num_hierarchical_levels=2)
+        new_agent = HierarchicalCuriosityAgent(
+            num_hierarchical_levels=2,
+            prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+        )
 
         new_agent.load_state(save_path)
 
@@ -257,7 +263,7 @@ class TestHierarchicalCuriosityAgent:
         ):
             assert torch.equal(prev_policy_hidden, new_prev_policy_hidden)
         for prev_observation, new_prev_observation in zip(
-            agent.prev_observation_list, new_agent.prev_observation_list
+            agent.prev_latent_action_list, new_agent.prev_latent_action_list
         ):
             assert torch.equal(prev_observation, new_prev_observation)
         for prev_reward_vector, new_prev_reward_vector in zip(
