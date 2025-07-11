@@ -89,6 +89,7 @@ class TestHierarchicalCuriosityAgent:
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
             prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+            prev_action_list_init=[ACTION_DIM, ACTION_DIM],
             log_every_n_steps=5,
         )
 
@@ -100,6 +101,7 @@ class TestHierarchicalCuriosityAgent:
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
             prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+            prev_action_list_init=[ACTION_DIM, ACTION_DIM],
             log_every_n_steps=10,
         )
 
@@ -112,6 +114,7 @@ class TestHierarchicalCuriosityAgent:
             HierarchicalCuriosityAgent(
                 num_hierarchical_levels=0,
                 prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+                prev_action_list_init=[ACTION_DIM, ACTION_DIM],
             )
 
     def test_setup_step_teardown(
@@ -245,6 +248,7 @@ class TestHierarchicalCuriosityAgent:
         new_agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
             prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+            prev_action_list_init=[ACTION_DIM, ACTION_DIM],
         )
 
         new_agent.load_state(save_path)

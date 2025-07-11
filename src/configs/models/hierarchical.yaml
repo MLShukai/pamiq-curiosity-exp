@@ -21,6 +21,7 @@ policy_value0:
         patch_size: 12 # Same as JEPA Instantiation
         output_downsample: 3 # Same as JEPA Instantiation
       dim_hidden: ${..dim}
+    next_level_action_dim: 512
     action_choices:
       _target_: hydra.utils.get_object
       path: exp.envs.vrchat.OSC_ACTION_CHOICES
@@ -42,7 +43,8 @@ policy_value1:
     path: exp.models.policy.StackedHiddenContinuousPiVLatent.forward_with_no_len
   model:
     _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
-    obs_dim: 1024
+    obs_dim: 256
+    next_level_action_dim: 1024
     action_dim: 512
     dim: ${.core_model.dim}
     core_model:
@@ -62,7 +64,8 @@ policy_value2:
     path: exp.models.policy.StackedHiddenContinuousPiVLatent.forward_with_no_len
   model:
     _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
-    obs_dim: 1024
+    obs_dim: 512
+    next_level_action_dim: 1024
     action_dim: 1024
     dim: ${.core_model.dim}
     core_model:
