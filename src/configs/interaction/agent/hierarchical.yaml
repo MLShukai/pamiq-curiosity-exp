@@ -3,13 +3,13 @@
 _target_: exp.agents.curiosity.hierarchical.HierarchicalCuriosityAgent
 num_hierarchical_levels: ${shared.num_hierarchical_levels}
 prev_latent_action_list_init:
-  - 256
-  - 512
-  - 1024
+  - ${models.policy_value0.model.core_model.dim}
+  - ${models.policy_value1.model.core_model.dim}
+  - ${models.policy_value2.model.core_model.dim}
 prev_action_list_init:
   - 0
-  - 512
-  - 1024
+  - ${models.policy_value1.model.action_dim}
+  - ${models.policy_value2.model.action_dim}
 
 device: ${shared.device}
 dtype: ${shared.dtype}
