@@ -27,11 +27,13 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         num_hierarchical_levels: int,
+        prev_latent_action_list_init: list[int],
+        prev_action_list_init: list[int],
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
-        """Initialize the AdversarialCuriosityAgent.
+        """Initialize the HierarchicalCuriosityAgent.
 
         Args:
             num_hierarchical_levels: Number of hierarchical levels for the agent.
@@ -47,10 +49,15 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             raise ValueError("`num_hierarchical_levels` must be >= 1")
         self.num_hierarchical_levels = num_hierarchical_levels
 
-        self.prev_observation_list: list[None | Tensor] = [
-            None
-        ] * num_hierarchical_levels
-        self.prev_action_list: list[None | Tensor] = [None] * num_hierarchical_levels
+        self.prev_latent_list: list[Tensor] = [torch.zeros(0)] * num_hierarchical_levels
+        self.prev_action_list: list[None | Tensor] = [
+            torch.zeros(dim, dtype=dtype, device=device)
+            for dim in prev_action_list_init
+        ]
+        self.prev_latent_action_list: list[Tensor] = [
+            torch.zeros(dim, dtype=dtype, device=device)
+            for dim in prev_latent_action_list_init
+        ]
         self.prev_fd_hidden_list: list[None | Tensor] = [None] * num_hierarchical_levels
         self.prev_reward_vector_list: list[None | Tensor] = [
             None
@@ -122,25 +129,24 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
             forward_dynamics = self.forward_dynamics_list[i]
 
-            prev_observation = self.prev_observation_list[i]
-            prev_action = self.prev_action_list[i]
+            prev_latent_action = self.prev_latent_action_list[i]
             prev_fd_hidden = self.prev_fd_hidden_list[i]
 
             obs_dist, latent, fd_hidden = forward_dynamics(
-                prev_observation, prev_action, prev_fd_hidden
+                observation, prev_latent_action, prev_fd_hidden
             )
 
-            self.prev_observation_list[i] = observation
+            self.prev_latent_list[i] = latent
             self.prev_fd_hidden_list[i] = fd_hidden
 
             if (
-                prev_observation is not None
-                and prev_action is not None
+                observation is not None
+                and prev_latent_action is not None
                 and prev_fd_hidden is not None
             ):
                 step_data_fd = {}
-                step_data_fd[DataKey.OBSERVATION] = prev_observation.cpu()
-                step_data_fd[DataKey.ACTION] = prev_action.cpu()
+                step_data_fd[DataKey.OBSERVATION] = observation.cpu()
+                step_data_fd[DataKey.LATENT_ACTION] = prev_latent_action.cpu()
                 step_data_fd[DataKey.HIDDEN] = prev_fd_hidden.cpu()
                 self.collector_forward_dynamics_list[i].collect(step_data_fd.copy())
 
@@ -148,7 +154,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             #                           Compute Reward
             # ==============================================================================
 
-            surprisal_vector = -obs_dist.log_prob(observation)
+            surprisal_vector = -obs_dist.log_prob(observation).flatten()
             surprisal_coefficient_vector = self.surprisal_coefficient_vector_list[i]
             if surprisal_coefficient_vector is None:
                 surprisal_coefficient_vector = torch.where(
@@ -175,11 +181,12 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             )
             prev_policy_hidden_state = self.prev_policy_hidden_list[i]
 
-            action_dist, value, policy_hidden_state = policy_value(
+            action_dist, value, latent, policy_hidden_state = policy_value(
                 observation, next_level_action, prev_policy_hidden_state
             )
 
             action = action_dist.sample()
+            self.prev_latent_action_list[i] = latent
             self.prev_action_list[i] = action
             self.metrics["value" + str(i)] = value.item()
 
@@ -188,7 +195,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             if next_level_action is not None and prev_policy_hidden_state is not None:
                 step_data_policy = {}
                 step_data_policy[DataKey.OBSERVATION] = observation.cpu()
-                step_data_policy[DataKey.ACTION] = next_level_action.cpu()
+                step_data_policy[DataKey.NEXT_LEVEL_ACTION] = next_level_action.cpu()
+                step_data_policy[DataKey.ACTION] = action.cpu()
                 step_data_policy[DataKey.HIDDEN] = prev_policy_hidden_state.cpu()
                 step_data_policy[DataKey.ACTION_LOG_PROB] = action_dist.log_prob(
                     action
@@ -207,7 +215,9 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 step_data_policy[DataKey.REWARD] = reward.cpu()
                 self.collector_policy_list[i].collect(step_data_policy.copy())
 
-            observation = latent  # pass latent as observation to next level
+            observation = self.prev_latent_list[
+                i
+            ]  # pass latent as observation to next level
 
         self.scheduler.update()
         self.global_step += 1
@@ -249,7 +259,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         (path / "global_step").write_text(str(self.global_step), "utf-8")
         torch.save(
             {
-                "prev_observation_list": self.prev_observation_list,
+                "prev_latent_list": self.prev_latent_list,
                 "prev_action_list": self.prev_action_list,
                 "prev_fd_hidden_list": self.prev_fd_hidden_list,
                 "prev_reward_vector_list": self.prev_reward_vector_list,
@@ -275,7 +285,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         prev_states = torch.load(
             path / "hierarchical_curiosity_agent_state.pt", map_location=self.device
         )
-        self.prev_observation_list = prev_states["prev_observation_list"]
+        self.prev_latent_list = prev_states["prev_latent_list"]
         self.prev_action_list = prev_states["prev_action_list"]
         self.prev_fd_hidden_list = prev_states["prev_fd_hidden_list"]
         self.prev_reward_vector_list = prev_states["prev_reward_vector_list"]
