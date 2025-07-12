@@ -21,7 +21,7 @@ policy_value0:
         patch_size: 12 # Same as JEPA Instantiation
         output_downsample: 3 # Same as JEPA Instantiation
       dim_hidden: ${..dim}
-    next_level_action_dim: 512
+    next_level_action_dim: ${models.policy_value1.model.action_dim}
     action_choices:
       _target_: hydra.utils.get_object
       path: exp.envs.vrchat.OSC_ACTION_CHOICES
@@ -43,8 +43,8 @@ policy_value1:
     path: exp.models.policy.StackedHiddenContinuousPiVLatent.forward_with_no_len
   model:
     _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
-    obs_dim: 256
-    next_level_action_dim: 1024
+    obs_dim: ${models.forward_dynamics0.model.core_model.dim}
+    next_level_action_dim: ${models.policy_value2.model.action_dim}
     action_dim: 512
     dim: ${.core_model.dim}
     core_model:
@@ -64,8 +64,8 @@ policy_value2:
     path: exp.models.policy.StackedHiddenContinuousPiVLatent.forward_with_no_len
   model:
     _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
-    obs_dim: 512
-    next_level_action_dim: 1024
+    obs_dim: ${models.forward_dynamics1.model.core_model.dim}
+    next_level_action_dim: ${models.forward_dynamics2.model.core_model.dim}
     action_dim: 1024
     dim: ${.core_model.dim}
     core_model:
@@ -85,18 +85,8 @@ forward_dynamics0:
     path: exp.models.forward_dynamics.StackedHiddenLatentFDObsInfo.forward_with_no_len
   model:
     _target_: exp.models.forward_dynamics.StackedHiddenLatentFDObsInfo
-    obs_info:
-      _target_: exp.models.utils.ObsInfo
-      dim: 128 # Same as JEPA instantiattion.
-      num_tokens:
-        _target_: exp.models.jepa.compute_image_jepa_output_patch_count
-        image_size:
-          - ${shared.image.height}
-          - ${shared.image.width}
-        patch_size: 12 # Same as JEPA Instantiation
-        output_downsample: 3 # Same as JEPA Instantiation
-      dim_hidden: ${..dim}
-    action_dim: 256
+    obs_info: ${models.policy_value0.model.obs_info}
+    action_dim: ${models.policy_value0.model.core_model.dim}
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
@@ -115,8 +105,8 @@ forward_dynamics1:
     path: exp.models.forward_dynamics.StackedHiddenLatentFD.forward_with_no_len
   model:
     _target_: exp.models.forward_dynamics.StackedHiddenLatentFD
-    obs_dim: 256
-    action_dim: 512
+    obs_dim: ${models.forward_dynamics0.model.core_model.dim}
+    action_dim: ${models.policy_value1.model.core_model.dim}
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
@@ -135,8 +125,8 @@ forward_dynamics2:
     path: exp.models.forward_dynamics.StackedHiddenLatentFD.forward_with_no_len
   model:
     _target_: exp.models.forward_dynamics.StackedHiddenLatentFD
-    obs_dim: 512
-    action_dim: 1024
+    obs_dim: ${models.forward_dynamics1.model.core_model.dim}
+    action_dim: ${models.policy_value2.model.core_model.dim}
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
