@@ -29,6 +29,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         num_hierarchical_levels: int,
         prev_latent_action_list_init: list[int],
         prev_action_list_init: list[int],
+        next_level_reward_ratio: float = 0.5,
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -59,15 +60,15 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             for dim in prev_latent_action_list_init
         ]
         self.prev_fd_hidden_list: list[None | Tensor] = [None] * num_hierarchical_levels
-        self.prev_reward_vector_list: list[None | Tensor] = [
-            None
-        ] * num_hierarchical_levels
+        self.self_reward_list: list[None | Tensor] = [None] * num_hierarchical_levels
         self.prev_policy_hidden_list: list[None | Tensor] = [
             None
         ] * num_hierarchical_levels
         self.surprisal_coefficient_vector_list: list[None | Tensor] = [
             None
         ] * num_hierarchical_levels
+
+        self.next_level_reward_ratio = next_level_reward_ratio
 
         self.device = device
         self.dtype = dtype
@@ -166,7 +167,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 self.surprisal_coefficient_vector_list[i] = surprisal_coefficient_vector
 
             reward_vector = surprisal_coefficient_vector * surprisal_vector
-            self.prev_reward_vector_list[i] = reward_vector
+            self_reward = reward_vector.mean()
+            self.self_reward_list[i] = self_reward
 
             # ==============================================================================
             #                           Policy Process
@@ -202,15 +204,17 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                     action
                 ).cpu()
                 step_data_policy[DataKey.VALUE] = value.cpu()
-                next_level_reward_vector = (
-                    self.prev_reward_vector_list[i + 1]
+                next_level_reward = (
+                    self.self_reward_list[i + 1]
                     if i + 1 < self.num_hierarchical_levels
                     else None
                 )
-                if next_level_reward_vector is not None:
-                    reward = torch.cat((reward_vector, next_level_reward_vector)).mean()
+                if next_level_reward is not None:
+                    reward = self_reward * (1 - self.next_level_reward_ratio) + (
+                        next_level_reward * self.next_level_reward_ratio
+                    )
                 else:
-                    reward = reward_vector.mean()
+                    reward = self_reward
                 self.metrics["reward" + str(i)] = reward.item()
                 step_data_policy[DataKey.REWARD] = reward.cpu()
                 self.collector_policy_list[i].collect(step_data_policy.copy())
