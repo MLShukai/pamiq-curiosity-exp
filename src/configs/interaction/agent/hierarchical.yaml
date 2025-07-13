@@ -2,14 +2,17 @@
 
 _target_: exp.agents.curiosity.hierarchical.HierarchicalCuriosityAgent
 num_hierarchical_levels: ${shared.num_hierarchical_levels}
+next_level_reward_ratio: 0.75
 prev_latent_action_list_init:
   - ${models.policy_value0.model.core_model.dim}
   - ${models.policy_value1.model.core_model.dim}
   - ${models.policy_value2.model.core_model.dim}
+  - ${models.policy_value3.model.core_model.dim}
 prev_action_list_init:
   - 0
   - ${models.policy_value1.model.action_dim}
   - ${models.policy_value2.model.action_dim}
+  - ${models.policy_value3.model.action_dim}
 
 device: ${shared.device}
 dtype: ${shared.dtype}

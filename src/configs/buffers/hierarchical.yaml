@@ -10,6 +10,10 @@ forward_dynamics2:
   _target_: exp.trainers.forward_dynamics.StackedHiddenLatentFDTrainer.create_buffer
   max_size: 1000 #  10 fps 100 secs
 
+forward_dynamics3:
+  _target_: exp.trainers.forward_dynamics.StackedHiddenLatentFDTrainer.create_buffer
+  max_size: 1000 #  10 fps 100 secs
+
 policy0:
   _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVLatentObsInfoTrainer.create_buffer
   max_size: 1000 # 10 fps 100 secs
@@ -19,5 +23,9 @@ policy1:
   max_size: 1000 # 10 fps 100 secs
 
 policy2:
+  _target_: exp.trainers.ppo_policy.PPOStackedHiddenContinuousPiVLatentTrainer.create_buffer
+  max_size: 1000 # 10 fps 100 secs
+
+policy3:
   _target_: exp.trainers.ppo_policy.PPOStackedHiddenContinuousPiVLatentTrainer.create_buffer
   max_size: 1000 # 10 fps 100 secs

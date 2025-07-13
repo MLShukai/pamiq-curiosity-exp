@@ -28,8 +28,8 @@ policy_value0:
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 256
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
       depth: 8
       dropout: 0.1
 
@@ -45,13 +45,13 @@ policy_value1:
     _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
     obs_dim: ${models.forward_dynamics0.model.core_model.dim}
     next_level_action_dim: ${models.policy_value2.model.action_dim}
-    action_dim: 512
+    action_dim: 1024
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 512
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
+      dim: 1280
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
       dropout: 0.1
 
 policy_value2:
@@ -66,13 +66,34 @@ policy_value2:
     _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
     obs_dim: ${models.forward_dynamics1.model.core_model.dim}
     next_level_action_dim: ${models.forward_dynamics2.model.core_model.dim}
-    action_dim: 1024
+    action_dim: 1280
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 1024
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
+      dim: 1536
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+
+policy_value3:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.policy.StackedHiddenContinuousPiVLatent.forward_with_no_len
+  model:
+    _target_: exp.models.policy.StackedHiddenContinuousPiVLatent
+    obs_dim: ${models.forward_dynamics2.model.core_model.dim}
+    next_level_action_dim: ${models.forward_dynamics3.model.core_model.dim}
+    action_dim: 1536
+    dim: ${.core_model.dim}
+    core_model:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1792
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
       dropout: 0.1
 
 forward_dynamics0:
@@ -90,9 +111,9 @@ forward_dynamics0:
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 256
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
       dropout: 0.1
 
 forward_dynamics1:
@@ -110,9 +131,9 @@ forward_dynamics1:
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 512
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
+      dim: 1280
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
       dropout: 0.1
 
 forward_dynamics2:
@@ -130,7 +151,27 @@ forward_dynamics2:
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 1024
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
+      dim: 1536
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+
+forward_dynamics3:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.forward_dynamics.StackedHiddenLatentFD.forward_with_no_len
+  model:
+    _target_: exp.models.forward_dynamics.StackedHiddenLatentFD
+    obs_dim: ${models.forward_dynamics2.model.core_model.dim}
+    action_dim: ${models.policy_value3.model.core_model.dim}
+    dim: ${.core_model.dim}
+    core_model:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1792
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
       dropout: 0.1
