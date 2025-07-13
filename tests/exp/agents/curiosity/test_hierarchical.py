@@ -212,6 +212,10 @@ class TestHierarchicalCuriosityAgent:
     def test_save_and_load_state(self, agent: HierarchicalCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
         agent.global_step = 42
+        agent.prev_observation_list = [
+            torch.zeros(OBSERVATION_DIM),
+            torch.zeros(OBSERVATION_DIM),
+        ]
         agent.prev_action_list = [
             torch.zeros(ACTION_DIM),
             torch.zeros(ACTION_DIM),
@@ -253,6 +257,12 @@ class TestHierarchicalCuriosityAgent:
         new_agent.load_state(save_path)
 
         assert new_agent.global_step == 42
+        for prev_observation, new_prev_observation in zip(
+            agent.prev_observation_list, new_agent.prev_observation_list
+        ):
+            assert prev_observation is not None
+            assert new_prev_observation is not None
+            assert torch.equal(prev_observation, new_prev_observation)
         for prev_action, new_prev_action in zip(
             agent.prev_action_list, new_agent.prev_action_list
         ):

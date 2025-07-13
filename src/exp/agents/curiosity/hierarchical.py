@@ -50,6 +50,9 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             raise ValueError("`num_hierarchical_levels` must be >= 1")
         self.num_hierarchical_levels = num_hierarchical_levels
 
+        self.prev_observation_list: list[None | Tensor] = [
+            None
+        ] * num_hierarchical_levels
         self.prev_latent_list: list[Tensor] = [torch.zeros(0)] * num_hierarchical_levels
         self.prev_action_list: list[None | Tensor] = [
             torch.zeros(dim, dtype=dtype, device=device)
@@ -130,23 +133,27 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
             forward_dynamics = self.forward_dynamics_list[i]
 
+            prev_observation = self.prev_observation_list[i]
+            if prev_observation is None:
+                prev_observation = observation
             prev_latent_action = self.prev_latent_action_list[i]
             prev_fd_hidden = self.prev_fd_hidden_list[i]
 
             obs_dist, latent, fd_hidden = forward_dynamics(
-                observation, prev_latent_action, prev_fd_hidden
+                prev_observation, prev_latent_action, prev_fd_hidden
             )
 
+            self.prev_observation_list[i] = observation
             self.prev_latent_list[i] = latent
             self.prev_fd_hidden_list[i] = fd_hidden
 
             if (
-                observation is not None
+                prev_observation is not None
                 and prev_latent_action is not None
                 and prev_fd_hidden is not None
             ):
                 step_data_fd = {}
-                step_data_fd[DataKey.OBSERVATION] = observation.cpu()
+                step_data_fd[DataKey.OBSERVATION] = prev_observation.cpu()
                 step_data_fd[DataKey.LATENT_ACTION] = prev_latent_action.cpu()
                 step_data_fd[DataKey.HIDDEN] = prev_fd_hidden.cpu()
                 self.collector_forward_dynamics_list[i].collect(step_data_fd.copy())
@@ -263,6 +270,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         (path / "global_step").write_text(str(self.global_step), "utf-8")
         torch.save(
             {
+                "prev_observation_list": self.prev_observation_list,
                 "prev_latent_list": self.prev_latent_list,
                 "prev_action_list": self.prev_action_list,
                 "prev_fd_hidden_list": self.prev_fd_hidden_list,
@@ -289,6 +297,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         prev_states = torch.load(
             path / "hierarchical_curiosity_agent_state.pt", map_location=self.device
         )
+        self.prev_observation_list = prev_states["prev_observation_list"]
         self.prev_latent_list = prev_states["prev_latent_list"]
         self.prev_action_list = prev_states["prev_action_list"]
         self.prev_fd_hidden_list = prev_states["prev_fd_hidden_list"]
