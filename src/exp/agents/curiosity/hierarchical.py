@@ -139,12 +139,12 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             prev_latent_action = self.prev_latent_action_list[i]
             prev_fd_hidden = self.prev_fd_hidden_list[i]
 
-            obs_dist, latent, fd_hidden = forward_dynamics(
+            obs_dist, latent_obs, fd_hidden = forward_dynamics(
                 prev_observation, prev_latent_action, prev_fd_hidden
             )
 
             self.prev_observation_list[i] = observation
-            self.prev_latent_list[i] = latent
+            self.prev_latent_list[i] = latent_obs
             self.prev_fd_hidden_list[i] = fd_hidden
 
             if (
@@ -186,16 +186,16 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             next_level_action = (
                 self.prev_action_list[i + 1]
                 if i + 1 < self.num_hierarchical_levels
-                else latent
+                else latent_obs
             )
             prev_policy_hidden_state = self.prev_policy_hidden_list[i]
 
-            action_dist, value, latent, policy_hidden_state = policy_value(
+            action_dist, value, latent_action, policy_hidden_state = policy_value(
                 observation, next_level_action, prev_policy_hidden_state
             )
 
             action = action_dist.sample()
-            self.prev_latent_action_list[i] = latent
+            self.prev_latent_action_list[i] = latent_action
             self.prev_action_list[i] = action
             self.metrics["value" + str(i)] = value.item()
 
@@ -217,8 +217,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                     else None
                 )
                 if next_level_reward is not None:
-                    reward = self_reward * (1 - self.next_level_reward_ratio) + (
-                        next_level_reward * self.next_level_reward_ratio
+                    reward = torch.lerp(
+                        self_reward, next_level_reward, self.next_level_reward_ratio
                     )
                 else:
                     reward = self_reward
