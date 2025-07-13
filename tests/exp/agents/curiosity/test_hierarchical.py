@@ -228,9 +228,8 @@ class TestHierarchicalCuriosityAgent:
             torch.zeros(ACTION_DIM),
             torch.zeros(ACTION_DIM),
         ]
-        agent.prev_reward_vector_list = [
-            torch.zeros(OBSERVATION_DIM),
-            torch.zeros(OBSERVATION_DIM),
+        agent.self_reward_list = [
+            torch.zeros(1),
         ]
         agent.surprisal_coefficient_vector_list = [
             torch.zeros(OBSERVATION_DIM),
@@ -278,12 +277,12 @@ class TestHierarchicalCuriosityAgent:
             assert prev_observation is not None
             assert new_prev_observation is not None
             assert torch.equal(prev_observation, new_prev_observation)
-        for prev_reward_vector, new_prev_reward_vector in zip(
-            agent.prev_reward_vector_list, new_agent.prev_reward_vector_list
+        for self_reward, new_self_reward in zip(
+            agent.self_reward_list, new_agent.self_reward_list
         ):
-            assert prev_reward_vector is not None
-            assert new_prev_reward_vector is not None
-            assert torch.equal(prev_reward_vector, new_prev_reward_vector)
+            assert self_reward is not None
+            assert new_self_reward is not None
+            assert torch.equal(self_reward, new_self_reward)
         for surprisal_coefficient, new_surprisal_coefficient in zip(
             agent.surprisal_coefficient_vector_list,
             new_agent.surprisal_coefficient_vector_list,
