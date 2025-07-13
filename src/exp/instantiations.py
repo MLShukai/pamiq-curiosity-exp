@@ -40,7 +40,7 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
         output_downsample=3,
     )
 
-    models: dict[str, TorchTrainingModel[Any]] = {
+    models_dict: dict[str, TorchTrainingModel[Any]] = {
         ModelName.IMAGE_JEPA_CONTEXT_ENCODER: TorchTrainingModel(
             context_encoder,
             has_inference_model=False,
@@ -66,9 +66,16 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
     for name, model_cfg in cfg.models.items():
         logger.info(f"Instantiating model: '{name}' ...")
 
-        models[str(name)] = hydra.utils.instantiate(model_cfg)
-
-    return models
+        model: TorchTrainingModel[Any] | list[TorchTrainingModel[Any]] = (
+            hydra.utils.instantiate(model_cfg)
+        )
+        if isinstance(model, list):
+            logger.info(f"Instantiated {len(model)} models.")
+            for i, m in enumerate(model):
+                models_dict[str(name) + str(i)] = m
+        else:
+            models_dict[str(name)] = model
+    return models_dict
 
 
 def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
@@ -103,7 +110,15 @@ def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
     trainers_dict: dict[str, TorchTrainer] = {"jepa": jepa}
     for name, trainer_cfg in cfg.trainers.items():
         logger.info(f"Instantiating Trainer: '{name}' ...")
-        trainers_dict[name] = hydra.utils.instantiate(trainer_cfg)
+        trainer: TorchTrainer | list[TorchTrainer] = hydra.utils.instantiate(
+            trainer_cfg
+        )
+        if isinstance(trainer, list):
+            logger.info(f"Instantiated {len(trainer)} trainers.")
+            for i, t in enumerate(trainer):
+                trainers_dict[str(name) + str(i)] = t
+        else:
+            trainers_dict[str(name)] = trainer
 
     return trainers_dict
 
@@ -122,5 +137,13 @@ def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any, Any]]:
 
     for name, buffer_cfg in cfg.buffers.items():
         logger.info(f"Instantiating DataBuffer: '{name}'")
-        buffers_dict[str(name)] = hydra.utils.instantiate(buffer_cfg)
+        buffer: DataBuffer[Any, Any] | list[DataBuffer[Any, Any]] = (
+            hydra.utils.instantiate(buffer_cfg)
+        )
+        if isinstance(buffer, list):
+            logger.info(f"Instantiated {len(buffer)} buffers.")
+            for i, buf in enumerate(buffer):
+                buffers_dict[str(name) + str(i)] = buf
+        else:
+            buffers_dict[str(name)] = buffer
     return buffers_dict
