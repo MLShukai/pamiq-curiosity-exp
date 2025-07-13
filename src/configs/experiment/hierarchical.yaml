@@ -69,7 +69,7 @@ trainers:
       nesterov: true
       weight_decay: 1e-4
 
-experiment_name: "adversarial"
+experiment_name: "hierarchical"
 
 tags:
   - "stacked_hiddens"

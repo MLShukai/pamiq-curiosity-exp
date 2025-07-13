@@ -34,8 +34,8 @@ forward_dynamics2:
   max_samples: 32
   imagination_length:  ${shared.max_imagination_steps}
   min_new_data_count: 128
-  model_name: "forward_dynamics1"
-  data_user_name: "forward_dynamics1"
+  model_name: "forward_dynamics2"
+  data_user_name: "forward_dynamics2"
 
 policy0:
   _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVLatentObsInfoTrainer
