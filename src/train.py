@@ -56,7 +56,7 @@ def main(cfg: DictConfig) -> None:
     set_global_run(aim_run)
 
     try:
-        log_config(cfg_view)
+        log_config(cfg_view, aim_run)
 
         launch(
             interaction=instantiate_interaction(cfg),
@@ -72,16 +72,12 @@ def main(cfg: DictConfig) -> None:
         aim_run.close()
 
 
-def log_config(cfg: DictConfig) -> None:
-    from exp.aim_utils import get_global_run
-
-    run = get_global_run()
-    if run:
-        # Log flattened parameters
-        log_targets = ["interaction", "models", "trainers", "buffers"]
-        params = flatten_config({key: cfg[key] for key in log_targets})
-        for key, value in params.items():
-            run[key] = value
+def log_config(cfg: DictConfig, run: aim.Run) -> None:
+    # Log flattened parameters
+    log_targets = ["interaction", "models", "trainers", "buffers"]
+    params = flatten_config({key: cfg[key] for key in log_targets})
+    for key, value in params.items():
+        run[key] = value
 
 
 if __name__ == "__main__":
