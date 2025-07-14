@@ -63,8 +63,8 @@ class TestEncoder:
             obs_info=obs_info,
             action_info=action_info,
             core_model=mock_core_model,
-            dim_core_model=self.DIM_CORE_MODEL,
-            dim_embed=self.DIM_EMBED,
+            core_model_dim=self.DIM_CORE_MODEL,
+            embed_dim=self.DIM_EMBED,
         )
 
     @pytest.fixture
@@ -74,8 +74,8 @@ class TestEncoder:
             obs_info=self.OBS_DIM,
             action_info=self.ACTION_DIM,
             core_model=mock_core_model,
-            dim_core_model=self.DIM_CORE_MODEL,
-            dim_embed=None,  # No output projection
+            core_model_dim=self.DIM_CORE_MODEL,
+            embed_dim=None,  # No output projection
         )
 
     @pytest.fixture
@@ -167,15 +167,15 @@ class TestEncoder:
         mock_core_model.forward_with_no_len.assert_called_once()
 
     def test_output_projection(self, obs_info, action_info, mock_core_model):
-        """Test output projection when dim_embed differs from
-        dim_core_model."""
+        """Test output projection when embed_dim differs from
+        core_model_dim."""
         # Create encoder with different embed dimension
         encoder = Encoder(
             obs_info=obs_info,
             action_info=action_info,
             core_model=mock_core_model,
-            dim_core_model=self.DIM_CORE_MODEL,
-            dim_embed=24,  # Different from dim_core_model
+            core_model_dim=self.DIM_CORE_MODEL,
+            embed_dim=24,  # Different from core_model_dim
         )
 
         obs = torch.randn(
@@ -234,8 +234,8 @@ class TestPredictor:
         return Predictor(
             obs_info=obs_info,
             core_model=mock_core_model,
-            dim_core_model=self.DIM_CORE_MODEL,
-            dim_embed=self.DIM_EMBED,
+            core_model_dim=self.DIM_CORE_MODEL,
+            embed_dim=self.DIM_EMBED,
         )
 
     @pytest.fixture
@@ -244,7 +244,7 @@ class TestPredictor:
         return Predictor(
             obs_info=self.OBS_DIM,
             core_model=mock_core_model,
-            dim_core_model=self.DIM_CORE_MODEL,
+            core_model_dim=self.DIM_CORE_MODEL,
             dim_embed=None,
         )
 
@@ -312,13 +312,13 @@ class TestPredictor:
         mock_core_model.forward_with_no_len.assert_called_once()
 
     def test_input_projection(self, obs_info, mock_core_model):
-        """Test input projection when dim_embed is provided."""
+        """Test input projection when embed_dim is provided."""
         # Create predictor with input projection
         predictor = Predictor(
             obs_info=obs_info,
             core_model=mock_core_model,
-            dim_core_model=self.DIM_CORE_MODEL,
-            dim_embed=32,  # Different from dim_core_model
+            core_model_dim=self.DIM_CORE_MODEL,
+            embed_dim=32,  # Different from core_model_dim
         )
 
         assert predictor.input_proj is not None

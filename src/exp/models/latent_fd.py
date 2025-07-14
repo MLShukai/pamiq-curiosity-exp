@@ -29,8 +29,8 @@ class Encoder(nn.Module):
         obs_info: ObsInfo | int,
         action_info: ActionInfo | int,
         core_model: StackedHiddenState,
-        dim_core_model: int,
-        dim_embed: int | None = None,
+        core_model_dim: int,
+        embed_dim: int | None = None,
     ) -> None:
         """Initialize the latent encoder.
 
@@ -40,8 +40,8 @@ class Encoder(nn.Module):
             action_info: Configuration for action processing. If ActionInfo, sets up
                 multi-discrete embeddings. If int, uses direct dimension.
             core_model: The stacked hidden state model for processing concatenated features.
-            dim_core_model: Input dimension for the core model.
-            dim_embed: Optional output embedding dimension. If None, uses core_model output dim.
+            core_model_dim: Input dimension for the core model.
+            embed_dim: Optional output embedding dimension. If None, uses core_model output dim.
         """
         super().__init__()
 
@@ -64,13 +64,13 @@ class Encoder(nn.Module):
         else:
             dim_in += action_info
 
-        self.obs_action_proj = nn.Linear(dim_in, dim_core_model)
+        self.obs_action_proj = nn.Linear(dim_in, core_model_dim)
 
         self.core_model = core_model
 
         self.out_proj = None
-        if dim_embed is not None and dim_embed != dim_core_model:
-            self.out_proj = nn.Linear(dim_core_model, dim_embed)
+        if embed_dim is not None and embed_dim != core_model_dim:
+            self.out_proj = nn.Linear(core_model_dim, embed_dim)
 
     def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
         """Flatten and concat observation and action."""
@@ -102,7 +102,7 @@ class Encoder(nn.Module):
 
         Returns:
             A tuple containing:
-                - Latent representation tensor of shape (*batch, len, dim_embed).
+                - Latent representation tensor of shape (*batch, len, embed_dim).
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         x = self._flatten_obs_action(obs, action)
@@ -149,7 +149,7 @@ class Encoder(nn.Module):
 
         Returns:
             A tuple containing:
-                - Latent representation tensor of shape (*batch, dim_embed).
+                - Latent representation tensor of shape (*batch, embed_dim).
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         return self.__call__(obs, action, hidden, no_len=True)
@@ -170,8 +170,8 @@ class Predictor(nn.Module):
         self,
         obs_info: ObsInfo | int,
         core_model: StackedHiddenState,
-        dim_core_model: int,
-        dim_embed: int | None = None,
+        core_model_dim: int,
+        embed_dim: int | None = None,
     ) -> None:
         """Initialize the latent predictor.
 
@@ -179,21 +179,21 @@ class Predictor(nn.Module):
             obs_info: Configuration for observation prediction. If ObsInfo, sets up
                 stacked features output. If int, uses direct dimension.
             core_model: The stacked hidden state model for processing latent representations.
-            dim_core_model: Hidden dimension of the core model.
-            dim_embed: Optional input embedding dimension. If provided and different from
-                dim_core_model, adds an input projection layer.
+            core_model_dim: Hidden dimension of the core model.
+            embed_dim: Optional input embedding dimension. If provided and different from
+                core_model_dim, adds an input projection layer.
         """
         super().__init__()
 
         self.input_proj = None
-        if dim_embed is not None:
-            self.input_proj = nn.Linear(dim_embed, dim_core_model)
+        if embed_dim is not None:
+            self.input_proj = nn.Linear(embed_dim, core_model_dim)
 
         self.core_model = core_model
 
         if isinstance(obs_info, ObsInfo):
             self.obs_hat_dist_head = nn.Sequential(
-                ToStackedFeatures(dim_core_model, obs_info.dim, obs_info.num_tokens),
+                ToStackedFeatures(core_model_dim, obs_info.dim, obs_info.num_tokens),
                 FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
             )
         else:
@@ -206,7 +206,7 @@ class Predictor(nn.Module):
         """Predict observation distribution from latent representation.
 
         Args:
-            latent: Latent representation tensor. Shape is (*batch, len, dim_embed).
+            latent: Latent representation tensor. Shape is (*batch, len, embed_dim).
             hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
                 If None, the core model will initialize its hidden state.
             no_len: If True, calls core_model.forward_with_no_len for single-step processing.
@@ -242,7 +242,7 @@ class Predictor(nn.Module):
         Convenience method for inference where inputs don't have a sequence length dimension.
 
         Args:
-            latent: Latent representation tensor. Shape is (*batch, dim_embed).
+            latent: Latent representation tensor. Shape is (*batch, embed_dim).
             hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
 
         Returns:
