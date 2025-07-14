@@ -1,0 +1,115 @@
+forward_dynamics0:
+  _target_: exp.trainers.forward_dynamics.StackedHiddenLatentFDObsInfoTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  seq_len: 256
+  max_samples: 32
+  imagination_length:  ${shared.max_imagination_steps}
+  min_new_data_count: 128
+  model_name: "forward_dynamics0"
+  data_user_name: "forward_dynamics0"
+
+forward_dynamics1:
+  _target_: exp.trainers.forward_dynamics.StackedHiddenLatentFDTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  seq_len: 256
+  max_samples: 32
+  imagination_length:  ${shared.max_imagination_steps}
+  min_new_data_count: 128
+  model_name: "forward_dynamics1"
+  data_user_name: "forward_dynamics1"
+
+forward_dynamics2:
+  _target_: exp.trainers.forward_dynamics.StackedHiddenLatentFDTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  seq_len: 256
+  max_samples: 32
+  imagination_length:  ${shared.max_imagination_steps}
+  min_new_data_count: 128
+  model_name: "forward_dynamics2"
+  data_user_name: "forward_dynamics2"
+
+forward_dynamics3:
+  _target_: exp.trainers.forward_dynamics.StackedHiddenLatentFDTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  seq_len: 256
+  max_samples: 32
+  imagination_length:  ${shared.max_imagination_steps}
+  min_new_data_count: 128
+  model_name: "forward_dynamics3"
+  data_user_name: "forward_dynamics3"
+
+policy0:
+  _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVLatentObsInfoTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
+  gae_lambda: 0.95
+  norm_advantage: true
+  entropy_coef: 0.01
+  seq_len: 256
+  max_samples: 32
+  min_new_data_count: 128
+  model_name: "policy_value0"
+  data_user_name: "policy0"
+
+policy1:
+  _target_: exp.trainers.ppo_policy.PPOStackedHiddenContinuousPiVLatentTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
+  gae_lambda: 0.95
+  norm_advantage: true
+  entropy_coef: 0.01
+  seq_len: 256
+  max_samples: 32
+  min_new_data_count: 128
+  model_name: "policy_value1"
+  data_user_name: "policy1"
+
+policy2:
+  _target_: exp.trainers.ppo_policy.PPOStackedHiddenContinuousPiVLatentTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
+  gae_lambda: 0.95
+  norm_advantage: true
+  entropy_coef: 0.01
+  seq_len: 256
+  max_samples: 32
+  min_new_data_count: 128
+  model_name: "policy_value2"
+  data_user_name: "policy2"
+
+policy3:
+  _target_: exp.trainers.ppo_policy.PPOStackedHiddenContinuousPiVLatentTrainer
+  partial_optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 1e-4
+  gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
+  gae_lambda: 0.95
+  norm_advantage: true
+  entropy_coef: 0.01
+  seq_len: 256
+  max_samples: 32
+  min_new_data_count: 128
+  model_name: "policy_value3"
+  data_user_name: "policy3"

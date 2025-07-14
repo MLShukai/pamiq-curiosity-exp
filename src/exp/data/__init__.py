@@ -13,8 +13,10 @@ class DataKey(StrEnum):
     """Enumerates all data key names in the experiments."""
 
     OBSERVATION = auto()
+    NEXT_LEVEL_ACTION = auto()
     HIDDEN = auto()
     ACTION = auto()
+    LATENT_ACTION = auto()
     ACTION_LOG_PROB = auto()
     REWARD = auto()
     VALUE = auto()

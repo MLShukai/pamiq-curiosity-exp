@@ -49,15 +49,18 @@ class TestHierarchicalCuriosityAgent:
         # Mock policy value model behavior
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
         value = torch.tensor(0.5)
+        latent = torch.zeros(ACTION_DIM)
         policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
         policy_value_model_0.inference_model.return_value = (
             action_dist,
             value,
+            latent,
             policy_hidden,
         )
         policy_value_model_1.inference_model.return_value = (
             action_dist,
             value,
+            latent,
             policy_hidden,
         )
 
@@ -85,6 +88,8 @@ class TestHierarchicalCuriosityAgent:
     def agent(self, models, buffers, mock_aim_run):
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
+            prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+            prev_action_list_init=[ACTION_DIM, ACTION_DIM],
             log_every_n_steps=5,
         )
 
@@ -95,6 +100,8 @@ class TestHierarchicalCuriosityAgent:
         """Test agent initialization."""
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=2,
+            prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+            prev_action_list_init=[ACTION_DIM, ACTION_DIM],
             log_every_n_steps=10,
         )
 
@@ -106,6 +113,8 @@ class TestHierarchicalCuriosityAgent:
         with pytest.raises(ValueError, match="`num_hierarchical_levels` must be >= 1"):
             HierarchicalCuriosityAgent(
                 num_hierarchical_levels=0,
+                prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+                prev_action_list_init=[ACTION_DIM, ACTION_DIM],
             )
 
     def test_setup_step_teardown(
@@ -159,7 +168,7 @@ class TestHierarchicalCuriosityAgent:
         fd_data = spy_fd_collect_0.call_args_list[-1][0][0]
         assert fd_data is not fd_data_prev
         assert DataKey.OBSERVATION in fd_data
-        assert DataKey.ACTION in fd_data
+        assert DataKey.LATENT_ACTION in fd_data
         assert DataKey.HIDDEN in fd_data
 
         policy_data = spy_policy_collect_0.call_args_list[-1][0][0]
@@ -203,6 +212,10 @@ class TestHierarchicalCuriosityAgent:
     def test_save_and_load_state(self, agent: HierarchicalCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
         agent.global_step = 42
+        agent.prev_observation_list = [
+            torch.zeros(OBSERVATION_DIM),
+            torch.zeros(OBSERVATION_DIM),
+        ]
         agent.prev_action_list = [
             torch.zeros(ACTION_DIM),
             torch.zeros(ACTION_DIM),
@@ -215,13 +228,12 @@ class TestHierarchicalCuriosityAgent:
             torch.zeros(DEPTH, HIDDEN_DIM),
             torch.zeros(DEPTH, HIDDEN_DIM),
         ]
-        agent.prev_observation_list = [
-            torch.zeros(OBSERVATION_DIM),
-            torch.zeros(OBSERVATION_DIM),
+        agent.prev_latent_action_list = [
+            torch.zeros(ACTION_DIM),
+            torch.zeros(ACTION_DIM),
         ]
-        agent.prev_reward_vector_list = [
-            torch.zeros(OBSERVATION_DIM),
-            torch.zeros(OBSERVATION_DIM),
+        agent.prev_reward_list = [
+            torch.zeros(1),
         ]
         agent.surprisal_coefficient_vector_list = [
             torch.zeros(OBSERVATION_DIM),
@@ -236,33 +248,55 @@ class TestHierarchicalCuriosityAgent:
         assert (save_path / "hierarchical_curiosity_agent_state.pt").exists()
 
         # Create new agent and load state
-        new_agent = HierarchicalCuriosityAgent(num_hierarchical_levels=2)
+        new_agent = HierarchicalCuriosityAgent(
+            num_hierarchical_levels=2,
+            prev_latent_action_list_init=[ACTION_DIM, ACTION_DIM],
+            prev_action_list_init=[ACTION_DIM, ACTION_DIM],
+        )
 
         new_agent.load_state(save_path)
 
         assert new_agent.global_step == 42
+        for prev_observation, new_prev_observation in zip(
+            agent.prev_observation_list, new_agent.prev_observation_list
+        ):
+            assert prev_observation is not None
+            assert new_prev_observation is not None
+            assert torch.equal(prev_observation, new_prev_observation)
         for prev_action, new_prev_action in zip(
             agent.prev_action_list, new_agent.prev_action_list
         ):
+            assert prev_action is not None
+            assert new_prev_action is not None
             assert torch.equal(prev_action, new_prev_action)
         for prev_fd_hidden, new_prev_fd_hidden in zip(
             agent.prev_fd_hidden_list, new_agent.prev_fd_hidden_list
         ):
+            assert prev_fd_hidden is not None
+            assert new_prev_fd_hidden is not None
             assert torch.equal(prev_fd_hidden, new_prev_fd_hidden)
         for prev_policy_hidden, new_prev_policy_hidden in zip(
             agent.prev_policy_hidden_list, new_agent.prev_policy_hidden_list
         ):
+            assert prev_policy_hidden is not None
+            assert new_prev_policy_hidden is not None
             assert torch.equal(prev_policy_hidden, new_prev_policy_hidden)
         for prev_observation, new_prev_observation in zip(
-            agent.prev_observation_list, new_agent.prev_observation_list
+            agent.prev_latent_action_list, new_agent.prev_latent_action_list
         ):
+            assert prev_observation is not None
+            assert new_prev_observation is not None
             assert torch.equal(prev_observation, new_prev_observation)
-        for prev_reward_vector, new_prev_reward_vector in zip(
-            agent.prev_reward_vector_list, new_agent.prev_reward_vector_list
+        for prev_reward, new_prev_reward in zip(
+            agent.prev_reward_list, new_agent.prev_reward_list
         ):
-            assert torch.equal(prev_reward_vector, new_prev_reward_vector)
+            assert prev_reward is not None
+            assert new_prev_reward is not None
+            assert torch.equal(prev_reward, new_prev_reward)
         for surprisal_coefficient, new_surprisal_coefficient in zip(
             agent.surprisal_coefficient_vector_list,
             new_agent.surprisal_coefficient_vector_list,
         ):
+            assert surprisal_coefficient is not None
+            assert new_surprisal_coefficient is not None
             assert torch.equal(surprisal_coefficient, new_surprisal_coefficient)

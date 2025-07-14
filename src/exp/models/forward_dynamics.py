@@ -120,3 +120,204 @@ class StackedHiddenFD(nn.Module):
         x = self._flatten_obs_action(obs, action)  # (*batch, dim)
         x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
         return self.obs_hat_dist_head(x), next_hidden
+
+
+class StackedHiddenLatentFD(nn.Module):
+    """Forward dynamics using StackedHiddenState model variants for core model
+    with latent output."""
+
+    @override
+    def __init__(
+        self,
+        obs_dim: int,
+        action_dim: int,
+        dim: int,
+        core_model: StackedHiddenState,
+    ) -> None:
+        """Initialize the forward dynamics model.
+
+        Sets up the neural network components for predicting next observations
+        from current observations and actions using a stacked hidden state model.
+
+        Args:
+            obs_info: Configuration for observation processing.
+            action_info: Configuration for action processing.
+            dim: Hidden dimension size for the core model input projection.
+            core_model: The main stacked hidden state model that processes the
+                concatenated observation-action features.
+        """
+        super().__init__()
+        self.obs_action_projection = nn.Linear(obs_dim + action_dim, dim)
+        self.core_model = core_model
+        self.obs_hat_dist_head = nn.Sequential(
+            nn.Linear(dim, obs_dim),
+            FCDeterministicNormalHead(obs_dim, obs_dim),
+        )
+
+    def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
+        """Flatten and concat observation and action."""
+        return self.obs_action_projection(torch.cat((obs, action), dim=-1))
+
+    @override
+    def forward(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Forward pass to predict next observation distribution.
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
+            action: Action tensor. shape is (*batch, len, num_token, action_chocies)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
+
+        Returns:
+            A tuple containing:
+                - Distribution representing predicted next observation.
+                - Updated hidden state tensor for use in next prediction.
+        """
+        x = self._flatten_obs_action(obs, action)
+        x, next_hidden = self.core_model(x, hidden)
+        obs_hat_dist = self.obs_hat_dist_head(x)
+        return obs_hat_dist, x, next_hidden
+
+    @override
+    def __call__(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Override __call__ with proper type annotations.
+
+        See forward() method for full documentation.
+        """
+        return super().__call__(obs, action, hidden)
+
+    def forward_with_no_len(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
+            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
+
+        Returns:
+            A tuple containing:
+                - Distribution representing predicted next observation.
+                - Updated hidden state tensor for use in next prediction.
+                - Latent output from the core model.
+        """
+        x = self._flatten_obs_action(obs, action)  # (*batch, dim)
+        x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
+        return self.obs_hat_dist_head(x), x, next_hidden
+
+
+class StackedHiddenLatentFDObsInfo(nn.Module):
+    """Forward dynamics using StackedHiddenState model variants for core
+    model."""
+
+    @override
+    def __init__(
+        self,
+        obs_info: ObsInfo,
+        action_dim: int,
+        dim: int,
+        core_model: StackedHiddenState,
+    ) -> None:
+        """Initialize the forward dynamics model.
+
+        Sets up the neural network components for predicting next observations
+        from current observations and actions using a stacked hidden state model.
+
+        Args:
+            obs_info: Configuration for observation processing.
+            action_info: Configuration for action processing.
+            dim: Hidden dimension size for the core model input projection.
+            core_model: The main stacked hidden state model that processes the
+                concatenated observation-action features.
+        """
+        super().__init__()
+        self.obs_flatten = LerpStackedFeatures(
+            obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
+        )
+        self.obs_action_projection = nn.Linear(obs_info.dim_hidden + action_dim, dim)
+        self.core_model = core_model
+        self.obs_hat_dist_head = nn.Sequential(
+            ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens),
+            FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
+        )
+
+    def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
+        """Flatten and concat observation and action."""
+        obs_flat = self.obs_flatten(obs)
+        return self.obs_action_projection(torch.cat((obs_flat, action), dim=-1))
+
+    @override
+    def forward(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Forward pass to predict next observation distribution.
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
+            action: Action tensor. shape is (*batch, len, num_token, action_chocies)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
+
+        Returns:
+            A tuple containing:
+                - Distribution representing predicted next observation.
+                - Updated hidden state tensor for use in next prediction.
+        """
+        x = self._flatten_obs_action(obs, action)
+        x, next_hidden = self.core_model(x, hidden)
+        obs_hat_dist = self.obs_hat_dist_head(x)
+        return obs_hat_dist, x, next_hidden
+
+    @override
+    def __call__(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Override __call__ with proper type annotations.
+
+        See forward() method for full documentation.
+        """
+        return super().__call__(obs, action, hidden)
+
+    def forward_with_no_len(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
+            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
+
+        Returns:
+            A tuple containing:
+                - Distribution representing predicted next observation.
+                - Updated hidden state tensor for use in next prediction.
+        """
+        x = self._flatten_obs_action(obs, action)  # (*batch, dim)
+        x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
+        return self.obs_hat_dist_head(x), x, next_hidden
