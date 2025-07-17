@@ -11,6 +11,3 @@ class ModelName(StrEnum):
     FORWARD_DYNAMICS = "forward_dynamics"
 
     POLICY_VALUE = "policy_value"
-
-    LATENT_FD_ENCODER = "latent_fd_encoder"
-    LATENT_FD_PREDICTOR = "latent_fd_predictor"
