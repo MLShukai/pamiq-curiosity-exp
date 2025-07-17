@@ -28,11 +28,9 @@ class TestAdversarialCuriosityAgent:
         policy_value_model, _ = create_mock_models()
 
         # Mock forward dynamics model behavior
-        obs_dist = Normal(
-            torch.zeros(3, OBSERVATION_DIM), torch.ones(3, OBSERVATION_DIM)
-        )
+        obs_hat = torch.zeros(3, OBSERVATION_DIM)
         hidden = torch.zeros(3, DEPTH, HIDDEN_DIM)
-        forward_dynamics_model.inference_model.return_value = (obs_dist, hidden)
+        forward_dynamics_model.inference_model.return_value = (obs_hat, hidden)
 
         # Mock policy value model behavior
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))

@@ -189,13 +189,13 @@ class StackedHiddenFDTrainer(TorchTrainer):
                     else:
                         forward_method = self.forward_dynamics.model.forward_with_no_len
 
-                    obses_next_hat_dist, next_hiddens = forward_method(
+                    obses_next_hat, next_hiddens = forward_method(
                         obs_imaginations, action_imaginations, hiddens
                     )
 
-                    loss = -obses_next_hat_dist.log_prob(obs_targets).mean()
+                    loss = torch.nn.functional.mse_loss(obses_next_hat, obs_targets)
                     loss_imaginations.append(loss)
-                    obs_imaginations = obses_next_hat_dist.rsample()
+                    obs_imaginations = obses_next_hat
 
                     if i == 0:
                         obs_imaginations = obs_imaginations.flatten(
