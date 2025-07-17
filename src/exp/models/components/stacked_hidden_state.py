@@ -25,7 +25,11 @@ class StackedHiddenState(nn.Module):
 
     @override
     def forward(
-        self, x: Tensor, hidden_stack: Tensor | None = None
+        self,
+        x: Tensor,
+        hidden_stack: Tensor | None = None,
+        *,
+        no_len: bool = False,
     ) -> tuple[Tensor, Tensor]:
         """Apply the stacked hidden state module.
 
@@ -33,10 +37,14 @@ class StackedHiddenState(nn.Module):
             x: The input tensor of shape (*batch, len, dim) or (len, dim) or (dim).
             hidden_stack: Optional hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
                 If None, the hidden state is initialized to zeros.
+            no_len: If True, performs single-step processing.
+
         Returns:
             The output tensor of shape (*batch, len, dim) or (len, dim) or (dim).
             The stacked hidden state tensor of shape (*batch, depth, len, dim) or (depth, len, dim) or (*batch, depth, dim) or (depth, dim).
         """
+        if no_len:
+            x = x.unsqueeze(-2)
         no_batch = x.ndim < 3
         if no_batch:
             x = x.unsqueeze(0)
@@ -72,6 +80,10 @@ class StackedHiddenState(nn.Module):
             x = x.squeeze(0)
             hidden_out_stack = hidden_out_stack.squeeze(0)
 
+        if no_len:
+            x = x.squeeze(-2)
+            hidden_out_stack = hidden_out_stack.squeeze(-2)
+
         return x, hidden_out_stack
 
     def forward_with_no_len(
@@ -89,5 +101,4 @@ class StackedHiddenState(nn.Module):
             The output tensor of shape (*batch, dim) or (dim, )
             The stacked hidden state tensor of shape (*batch, depth, dim) or (depth, dim).
         """
-        x, hidden_out = self.forward(x.unsqueeze(-2), hidden_stack)
-        return x.squeeze(-2), hidden_out.squeeze(-2)
+        return self.forward(x, hidden_stack, no_len=True)

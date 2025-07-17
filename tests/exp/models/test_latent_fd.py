@@ -47,12 +47,22 @@ class TestEncoder:
         hidden_tensor = torch.randn(
             self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
         )
+        output_tensor_no_len = torch.randn(self.BATCH_SIZE, self.DIM_CORE_MODEL)
+        hidden_tensor_no_len = torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL
+        )
 
-        # Configure return values
-        mock.return_value = (output_tensor, hidden_tensor)
+        # Configure return values based on no_len parameter
+        def side_effect(x, hidden=None, *, no_len=False):
+            if no_len:
+                return output_tensor_no_len, hidden_tensor_no_len
+            else:
+                return output_tensor, hidden_tensor
+
+        mock.side_effect = side_effect
         mock.forward_with_no_len.return_value = (
-            output_tensor[:, 0, :],  # Remove seq dimension
-            hidden_tensor[:, :, 0, :],  # Remove seq dimension
+            output_tensor_no_len,
+            hidden_tensor_no_len,
         )
         return mock
 
@@ -163,8 +173,11 @@ class TestEncoder:
         assert output.shape == (self.BATCH_SIZE, self.DIM_EMBED)
         assert next_hidden.shape == (self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL)
 
-        # Verify forward_with_no_len was called on core model
-        mock_core_model.forward_with_no_len.assert_called_once()
+        # Verify core model was called with no_len=True
+        mock_core_model.assert_called_once()
+        # Check that no_len=True was passed
+        args, kwargs = mock_core_model.call_args
+        assert kwargs.get("no_len") is True
 
     def test_output_projection(self, obs_info, action_info, mock_core_model):
         """Test output projection when embed_dim differs from
@@ -220,11 +233,22 @@ class TestPredictor:
         hidden_tensor = torch.randn(
             self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
         )
+        output_tensor_no_len = torch.randn(self.BATCH_SIZE, self.DIM_CORE_MODEL)
+        hidden_tensor_no_len = torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL
+        )
 
-        mock.return_value = (output_tensor, hidden_tensor)
+        # Configure return values based on no_len parameter
+        def side_effect(x, hidden=None, *, no_len=False):
+            if no_len:
+                return output_tensor_no_len, hidden_tensor_no_len
+            else:
+                return output_tensor, hidden_tensor
+
+        mock.side_effect = side_effect
         mock.forward_with_no_len.return_value = (
-            output_tensor[:, 0, :],  # Remove seq dimension
-            hidden_tensor[:, :, 0, :],  # Remove seq dimension
+            output_tensor_no_len,
+            hidden_tensor_no_len,
         )
         return mock
 
@@ -245,7 +269,7 @@ class TestPredictor:
             obs_info=self.OBS_DIM,
             core_model=mock_core_model,
             core_model_dim=self.DIM_CORE_MODEL,
-            dim_embed=None,
+            embed_dim=None,
         )
 
     @pytest.fixture
@@ -308,8 +332,11 @@ class TestPredictor:
         assert isinstance(obs_dist, Normal)
         assert next_hidden.shape == (self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL)
 
-        # Verify forward_with_no_len was called on core model
-        mock_core_model.forward_with_no_len.assert_called_once()
+        # Verify core model was called with no_len=True
+        mock_core_model.assert_called_once()
+        # Check that no_len=True was passed
+        args, kwargs = mock_core_model.call_args
+        assert kwargs.get("no_len") is True
 
     def test_input_projection(self, obs_info, mock_core_model):
         """Test input projection when embed_dim is provided."""

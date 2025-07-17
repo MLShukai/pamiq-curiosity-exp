@@ -106,11 +106,7 @@ class Encoder(nn.Module):
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         x = self._flatten_obs_action(obs, action)
-        core_forward = self.core_model.__call__
-        if no_len:
-            core_forward = self.core_model.forward_with_no_len
-
-        x, next_hidden = core_forward(x, hidden)
+        x, next_hidden = self.core_model(x, hidden, no_len=no_len)
         if self.out_proj:
             x = self.out_proj(x)
         return x, next_hidden
@@ -152,7 +148,7 @@ class Encoder(nn.Module):
                 - Latent representation tensor of shape (*batch, embed_dim).
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
-        return self.__call__(obs, action, hidden, no_len=True)
+        return self.forward(obs, action, hidden, no_len=True)
 
 
 class Predictor(nn.Module):
@@ -219,10 +215,7 @@ class Predictor(nn.Module):
         if self.input_proj:
             latent = self.input_proj(latent)
 
-        core_forward = self.core_model.__call__
-        if no_len:
-            core_forward = self.core_model.forward_with_no_len
-        x, next_hidden = core_forward(latent, hidden)
+        x, next_hidden = self.core_model(latent, hidden, no_len=no_len)
         obs_hat = self.obs_hat_dist_head(x)
         return obs_hat, next_hidden
 
@@ -250,4 +243,4 @@ class Predictor(nn.Module):
                 - Distribution representing predicted observations.
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
-        return self.__call__(latent, hidden, no_len=True)
+        return self.forward(latent, hidden, no_len=True)
