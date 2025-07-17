@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import override
 
 import torch
+import torch.nn.functional as F
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
@@ -88,7 +89,6 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
 
     head_forward_dynamics_hidden_state: Tensor | None  # (depth, dim) or None
     policy_hidden_state: Tensor | None  # (depth, dim) or None
-    obs_dist_imaginations: Distribution  # (imaginations, dim)
     obs_imaginations: Tensor  # (imaginations, dim)
     forward_dynamics_hidden_imaginations: (
         Tensor | None
@@ -150,7 +150,9 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
         if not initial_step:
             target_obses = observation.expand_as(self.obs_imaginations)
             error_imaginations = (
-                -self.obs_dist_imaginations.log_prob(target_obses).flatten(1).mean(-1)
+                F.mse_loss(self.obs_imaginations, target_obses, reduction="none")
+                .flatten(1)
+                .mean(-1)
             )
 
             current_error = float(
@@ -205,12 +207,11 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
                 : self.max_imagination_steps
             ]  # (imaginations, depth, dim)
 
-        obs_dist_imaginations, hidden_imaginations = self.forward_dynamics(
+        obs_imaginations, hidden_imaginations = self.forward_dynamics(
             obs_imaginations,
             action.expand((len(obs_imaginations), *action.shape)),
             hidden_imaginations,
         )
-        obs_imaginations = obs_dist_imaginations.sample()
 
         # ==============================================================================
         #                               Data Collection
@@ -233,7 +234,6 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
         self.step_data_policy[DataKey.VALUE] = value.cpu()
         self.metrics["value"] = value.cpu().item()
 
-        self.obs_dist_imaginations = obs_dist_imaginations
         self.obs_imaginations = obs_imaginations
         self.forward_dynamics_hidden_imaginations = hidden_imaginations
         self.head_forward_dynamics_hidden_state = (

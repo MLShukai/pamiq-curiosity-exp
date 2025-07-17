@@ -5,9 +5,7 @@ from typing import override
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch.distributions import Distribution
 
-from .components.deterministic_normal import FCDeterministicNormalHead
 from .components.multi_discretes import MultiEmbeddings
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
 from .components.stacked_hidden_state import StackedHiddenState
@@ -49,10 +47,7 @@ class StackedHiddenFD(nn.Module):
             obs_info.dim_hidden + action_info.dim * len(action_info.choices), dim
         )
         self.core_model = core_model
-        self.obs_hat_dist_head = nn.Sequential(
-            ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens),
-            FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
-        )
+        self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
 
     def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
         """Flatten and concat observation and action."""
@@ -66,7 +61,7 @@ class StackedHiddenFD(nn.Module):
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Forward pass to predict next observation distribution.
 
         Args:
@@ -77,13 +72,13 @@ class StackedHiddenFD(nn.Module):
 
         Returns:
             A tuple containing:
-                - Distribution representing predicted next observation.
+                - Tensor representing predicted next observation.
                 - Updated hidden state tensor for use in next prediction.
         """
         x = self._flatten_obs_action(obs, action)
         x, next_hidden = self.core_model(x, hidden)
-        obs_hat_dist = self.obs_hat_dist_head(x)
-        return obs_hat_dist, next_hidden
+        obs_hat = self.obs_hat_head(x)
+        return obs_hat, next_hidden
 
     @override
     def __call__(
@@ -91,7 +86,7 @@ class StackedHiddenFD(nn.Module):
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Override __call__ with proper type annotations.
 
         See forward() method for full documentation.
@@ -103,7 +98,7 @@ class StackedHiddenFD(nn.Module):
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
@@ -114,9 +109,9 @@ class StackedHiddenFD(nn.Module):
 
         Returns:
             A tuple containing:
-                - Distribution representing predicted next observation.
+                - Tensor representing predicted next observation.
                 - Updated hidden state tensor for use in next prediction.
         """
         x = self._flatten_obs_action(obs, action)  # (*batch, dim)
         x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
-        return self.obs_hat_dist_head(x), next_hidden
+        return self.obs_hat_head(x), next_hidden
