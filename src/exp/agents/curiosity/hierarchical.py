@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import override
 
 import torch
-import torch.nn.functional as F
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
