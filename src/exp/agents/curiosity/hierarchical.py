@@ -68,7 +68,9 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
         # Initialize hidden states (will be properly set in setup())
         self.policy_hidden_state: Tensor | None = None
-        self.forward_dynamics_hiddens: list[Tensor | None] = []
+        self.forward_dynamics_hiddens: list[Tensor | None] = [
+            None
+        ] * self.num_hierarchical_levels
 
     @override
     def on_inference_models_attached(self) -> None:
@@ -110,11 +112,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         collectors.
         """
         super().setup()
-        self.policy_hidden_state = None
-        self.forward_dynamics_hiddens: list[Tensor | None] = [
-            None
-        ] * self.num_hierarchical_levels
-
         self.predicted_obses: list[Tensor] | None = None
 
         self.step_data_policy: dict[str, Tensor] = {}
