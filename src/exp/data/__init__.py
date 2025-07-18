@@ -18,3 +18,4 @@ class DataKey(StrEnum):
     ACTION_LOG_PROB = auto()
     REWARD = auto()
     VALUE = auto()
+    TARGET = auto()
