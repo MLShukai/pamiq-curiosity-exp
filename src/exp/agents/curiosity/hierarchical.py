@@ -1,8 +1,8 @@
+from collections.abc import Sequence
 from pathlib import Path
 from typing import override
 
 import torch
-import torch.nn.functional as F
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
@@ -28,7 +28,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         num_hierarchical_levels: int = 2,
-        surprisal_coefficient_vector_seed: int = 8391,
+        surprisal_coefficients: Sequence[float] = (-1, 1),
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -38,8 +38,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         Args:
             num_hierarchical_levels: Number of hierarchical levels for forward dynamics models.
                 Must be >= 1.
-            surprisal_coefficient_vector_seed: Random seed for generating coefficient vectors
-                that weight prediction errors at each hierarchical level.
+            surprisal_coefficients: Coefficients that weight prediction errors at each hierarchical level.
+                Must have same length as num_hierarchical_levels.
             log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
@@ -52,12 +52,14 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             raise ValueError(
                 f"`num_hierarchical_levels` must be >= 1! Your input: {num_hierarchical_levels}"
             )
+        if len(surprisal_coefficients) != num_hierarchical_levels:
+            raise ValueError(
+                f"Length of surprisal_coefficients ({len(surprisal_coefficients)}) must equal "
+                f"num_hierarchical_levels ({num_hierarchical_levels})"
+            )
 
         self.num_hierarchical_levels = num_hierarchical_levels
-        self.surprisal_coefficient_vector_seed = surprisal_coefficient_vector_seed
-        self.surprisal_coefficient_vectors: list[Tensor | None] = [
-            None
-        ] * num_hierarchical_levels
+        self.surprisal_coefficients = list(surprisal_coefficients)  # copy
 
         self.metrics: dict[str, float] = {}
         self.scheduler = StepIntervalScheduler(log_every_n_steps, self.log_metrics)
@@ -138,10 +140,10 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         if self.predicted_obses is not None:
             target_obs = observation
             reward_sum = torch.tensor(0.0)
-            for i, (pred_obs, coef_vec) in enumerate(
+            for i, (pred_obs, coef) in enumerate(
                 zip(
                     self.predicted_obses,
-                    self.surprisal_coefficient_vectors,
+                    self.surprisal_coefficients,
                     strict=True,
                 )
             ):
@@ -153,23 +155,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                     self.collectors_fd[i].collect(step_data_fd.copy())
 
                 delta_obs = target_obs = target_obs - pred_obs
-                if coef_vec is None:
-                    g = torch.Generator()
-                    g.manual_seed(self.surprisal_coefficient_vector_seed + i)
-                    coef_vec = torch.where(
-                        torch.rand(
-                            delta_obs.shape,
-                            dtype=delta_obs.dtype,
-                            device=delta_obs.device,
-                            generator=g,
-                        )
-                        < i / (self.num_hierarchical_levels - 1),
-                        1,
-                        -1,
-                    )
-                    self.surprisal_coefficient_vectors[i] = coef_vec
-
-                reward = (delta_obs.square() * coef_vec).mean().cpu()
+                reward = (delta_obs.square() * coef).mean().cpu()
                 self.metrics[f"reward_{i}"] = reward.item()
                 reward_sum += reward
             self.metrics["reward_sum"] = reward_sum.item()
@@ -244,8 +230,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         """Save agent state to disk.
 
         Saves policy hidden state, forward dynamics hidden states for all levels,
-        surprisal coefficient vectors, and global step counter.
-        Hidden states and coefficient vectors can be None.
+        and global step counter.
+        Hidden states can be None.
 
         Args:
             path: Directory path where to save the state.
@@ -262,11 +248,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             if hidden is not None:
                 torch.save(hidden, path / f"forward_dynamics_hidden_{i}.pt")
 
-        # Save surprisal coefficient vectors
-        for i, coef_vec in enumerate(self.surprisal_coefficient_vectors):
-            if coef_vec is not None:
-                torch.save(coef_vec, path / f"surprisal_coefficient_vector_{i}.pt")
-
         # Save global step
         (path / "global_step").write_text(str(self.global_step), "utf-8")
 
@@ -275,8 +256,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         """Load agent state from disk.
 
         Restores policy hidden state, forward dynamics hidden states for all levels,
-        surprisal coefficient vectors, and global step counter.
-        Hidden states and coefficient vectors are set to None if the corresponding files don't exist.
+        and global step counter.
+        Hidden states are set to None if the corresponding files don't exist.
 
         Args:
             path: Directory path from where to load the state.
@@ -299,16 +280,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 self.forward_dynamics_hiddens.append(hidden)
             else:
                 self.forward_dynamics_hiddens.append(None)
-
-        # Load surprisal coefficient vectors
-        self.surprisal_coefficient_vectors = []
-        for i in range(self.num_hierarchical_levels):
-            coef_vec_path = path / f"surprisal_coefficient_vector_{i}.pt"
-            if coef_vec_path.exists():
-                coef_vec = torch.load(coef_vec_path, map_location=self.device)
-                self.surprisal_coefficient_vectors.append(coef_vec)
-            else:
-                self.surprisal_coefficient_vectors.append(None)
 
         # Load global step
         self.global_step = int((path / "global_step").read_text("utf-8"))

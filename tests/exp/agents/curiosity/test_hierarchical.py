@@ -63,7 +63,7 @@ class TestHierarchicalCuriosityAgent:
     def agent(self, models, buffers, mock_aim_run):
         agent = HierarchicalCuriosityAgent(
             num_hierarchical_levels=NUM_LEVELS,
-            surprisal_coefficient_vector_seed=42,
+            surprisal_coefficients=(-1.0, 0.5, 1.0),
             log_every_n_steps=5,
         )
         connect_components(agent, buffers=buffers, models=models)
@@ -147,8 +147,8 @@ class TestHierarchicalCuriosityAgent:
         assert DataKey.REWARD in policy_data
         assert DataKey.HIDDEN in policy_data
 
-        # Check that coefficient vectors were generated
-        assert all(vec is not None for vec in agent.surprisal_coefficient_vectors)
+        # Check that coefficients are set
+        assert len(agent.surprisal_coefficients) == NUM_LEVELS
 
     def test_logging(self, agent: HierarchicalCuriosityAgent, mock_aim_run):
         """Test metrics logging at specified intervals."""
@@ -181,10 +181,10 @@ class TestHierarchicalCuriosityAgent:
         """Test state saving and loading functionality."""
         agent.setup()
 
-        # Generate coefficient vectors by stepping
+        # Step to set up state
         observation = torch.randn(OBSERVATION_DIM)
         agent.step(observation)
-        agent.step(observation)  # Ensure coefficient vectors are created
+        agent.step(observation)
 
         # Set up some state after stepping
         agent.global_step = 42  # Reset to specific value after steps
@@ -203,10 +203,12 @@ class TestHierarchicalCuriosityAgent:
         assert (save_path / "global_step").exists()
         for i in range(NUM_LEVELS):
             assert (save_path / f"forward_dynamics_hidden_{i}.pt").exists()
-            assert (save_path / f"surprisal_coefficient_vector_{i}.pt").exists()
 
         # Create new agent and load state
-        new_agent = HierarchicalCuriosityAgent(num_hierarchical_levels=NUM_LEVELS)
+        new_agent = HierarchicalCuriosityAgent(
+            num_hierarchical_levels=NUM_LEVELS,
+            surprisal_coefficients=(-1.0, 0.5, 1.0),
+        )
         new_agent.load_state(save_path)
 
         # Verify state was loaded correctly
@@ -218,8 +220,4 @@ class TestHierarchicalCuriosityAgent:
             assert torch.allclose(
                 new_agent.forward_dynamics_hiddens[i],
                 agent.forward_dynamics_hiddens[i],
-            )
-            assert torch.allclose(
-                new_agent.surprisal_coefficient_vectors[i],
-                agent.surprisal_coefficient_vectors[i],
             )
