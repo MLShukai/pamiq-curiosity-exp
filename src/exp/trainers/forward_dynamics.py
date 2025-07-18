@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import override
 
 import torch
+import torch.nn.functional as F
 from pamiq_core import DataUser
 from pamiq_core.data.impls import DictSequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
@@ -250,4 +251,207 @@ class StackedHiddenFDTrainer(TorchTrainer):
         """Create data buffer for this trainer."""
         return DictSequentialBuffer(
             [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
+        )
+
+
+class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
+    """Trainer for the StackedHiddenFD model with explicit targets.
+
+    This trainer is a simplified version of StackedHiddenFDTrainer that uses
+    explicitly provided targets rather than imagination sequences. Instead of
+    predicting multiple steps into the future using imagination, this trainer
+    directly uses target observations from the buffer to compute the loss.
+    This approach is more straightforward and suitable when you have explicit
+    target data available.
+
+    Key differences from StackedHiddenFDTrainer:
+    - Uses explicit target observations from DataKey.TARGET
+    - No imagination sequence generation
+    - Single-step prediction loss computation
+    - Supports multiple model instances via model_index parameter
+    """
+
+    def __init__(
+        self,
+        partial_optimizer: partial[Optimizer],
+        seq_len: int = 1,
+        max_samples: int = 1,
+        batch_size: int = 1,
+        max_epochs: int = 1,
+        data_user_name: str = BufferName.FORWARD_DYNAMICS,
+        min_buffer_size: int | None = None,
+        min_new_data_count: int = 0,
+        model_index: int | None = None,
+    ) -> None:
+        """Initialize the StackedHiddenFDTrainerExplicitTarget.
+
+        Args:
+            partial_optimizer: Partially configured optimizer to be used with
+                the model parameters.
+            seq_len: Sequence length per batch.
+            max_samples: Max number of samples from dataset in 1 epoch.
+            batch_size: Data sample size of 1 batch.
+            max_epochs: Maximum number of epochs to train per training session.
+            data_user_name: Name of the data user providing training data.
+            min_buffer_size: Minimum buffer size required before training starts.
+            min_new_data_count: Minimum number of new data points required for training.
+            model_index: Optional index to support multiple model instances.
+        """
+
+        if min_buffer_size is None:
+            min_buffer_size = seq_len
+        if min_buffer_size < seq_len:
+            raise ValueError("Buffer size must be greater than sequence length.")
+
+        model_name = ModelName.FORWARD_DYNAMICS
+        if model_index is not None:
+            data_user_name += str(model_index)
+            model_name += str(model_index)
+
+        super().__init__(data_user_name, min_buffer_size, min_new_data_count)
+
+        self.partial_optimizer = partial_optimizer
+        self.partial_sampler = partial(
+            RandomTimeSeriesSampler,
+            sequence_length=seq_len,
+            max_samples=max_samples,
+        )
+        self.partial_dataloader = partial(DataLoader, batch_size=batch_size)
+        self.max_epochs = max_epochs
+        self.data_user_name = data_user_name
+        self.model_name = model_name
+        self.model_index = model_index
+
+        self.global_step = 0
+
+    @override
+    def on_data_users_attached(self) -> None:
+        """Set up data user references when they are attached to the trainer.
+
+        This method is called automatically by the PAMIQ framework when
+        data users are attached to the trainer. It retrieves and stores
+        references to the required data users for convenient access
+        during training.
+        """
+        super().on_data_users_attached()
+        self.forward_dynamics_data_user: DataUser[dict[str, list[Tensor]]] = (
+            self.get_data_user(self.data_user_name)
+        )
+
+    @override
+    def on_training_models_attached(self) -> None:
+        """Set up model references when they are attached to the trainer.
+
+        This method is called automatically by the PAMIQ framework when
+        training models are attached to the trainer. It retrieves and
+        stores references to the StackedHiddenFD model for convenient
+        access during training.
+        """
+
+        super().on_training_models_attached()
+        self.forward_dynamics = self.get_torch_training_model(
+            self.model_name, StackedHiddenFD
+        )
+
+    @override
+    def create_optimizers(self) -> OptimizersSetup:
+        """Create optimizers for the StackedHiddenFD model. This method is
+        called automatically by the PAMIQ framework to set up optimizers for
+        the training process. It uses the `partial_optimizer` function to
+        create an optimizer for the StackedHiddenFD model's parameters.
+
+        Returns:
+            Dictionary mapping optimizer name to configured optimizer instance.
+        """
+        return {
+            OPTIMIZER_NAME: self.partial_optimizer(
+                self.forward_dynamics.model.parameters()
+            )
+        }
+
+    @override
+    def train(self) -> None:
+        """Execute StackedHiddenFD training process with explicit targets.
+
+        This method implements a simplified StackedHiddenFD training loop:
+        1. Creates a dataset and dataloader with explicit targets
+        2. For each batch:
+            - Moves data to the appropriate device
+            - Extracts observations, actions, hidden states, and targets
+            - Computes the predicted next observation
+            - Calculates MSE loss between prediction and explicit target
+            - Backpropagates the loss
+            - Updates the model parameters
+        3. Logs the loss and gradient norm to Aim
+        4. Increments the global step counter
+        """
+
+        data = self.forward_dynamics_data_user.get_data()
+        dataset = TensorDataset(
+            torch.stack(data[DataKey.OBSERVATION]),
+            torch.stack(data[DataKey.ACTION]),
+            torch.stack(data[DataKey.HIDDEN]),
+            torch.stack(data[DataKey.TARGET]),
+        )
+        sampler = self.partial_sampler(dataset=dataset)
+        dataloader = self.partial_dataloader(dataset=dataset, sampler=sampler)
+        device = get_device(self.forward_dynamics.model)
+
+        for _ in range(self.max_epochs):
+            batch: tuple[Tensor, Tensor, Tensor, Tensor]
+            for batch in dataloader:
+                observations, actions, hiddens, targets = batch
+                observations = observations.to(device)
+                actions = actions.to(device)
+                hiddens = hiddens[:, 0].to(device)
+                targets = targets.to(device)
+
+                self.optimizers[OPTIMIZER_NAME].zero_grad()
+
+                preds, _ = self.forward_dynamics.model(observations, actions, hiddens)
+
+                loss = F.mse_loss(targets, preds)
+                loss.backward()
+
+                metrics = {"loss": loss.item()}
+                metrics["grad norm"] = (
+                    torch.cat(
+                        [
+                            p.grad.flatten()
+                            for p in self.forward_dynamics.model.parameters()
+                            if p.grad is not None
+                        ]
+                    )
+                    .norm()
+                    .item()
+                )
+
+                if run := get_global_run():
+                    prefix = "forward-dynamics"
+                    if self.model_index is not None:
+                        prefix += str(self.model_index)
+                    for k, v in metrics.items():
+                        run.track(v, name=f"{prefix}/{k}", step=self.global_step)
+                self.optimizers[OPTIMIZER_NAME].step()
+                self.global_step += 1
+
+    @override
+    def save_state(self, path: Path) -> None:
+        """Save trainer state to disk."""
+        super().save_state(path)
+        path.mkdir(exist_ok=True)
+        (path / "global_step").write_text(str(self.global_step), "utf-8")
+
+    @override
+    def load_state(self, path: Path) -> None:
+        """Load trainer state from disk."""
+        super().load_state(path)
+        self.global_step = int((path / "global_step").read_text("utf-8"))
+
+    @staticmethod
+    def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
+        """Create data buffer for this trainer."""
+        return DictSequentialBuffer(
+            [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN, DataKey.TARGET],
+            max_size=max_size,
         )
