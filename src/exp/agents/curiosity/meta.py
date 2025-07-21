@@ -13,52 +13,54 @@ from exp.data import BufferName, DataKey
 from exp.models import ModelName
 
 
-class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
-    """A reinforcement learning agent that uses hierarchical curiosity-driven
+class MetaCuriosityAgent(Agent[Tensor, Tensor]):
+    """A reinforcement learning agent that uses meta-curiosity-driven
     exploration.
 
-    This agent implements hierarchical curiosity-driven exploration by
+    This agent implements meta-curiosity-driven exploration by
     maintaining multiple forward dynamics models at different
-    hierarchical levels. Each level predicts observations at different
+    meta levels. Each level predicts observations at different
     abstraction levels, and prediction errors are combined with learned
     coefficients to generate intrinsic rewards. The agent uses a policy-
-    value network for action selection.
+    value network for action selection. The meta aspect refers to
+    curiosity about curiosity itself - the agent learns to modulate
+    its own curiosity signals across different levels.
     """
 
     def __init__(
         self,
-        num_hierarchical_levels: int = 2,
+        num_meta_levels: int = 2,
         surprisal_coefficients: Sequence[float] = (-1, 1),
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
-        """Initialize the HierarchicalCuriosityAgent.
+        """Initialize the MetaCuriosityAgent.
 
         Args:
-            num_hierarchical_levels: Number of hierarchical levels for forward dynamics models.
+            num_meta_levels: Number of meta levels for forward dynamics models.
                 Must be >= 1.
-            surprisal_coefficients: Coefficients that weight prediction errors at each hierarchical level.
-                Must have same length as num_hierarchical_levels.
+            surprisal_coefficients: Coefficients that weight prediction errors at each meta level.
+                Must have same length as num_meta_levels.
             log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
         Raises:
-            ValueError: If num_hierarchical_levels is less than 1.
+            ValueError: If num_meta_levels is less than 1.
         """
         super().__init__()
 
-        if num_hierarchical_levels < 1:
+        if num_meta_levels < 1:
             raise ValueError(
-                f"`num_hierarchical_levels` must be >= 1! Your input: {num_hierarchical_levels}"
+                f"`num_meta_levels` must be >= 1! Your input: {num_meta_levels}"
             )
-        if len(surprisal_coefficients) != num_hierarchical_levels:
+        if len(surprisal_coefficients) != num_meta_levels:
             raise ValueError(
                 f"Length of surprisal_coefficients ({len(surprisal_coefficients)}) must equal "
-                f"num_hierarchical_levels ({num_hierarchical_levels})"
+                f"num_meta_levels ({num_meta_levels})"
             )
 
-        self.num_hierarchical_levels = num_hierarchical_levels
+        self.num_meta_levels = num_meta_levels
         self.surprisal_coefficients = list(surprisal_coefficients)  # copy
 
         self.metrics: dict[str, float] = {}
@@ -72,20 +74,20 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.policy_hidden_state: Tensor | None = None
         self.forward_dynamics_hiddens: list[Tensor | None] = [
             None
-        ] * self.num_hierarchical_levels
+        ] * self.num_meta_levels
 
     @override
     def on_inference_models_attached(self) -> None:
         """Retrieve models when models are attached.
 
-        Initializes forward dynamics models for each hierarchical level
-        and the policy-value network.
+        Initializes forward dynamics models for each meta level and the
+        policy-value network.
         """
         super().on_inference_models_attached()
 
         self.forward_dynamicses = [
             self.get_inference_model(ModelName.FORWARD_DYNAMICS + str(i))
-            for i in range(self.num_hierarchical_levels)
+            for i in range(self.num_meta_levels)
         ]
 
         self.policy_value = self.get_inference_model(ModelName.POLICY_VALUE)
@@ -95,14 +97,14 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         """Retrieve data collectors when collectors are attached.
 
         Initializes data collectors for policy and forward dynamics at
-        each hierarchical level.
+        each meta level.
         """
         super().on_data_collectors_attached()
 
         self.collector_policy = self.get_data_collector(BufferName.POLICY)
         self.collectors_fd = [
             self.get_data_collector(BufferName.FORWARD_DYNAMICS + str(i))
-            for i in range(self.num_hierarchical_levels)
+            for i in range(self.num_meta_levels)
         ]
 
     @override
@@ -117,15 +119,13 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.predicted_obses: list[Tensor] | None = None
 
         self.step_data_policy: dict[str, Tensor] = {}
-        self.step_data_fd = [
-            dict[str, Tensor]() for _ in range(self.num_hierarchical_levels)
-        ]
+        self.step_data_fd = [dict[str, Tensor]() for _ in range(self.num_meta_levels)]
 
     @override
     def step(self, observation: Tensor) -> Tensor:
         """Process observation and return action for environment interaction.
 
-        Computes intrinsic rewards from hierarchical prediction errors,
+        Computes intrinsic rewards from meta-level prediction errors,
         selects actions using the policy network, and updates forward
         dynamics predictions at all levels.
 
@@ -220,7 +220,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                     v,
                     name=f"curiosity-agent/{k}",
                     step=self.global_step,
-                    context={"curiosity_type": "hierarchical"},
+                    context={"curiosity_type": "meta"},
                 )
 
     # ------ State Persistence ------
@@ -273,7 +273,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
         # Load forward dynamics hidden states
         self.forward_dynamics_hiddens = []
-        for i in range(self.num_hierarchical_levels):
+        for i in range(self.num_meta_levels):
             fd_hidden_path = path / f"forward_dynamics_hidden_{i}.pt"
             if fd_hidden_path.exists():
                 hidden = torch.load(fd_hidden_path, map_location=self.device)

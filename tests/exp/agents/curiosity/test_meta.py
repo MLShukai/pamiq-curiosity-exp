@@ -8,7 +8,7 @@ from pamiq_core.testing import (
 from pytest_mock import MockerFixture
 from torch.distributions import Normal
 
-from exp.agents.curiosity.hierarchical import HierarchicalCuriosityAgent
+from exp.agents.curiosity.meta import MetaCuriosityAgent
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
 
@@ -20,12 +20,12 @@ DEPTH = 2
 NUM_LEVELS = 3
 
 
-class TestHierarchicalCuriosityAgent:
-    """Tests for the HierarchicalCuriosityAgent class."""
+class TestMetaCuriosityAgent:
+    """Tests for the MetaCuriosityAgent class."""
 
     @pytest.fixture
     def models(self):
-        # Create forward dynamics models for each hierarchical level
+        # Create forward dynamics models for each meta level
         models = {}
         for i in range(NUM_LEVELS):
             fd_model, _ = create_mock_models()
@@ -57,28 +57,28 @@ class TestHierarchicalCuriosityAgent:
 
     @pytest.fixture
     def mock_aim_run(self, mocker: MockerFixture):
-        return mocker.patch("exp.agents.curiosity.hierarchical.get_global_run")
+        return mocker.patch("exp.agents.curiosity.meta.get_global_run")
 
     @pytest.fixture
     def agent(self, models, buffers, mock_aim_run):
-        agent = HierarchicalCuriosityAgent(
-            num_hierarchical_levels=NUM_LEVELS,
+        agent = MetaCuriosityAgent(
+            num_meta_levels=NUM_LEVELS,
             surprisal_coefficients=(-1.0, 0.5, 1.0),
             log_every_n_steps=5,
         )
         connect_components(agent, buffers=buffers, models=models)
         return agent
 
-    def test_invalid_num_hierarchical_levels(self):
-        """Test that agent raises error for invalid num_hierarchical_levels."""
-        with pytest.raises(ValueError, match="`num_hierarchical_levels` must be >= 1"):
-            HierarchicalCuriosityAgent(num_hierarchical_levels=0)
+    def test_invalid_num_meta_levels(self):
+        """Test that agent raises error for invalid num_meta_levels."""
+        with pytest.raises(ValueError, match="`num_meta_levels` must be >= 1"):
+            MetaCuriosityAgent(num_meta_levels=0)
 
-        with pytest.raises(ValueError, match="`num_hierarchical_levels` must be >= 1"):
-            HierarchicalCuriosityAgent(num_hierarchical_levels=-1)
+        with pytest.raises(ValueError, match="`num_meta_levels` must be >= 1"):
+            MetaCuriosityAgent(num_meta_levels=-1)
 
     def test_setup_step_teardown(
-        self, agent: HierarchicalCuriosityAgent, mocker: MockerFixture
+        self, agent: MetaCuriosityAgent, mocker: MockerFixture
     ):
         """Test the main interaction loop of the agent."""
         agent.setup()
@@ -112,7 +112,7 @@ class TestHierarchicalCuriosityAgent:
         for spy in spy_fd_collects:
             assert spy.call_count == 0
 
-        # Second step - should calculate hierarchical rewards
+        # Second step - should calculate meta rewards
         observation2 = torch.randn(OBSERVATION_DIM)
         agent.step(observation2)
         assert agent.global_step == 2
@@ -150,7 +150,7 @@ class TestHierarchicalCuriosityAgent:
         # Check that coefficients are set
         assert len(agent.surprisal_coefficients) == NUM_LEVELS
 
-    def test_logging(self, agent: HierarchicalCuriosityAgent, mock_aim_run):
+    def test_logging(self, agent: MetaCuriosityAgent, mock_aim_run):
         """Test metrics logging at specified intervals."""
         mock_run = mock_aim_run.return_value
 
@@ -168,16 +168,16 @@ class TestHierarchicalCuriosityAgent:
         track_calls = mock_run.track.call_args_list
         tracked_metrics = {call[1]["name"] for call in track_calls}
 
-        # Verify hierarchical rewards are tracked
+        # Verify meta rewards are tracked
         for i in range(NUM_LEVELS):
             assert f"curiosity-agent/reward_{i}" in tracked_metrics
         assert "curiosity-agent/reward_sum" in tracked_metrics
 
         # Verify context includes curiosity type
         for call in track_calls:
-            assert call[1]["context"]["curiosity_type"] == "hierarchical"
+            assert call[1]["context"]["curiosity_type"] == "meta"
 
-    def test_save_and_load_state(self, agent: HierarchicalCuriosityAgent, tmp_path):
+    def test_save_and_load_state(self, agent: MetaCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
         agent.setup()
 
@@ -205,8 +205,8 @@ class TestHierarchicalCuriosityAgent:
             assert (save_path / f"forward_dynamics_hidden_{i}.pt").exists()
 
         # Create new agent and load state
-        new_agent = HierarchicalCuriosityAgent(
-            num_hierarchical_levels=NUM_LEVELS,
+        new_agent = MetaCuriosityAgent(
+            num_meta_levels=NUM_LEVELS,
             surprisal_coefficients=(-1.0, 0.5, 1.0),
         )
         new_agent.load_state(save_path)
