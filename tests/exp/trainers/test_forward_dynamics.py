@@ -220,7 +220,6 @@ class TestStackedHiddenFDTrainerExplicitTarget:
             max_epochs=1,
             min_buffer_size=self.LEN,
             min_new_data_count=4,
-            model_index=1,
         )
         return trainer
 

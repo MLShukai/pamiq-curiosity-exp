@@ -278,10 +278,10 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
         max_samples: int = 1,
         batch_size: int = 1,
         max_epochs: int = 1,
+        model_name: str = ModelName.FORWARD_DYNAMICS,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
-        model_index: int | None = None,
     ) -> None:
         """Initialize the StackedHiddenFDTrainerExplicitTarget.
 
@@ -303,11 +303,6 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
         if min_buffer_size < seq_len:
             raise ValueError("Buffer size must be greater than sequence length.")
 
-        model_name = ModelName.FORWARD_DYNAMICS
-        if model_index is not None:
-            data_user_name += str(model_index)
-            model_name += str(model_index)
-
         super().__init__(data_user_name, min_buffer_size, min_new_data_count)
 
         self.partial_optimizer = partial_optimizer
@@ -320,7 +315,6 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
         self.max_epochs = max_epochs
         self.data_user_name = data_user_name
         self.model_name = model_name
-        self.model_index = model_index
 
         self.global_step = 0
 
@@ -428,8 +422,6 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
 
                 if run := get_global_run():
                     prefix = "forward-dynamics"
-                    if self.model_index is not None:
-                        prefix += str(self.model_index)
                     for k, v in metrics.items():
                         run.track(v, name=f"{prefix}/{k}", step=self.global_step)
                 self.optimizers[OPTIMIZER_NAME].step()
