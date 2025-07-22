@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Any, override
+from typing import Any, Self, override
 
 import torch
 import torch.nn.functional as F
@@ -448,29 +448,27 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
             max_size=max_size,
         )
 
+    @classmethod
+    def create_multiple(cls, num_trainers: int, **trainer_params: Any) -> list[Self]:
+        """Create multiple StackedHiddenFDTrainerExplicitTarget instances.
 
-def create_multiple_explit_target_trainers(
-    num_trainers: int, **trainer_params: Any
-) -> list[StackedHiddenFDTrainerExplicitTarget]:
-    """Create multiple StackedHiddenFDTrainerExplicitTarget instances.
+        Each trainer is assigned a unique model_name and data_user_name by
+        appending an index (0 to num_trainers-1) to the base names.
 
-    Each trainer is assigned a unique model_name and data_user_name by
-    appending an index (0 to num_trainers-1) to the base names.
+        Args:
+            num_trainers: Number of trainers to create.
+            **trainer_params: Parameters to pass to each trainer constructor.
 
-    Args:
-        num_trainers: Number of trainers to create.
-        **trainer_params: Parameters to pass to each trainer constructor.
-
-    Returns:
-        List of configured trainer instances.
-    """
-    trainers = list[StackedHiddenFDTrainerExplicitTarget]()
-    for i in range(num_trainers):
-        trainers.append(
-            StackedHiddenFDTrainerExplicitTarget(
-                **trainer_params,
-                model_name=ModelName.FORWARD_DYNAMICS + str(i),
-                data_user_name=BufferName.FORWARD_DYNAMICS + str(i),
+        Returns:
+            List of configured trainer instances.
+        """
+        trainers = list[Self]()
+        for i in range(num_trainers):
+            trainers.append(
+                cls(
+                    **trainer_params,
+                    model_name=ModelName.FORWARD_DYNAMICS + str(i),
+                    data_user_name=BufferName.FORWARD_DYNAMICS + str(i),
+                )
             )
-        )
-    return trainers
+        return trainers
