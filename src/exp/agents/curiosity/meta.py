@@ -1,6 +1,5 @@
-from collections.abc import Sequence
 from pathlib import Path
-from typing import override
+from typing import Literal, override
 
 import torch
 from pamiq_core import Agent
@@ -30,7 +29,9 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         num_meta_levels: int = 2,
-        surprisal_coefficients: Sequence[float] = (-1, 1),
+        surprisal_coefficients_method: Literal[
+            "minimize_to_maximize", "minimize", "maximize"
+        ] = "minimize_to_maximize",
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -40,8 +41,11 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         Args:
             num_meta_levels: Number of meta levels for forward dynamics models.
                 Must be >= 1.
-            surprisal_coefficients: Coefficients that weight prediction errors at each meta level.
-                Must have same length as num_meta_levels.
+            surprisal_coefficients_method: Method to generate coefficients that weight
+                prediction errors at each meta level. Options:
+                - "minimize_to_maximize": Linear interpolation from -1 to 1
+                - "minimize": All coefficients set to -1.0
+                - "maximize": All coefficients set to 1.0
             log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
@@ -54,14 +58,19 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
             raise ValueError(
                 f"`num_meta_levels` must be >= 1! Your input: {num_meta_levels}"
             )
-        if len(surprisal_coefficients) != num_meta_levels:
-            raise ValueError(
-                f"Length of surprisal_coefficients ({len(surprisal_coefficients)}) must equal "
-                f"num_meta_levels ({num_meta_levels})"
-            )
+
+        match surprisal_coefficients_method:
+            case "maximize":
+                surprisal_coefficients = [1.0] * num_meta_levels
+            case "minimize":
+                surprisal_coefficients = [-1.0] * num_meta_levels
+            case "minimize_to_maximize":
+                surprisal_coefficients: list[float] = torch.linspace(
+                    -1, 1, num_meta_levels
+                ).tolist()
 
         self.num_meta_levels = num_meta_levels
-        self.surprisal_coefficients = list(surprisal_coefficients)  # copy
+        self.surprisal_coefficients = surprisal_coefficients
 
         self.metrics: dict[str, float] = {}
         self.scheduler = StepIntervalScheduler(log_every_n_steps, self.log_metrics)
