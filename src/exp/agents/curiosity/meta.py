@@ -29,7 +29,8 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         num_meta_levels: int = 2,
-        surprisal_coefficients_method: Literal[
+        surprisal_coefficients_method: str
+        | Literal[
             "minimize_to_maximize", "minimize", "maximize"
         ] = "minimize_to_maximize",
         log_every_n_steps: int = 1,
@@ -68,6 +69,10 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
                 surprisal_coefficients: list[float] = torch.linspace(
                     -1, 1, num_meta_levels
                 ).tolist()
+            case _:
+                raise ValueError(
+                    f"Unknown surprisal_coefficients_method: {surprisal_coefficients_method!r}"
+                )
 
         self.num_meta_levels = num_meta_levels
         self.surprisal_coefficients = surprisal_coefficients
