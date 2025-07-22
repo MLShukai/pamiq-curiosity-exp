@@ -1,3 +1,5 @@
+import copy
+
 import torch
 
 type size_2d = int | tuple[int, int]
@@ -42,3 +44,21 @@ def average_exponentially(sequence: torch.Tensor) -> torch.Tensor:
     equi_series_sum = (1 - decay ** len(sequence)) / (1 - decay)
 
     return torch.sum(sequence * decay_factors, dim=0) / equi_series_sum
+
+
+def replicate[T](obj: T, num: int) -> list[T]:
+    """Create multiple deep copies of an object.
+
+    Args:
+        obj: The object to replicate.
+        num: Number of copies to create.
+
+    Returns:
+        List containing num deep copies of the object.
+
+    Raises:
+        ValueError: If num is negative.
+    """
+    if num < 0:
+        raise ValueError(f"Number of copies must be non-negative, got {num}")
+    return [copy.deepcopy(obj) for _ in range(num)]
