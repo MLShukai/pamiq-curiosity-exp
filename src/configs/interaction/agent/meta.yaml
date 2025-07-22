@@ -1,0 +1,7 @@
+# @package interaction.agent.curiosity
+
+_target_: exp.agents.curiosity.meta.MetaCuriosityAgent
+num_meta_levels: 2
+surprisal_coefficients: [-1, 1]
+device: ${shared.device}
+dtype: ${shared.dtype}
