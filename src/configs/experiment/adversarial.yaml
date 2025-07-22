@@ -11,23 +11,7 @@ shared:
 
 trainers:
   policy:
-    partial_optimizer:
-      _target_: torch.optim.SGD
-      _partial_: true
-      lr: 1e-4
-      momentum: 0.9
-      nesterov: true
-      weight_decay: 1e-4
     gamma: 0.0 # Set purery adversarial cost function.
-
-  forward_dynamics:
-    partial_optimizer:
-      _target_: torch.optim.SGD
-      _partial_: true
-      lr: 1e-4
-      momentum: 0.9
-      nesterov: true
-      weight_decay: 1e-4
 
 experiment_name: "adversarial"
 
