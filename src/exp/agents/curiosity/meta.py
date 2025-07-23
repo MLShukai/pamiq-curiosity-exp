@@ -199,6 +199,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         self.step_data_policy[DataKey.ACTION] = action.cpu()
         self.step_data_policy[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()
         self.step_data_policy[DataKey.VALUE] = value.cpu()
+        self.metrics["value"] = value.cpu().item()
 
         # ==============================================================================
         #                           Forward Dynamics Process
