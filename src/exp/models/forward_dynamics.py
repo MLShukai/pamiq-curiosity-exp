@@ -1,9 +1,10 @@
 """Defines forward dynamics models."""
 
-from typing import override
+from typing import Any, override
 
 import torch
 import torch.nn as nn
+from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
 
 from .components.multi_discretes import MultiEmbeddings
@@ -115,3 +116,33 @@ class StackedHiddenFD(nn.Module):
         x = self._flatten_obs_action(obs, action)  # (*batch, dim)
         x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
         return self.obs_hat_head(x), next_hidden
+
+
+def create_multiple(
+    num_models: int,
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+    **model_hparams: Any,
+) -> list[TorchTrainingModel[StackedHiddenFD]]:
+    """Create multiple forward dynamics models with the same configuration.
+
+    Args:
+        num_models: Number of models to create.
+        device: Device to place models on.
+        dtype: Data type for model parameters.
+        **model_hparams: Model hyperparameters passed to each model.
+
+    Returns:
+        List of initialized forward dynamics models.
+    """
+    return [
+        TorchTrainingModel(
+            model=StackedHiddenFD(**model_hparams),
+            has_inference_model=True,
+            inference_procedure=StackedHiddenFD.forward_with_no_len,
+            device=device,
+            dtype=dtype,
+        )
+        for _ in range(num_models)
+    ]
