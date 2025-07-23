@@ -234,8 +234,12 @@ class JEPATrainer(TorchTrainer):
                     for tag, value in metrics.items():
                         run.track(
                             value,
-                            name=f"{self.log_prefix}/{tag}",
+                            name=tag,
                             step=self.global_step,
+                            context={
+                                "namespace": "trainer",
+                                "trainer_type": self.log_prefix,
+                            },
                         )
 
                 self.global_step += 1

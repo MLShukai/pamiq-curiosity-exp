@@ -252,7 +252,12 @@ class DeltaMinimizeAgent(Agent[Tensor, Tensor]):
         """
         if run := get_global_run():
             for k, v in self.metrics.items():
-                run.track(v, name=f"delta-minimize-agent/{k}", step=self.global_step)
+                run.track(
+                    v,
+                    name=k,
+                    step=self.global_step,
+                    context={"namespace": "agent", "curiosity_type": "delta_minimize"},
+                )
 
     # ------ State Persistence ------
 

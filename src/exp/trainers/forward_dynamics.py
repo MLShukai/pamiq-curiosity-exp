@@ -423,7 +423,12 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
                 if run := get_global_run():
                     prefix = "forward-dynamics"
                     for k, v in metrics.items():
-                        run.track(v, name=f"{prefix}/{k}", step=self.global_step)
+                        run.track(
+                            v,
+                            name=k,
+                            step=self.global_step,
+                            context={"namespace": "trainer", "trainer_type": prefix},
+                        )
                 self.optimizers[OPTIMIZER_NAME].step()
                 self.global_step += 1
 

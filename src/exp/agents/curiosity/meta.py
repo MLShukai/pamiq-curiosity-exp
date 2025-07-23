@@ -232,9 +232,9 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
             for k, v in self.metrics.items():
                 run.track(
                     v,
-                    name=f"curiosity-agent/{k}",
+                    name=k,
                     step=self.global_step,
-                    context={"curiosity_type": "meta"},
+                    context={"namespace": "agent", "curiosity_type": "meta"},
                 )
 
     # ------ State Persistence ------

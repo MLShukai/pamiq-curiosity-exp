@@ -161,8 +161,8 @@ class TestAdversarialCuriosityAgent:
         tracked_metrics = {call[1]["name"] for call in track_calls}
 
         # Verify expected metrics were tracked
-        assert "curiosity-agent/reward" in tracked_metrics
-        assert "curiosity-agent/value" in tracked_metrics
+        assert "reward" in tracked_metrics
+        assert "value" in tracked_metrics
 
     def test_save_and_load_state(self, agent: AdversarialCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
