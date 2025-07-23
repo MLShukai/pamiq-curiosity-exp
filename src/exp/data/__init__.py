@@ -19,3 +19,4 @@ class DataKey(StrEnum):
     REWARD = auto()
     VALUE = auto()
     TARGET = auto()
+    UPPER_ACTION = auto()
