@@ -280,6 +280,7 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
         max_epochs: int = 1,
         model_name: str = ModelName.FORWARD_DYNAMICS,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
+        log_prefix: str = "forward-dynamics",
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
@@ -315,6 +316,7 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
         self.max_epochs = max_epochs
         self.data_user_name = data_user_name
         self.model_name = model_name
+        self.log_prefix = log_prefix
 
         self.global_step = 0
 
@@ -421,13 +423,15 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
                 )
 
                 if run := get_global_run():
-                    prefix = "forward-dynamics"
                     for k, v in metrics.items():
                         run.track(
                             v,
                             name=k,
                             step=self.global_step,
-                            context={"namespace": "trainer", "trainer_type": prefix},
+                            context={
+                                "namespace": "trainer",
+                                "trainer_type": self.log_prefix,
+                            },
                         )
                 self.optimizers[OPTIMIZER_NAME].step()
                 self.global_step += 1
@@ -474,6 +478,7 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
                     **trainer_params,
                     model_name=ModelName.FORWARD_DYNAMICS + str(i),
                     data_user_name=BufferName.FORWARD_DYNAMICS + str(i),
+                    log_prefix="forward-dynamics" + str(i),
                 )
             )
         return trainers
