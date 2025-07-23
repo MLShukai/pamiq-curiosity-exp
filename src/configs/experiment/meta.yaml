@@ -10,6 +10,10 @@ shared:
   num_meta_levels: 2
   dtype: bfloat16
 
+trainers:
+  policy:
+    gamma: ${python.eval:"1 - 1 / 100"}
+
 experiment_name: "meta"
 
 tags:
