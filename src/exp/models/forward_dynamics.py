@@ -120,10 +120,10 @@ class StackedHiddenFD(nn.Module):
 
 def create_multiple(
     num_models: int,
+    model_hparams: dict[str, Any],
     *,
     device: torch.device | None = None,
     dtype: torch.dtype | None = None,
-    **model_hparams: Any,
 ) -> list[TorchTrainingModel[StackedHiddenFD]]:
     """Create multiple forward dynamics models with the same configuration.
 
@@ -131,7 +131,7 @@ def create_multiple(
         num_models: Number of models to create.
         device: Device to place models on.
         dtype: Data type for model parameters.
-        **model_hparams: Model hyperparameters passed to each model.
+        model_hparams: Model hyperparameters passed to each model.
 
     Returns:
         List of initialized forward dynamics models.
