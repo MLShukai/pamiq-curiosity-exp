@@ -251,9 +251,14 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
                     for tag, v in metrics.items():
                         value = v.item() if isinstance(v, torch.Tensor) else v
                         run.track(
-                            value, name=f"ppo-policy/{tag}", step=self.global_step
+                            value,
+                            name=tag,
+                            step=self.global_step,
+                            context={
+                                "namespace": "trainer",
+                                "trainer_type": "ppo-policy",
+                            },
                         )
-
                 self.global_step += 1
 
     @override

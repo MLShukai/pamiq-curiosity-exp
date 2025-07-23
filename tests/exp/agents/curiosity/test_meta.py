@@ -170,8 +170,8 @@ class TestMetaCuriosityAgent:
 
         # Verify meta rewards are tracked
         for i in range(NUM_LEVELS):
-            assert f"curiosity-agent/reward_{i}" in tracked_metrics
-        assert "curiosity-agent/reward_sum" in tracked_metrics
+            assert f"reward_{i}" in tracked_metrics
+        assert "reward_sum" in tracked_metrics
 
         # Verify context includes curiosity type
         for call in track_calls:

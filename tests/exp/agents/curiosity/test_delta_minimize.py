@@ -164,9 +164,9 @@ class TestDeltaMinimizeAgent:
         tracked_metrics = {call[1]["name"] for call in track_calls}
 
         # Verify expected metrics were tracked
-        assert "delta-minimize-agent/reward" in tracked_metrics
-        assert "delta-minimize-agent/value" in tracked_metrics
-        assert "delta-minimize-agent/error" in tracked_metrics
+        assert "reward" in tracked_metrics
+        assert "value" in tracked_metrics
+        assert "error" in tracked_metrics
 
     def test_save_and_load_state(self, agent: DeltaMinimizeAgent, tmp_path):
         """Test state saving and loading functionality."""
