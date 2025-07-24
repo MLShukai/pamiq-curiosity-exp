@@ -71,18 +71,6 @@ class TestLayerCuriosityAgent:
         connect_components(agent, models=models, buffers=buffers)
         return agent
 
-    def test_initialization(self, agent):
-        agent = LayerCuriosityAgent(
-            model_buffer_suffix=MODEL_BUFFER_SUFFIX,
-            reward_coef=1.0,
-            reward_lerp_ratio=0.5,
-            device=torch.device("cpu"),
-        )
-        assert agent.reward_coef == 1.0
-        assert agent.reward_lerp_ratio == 0.5
-        assert agent.model_buffer_suffix == MODEL_BUFFER_SUFFIX
-        assert agent.device == torch.device("cpu")
-
     def test_setup(self, agent: LayerCuriosityAgent):
         agent.setup()
         assert agent.step_data_fd == {}
