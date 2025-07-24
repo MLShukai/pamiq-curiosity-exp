@@ -182,9 +182,9 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         # ================================================
 
         return LayerOutput(
-            observation_from_lower=latent_obs.cpu(),
-            action=action.cpu(),
-            reward=reward.cpu() if reward is not None else None,
+            observation_from_lower=latent_obs,
+            action=action,
+            reward=reward if reward is not None else None,
         )
 
     @override
