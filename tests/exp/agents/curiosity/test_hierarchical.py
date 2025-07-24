@@ -9,7 +9,11 @@ from pytest_mock import MockerFixture
 from torch.distributions import Normal
 
 from exp.agents.curiosity.adversarial import AdversarialCuriosityAgent
-from exp.agents.curiosity.layer import LayerCuriosityAgent, LayerInput, LayerOutput
+from exp.agents.curiosity.hierarchical import (
+    LayerCuriosityAgent,
+    LayerInput,
+    LayerOutput,
+)
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
 
