@@ -131,7 +131,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
                     self.reward_lerp_ratio * reward
                     + (1 - self.reward_lerp_ratio) * upper_reward
                 )
-            self.step_data_policy[DataKey.REWARD] = reward
+            self.step_data_policy[DataKey.REWARD] = reward.cpu()
         else:
             reward = None
 
