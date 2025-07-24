@@ -72,7 +72,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         self.obs_hat: Tensor | None = None
         self.policy_hidden: Tensor | None = None
         self.fd_hidden: Tensor | None = None
-        self.device = device or torch.device("cpu")
+        self.device = device or torch.get_default_device()
 
     @override
     def on_data_collectors_attached(self) -> None:
