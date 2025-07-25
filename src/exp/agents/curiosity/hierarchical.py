@@ -15,13 +15,13 @@ from exp.models import ModelName
 @dataclass(frozen=True)
 class LayerInput:
     observation: Tensor
-    action_from_upper: Tensor | None
-    reward_from_upper: Tensor | None
+    upper_action: Tensor | None
+    upper_reward: Tensor | None
 
 
 @dataclass(frozen=True)
 class LayerOutput:
-    observation_from_lower: Tensor
+    lower_observation: Tensor
     action: Tensor
     reward: Tensor | None
 
@@ -117,8 +117,8 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         """
         obs, upper_action, upper_reward = (
             observation.observation,
-            observation.action_from_upper,
-            observation.reward_from_upper,
+            observation.upper_action,
+            observation.upper_reward,
         )
 
         # ================================================
@@ -182,9 +182,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         #                 Return Output
         # ================================================
 
-        return LayerOutput(
-            observation_from_lower=latent_obs, action=action, reward=reward
-        )
+        return LayerOutput(lower_observation=latent_obs, action=action, reward=reward)
 
     @override
     def save_state(self, path: Path):

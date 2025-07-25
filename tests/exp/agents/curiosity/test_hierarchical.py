@@ -86,8 +86,8 @@ class TestLayerCuriosityAgent:
 
         observation = LayerInput(
             observation=torch.zeros(OBSERVATION_DIM),
-            action_from_upper=torch.zeros(ACTION_DIM),
-            reward_from_upper=torch.tensor(0.0),
+            upper_action=torch.zeros(ACTION_DIM),
+            upper_reward=torch.tensor(0.0),
         )
 
         assert agent.obs_hat is None
@@ -96,7 +96,7 @@ class TestLayerCuriosityAgent:
 
         output = agent.step(observation)
         observation_from_lower, action, reward = (
-            output.observation_from_lower,
+            output.lower_observation,
             output.action,
             output.reward,
         )
@@ -117,7 +117,7 @@ class TestLayerCuriosityAgent:
 
         output = agent.step(observation)
         observation_from_lower, action, reward = (
-            output.observation_from_lower,
+            output.lower_observation,
             output.action,
             output.reward,
         )
@@ -138,7 +138,7 @@ class TestLayerCuriosityAgent:
 
         output = agent.step(observation)
         observation_from_lower, action, reward = (
-            output.observation_from_lower,
+            output.lower_observation,
             output.action,
             output.reward,
         )
@@ -162,8 +162,8 @@ class TestLayerCuriosityAgent:
         agent.setup()
         observation = LayerInput(
             observation=torch.zeros(OBSERVATION_DIM),
-            action_from_upper=None,
-            reward_from_upper=None,
+            upper_action=None,
+            upper_reward=None,
         )
         agent.step(observation)
 
