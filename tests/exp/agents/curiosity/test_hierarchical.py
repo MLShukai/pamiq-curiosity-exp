@@ -8,8 +8,8 @@ from pamiq_core.testing import (
 from pytest_mock import MockerFixture
 from torch.distributions import Normal
 
-from exp.agents.curiosity.adversarial import AdversarialCuriosityAgent
 from exp.agents.curiosity.hierarchical import (
+    HierarchicalCuriosityAgent,
     LayerCuriosityAgent,
     LayerInput,
     LayerOutput,
@@ -23,6 +23,8 @@ ACTION_DIM = 4
 HIDDEN_DIM = 32
 DEPTH = 2
 MODEL_BUFFER_SUFFIX = "_test"
+MODEL_BUFFER_SUFFIX_1 = "_test_1"
+MODEL_BUFFER_SUFFIX_2 = "_test_2"
 
 
 class TestLayerCuriosityAgent:
@@ -195,3 +197,138 @@ class TestLayerCuriosityAgent:
             and agent.fd_hidden is not None
             and torch.equal(new_agent.fd_hidden, agent.fd_hidden)
         )
+
+
+class TestHierarchicalCuriosityAgent:
+    """Test suite for HierarchicalCuriosityAgent."""
+
+    @pytest.fixture
+    def forward_dynamics(self):
+        model, _ = create_mock_models()
+        obs_hat = torch.zeros(OBSERVATION_DIM)
+        latent_obs = torch.zeros(OBSERVATION_DIM)
+        hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        model.inference_model.return_value = (obs_hat, latent_obs, hidden)
+        return model
+
+    @pytest.fixture
+    def policy_value(self):
+        model, _ = create_mock_models()
+        action_dist = Normal(torch.zeros(OBSERVATION_DIM), torch.ones(OBSERVATION_DIM))
+        value = torch.tensor(0.5)
+        policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        model.inference_model.return_value = (action_dist, value, policy_hidden)
+        return model
+
+    @pytest.fixture
+    def models_1(self, forward_dynamics, policy_value):
+        return {
+            ModelName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: forward_dynamics,
+            ModelName.POLICY_VALUE + MODEL_BUFFER_SUFFIX_1: policy_value,
+        }
+
+    @pytest.fixture
+    def buffers_1(self):
+        return {
+            BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
+            BufferName.POLICY + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
+        }
+
+    @pytest.fixture
+    def models_2(self, forward_dynamics, policy_value):
+        return {
+            ModelName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_2: forward_dynamics,
+            ModelName.POLICY_VALUE + MODEL_BUFFER_SUFFIX_2: policy_value,
+        }
+
+    @pytest.fixture
+    def buffers_2(self):
+        return {
+            BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_2: create_mock_buffer(),
+            BufferName.POLICY + MODEL_BUFFER_SUFFIX_2: create_mock_buffer(),
+        }
+
+    @pytest.fixture
+    def agent1(self, models_1, buffers_1):
+        agent = LayerCuriosityAgent(
+            model_buffer_suffix=MODEL_BUFFER_SUFFIX_1,
+            reward_coef=1.0,
+            reward_lerp_ratio=0.5,
+            device=torch.device("cpu"),
+        )
+        connect_components(agent, models=models_1, buffers=buffers_1)
+        return agent
+
+    @pytest.fixture
+    def agent2(self, models_2, buffers_2):
+        agent = LayerCuriosityAgent(
+            model_buffer_suffix=MODEL_BUFFER_SUFFIX_2,
+            reward_coef=1.0,
+            reward_lerp_ratio=0.5,
+            device=torch.device("cpu"),
+        )
+        connect_components(agent, models=models_2, buffers=buffers_2)
+        return agent
+
+    @pytest.fixture
+    def agent_dict(self, agent1, agent2):
+        return {
+            "layer1": agent1,
+            "layer2": agent2,
+        }
+
+    @pytest.fixture
+    def hierarchical_agent(self, agent_dict):
+        layer_timescale = [1, 2]
+        agent = HierarchicalCuriosityAgent(
+            layer_agent_dict=agent_dict,
+            layer_timescale=layer_timescale,
+        )
+        return agent
+
+    def test_setup(self, hierarchical_agent: HierarchicalCuriosityAgent):
+        hierarchical_agent.setup()
+        for agent in hierarchical_agent.layer_agents:
+            assert agent.step_data_fd == {}
+            assert agent.step_data_policy == {}
+
+    def test_setup_step(
+        self, hierarchical_agent: HierarchicalCuriosityAgent, mocker: MockerFixture
+    ):
+        spy_fd_collect_1 = mocker.spy(
+            hierarchical_agent.layer_agents[0].fd_collector, "collect"
+        )
+        spy_fd_collect_2 = mocker.spy(
+            hierarchical_agent.layer_agents[1].fd_collector, "collect"
+        )
+
+        hierarchical_agent.setup()
+        assert (
+            hierarchical_agent.action_to_lower_list
+            == [None] * hierarchical_agent.num_layers
+        )
+        assert (
+            hierarchical_agent.reward_to_lower_list
+            == [None] * hierarchical_agent.num_layers
+        )
+        assert (
+            hierarchical_agent.observation_to_upper_list
+            == [None] * hierarchical_agent.num_layers
+        )
+
+        observation = torch.zeros(OBSERVATION_DIM)
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 1
+        assert spy_fd_collect_2.call_count == 1
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 2
+        assert spy_fd_collect_2.call_count == 1
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 3
+        assert spy_fd_collect_2.call_count == 2

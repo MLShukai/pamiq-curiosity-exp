@@ -212,3 +212,77 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
             path / "policy_hidden.pt", map_location=self.device
         )
         self.fd_hidden = torch.load(path / "fd_hidden.pt", map_location=self.device)
+
+
+class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
+    def __init__(
+        self,
+        layer_agent_dict: dict[str, LayerCuriosityAgent],
+        layer_timescale: list[int],
+    ) -> None:
+        super().__init__(layer_agent_dict)
+        self.layer_agents = list(layer_agent_dict.values())
+        self.num_layers = len(layer_agent_dict)
+
+        assert len(layer_agent_dict) == len(
+            layer_timescale
+        ), "Layer agents and time scales must match in length."
+        self.layer_timescale = []
+        timescale_cumprod = 1
+        for timescale in layer_timescale:
+            if timescale < 1:
+                raise ValueError("Layer time scale must be >= 1.")
+            timescale_cumprod *= timescale
+            self.layer_timescale.append(timescale_cumprod)
+        self.period = timescale_cumprod
+
+        self.action_to_lower_list: list[Tensor | None] = [None] * self.num_layers
+        self.reward_to_lower_list: list[Tensor | None] = [None] * self.num_layers
+        self.observation_to_upper_list: list[Tensor | None] = [None] * self.num_layers
+
+        self.counter = 0
+
+    @override
+    def setup(self) -> None:
+        for agent in self.layer_agents:
+            agent.setup()
+
+    @override
+    def step(self, observation: Tensor) -> Tensor:
+        for i, agent in enumerate(self.layer_agents):
+            if self.counter % self.layer_timescale[i] != 0:
+                continue
+            upper_action = (
+                self.action_to_lower_list[i + 1]
+                if i < self.num_layers - 1
+                else self.observation_to_upper_list[i]
+            )
+            upper_reward = (
+                self.reward_to_lower_list[i + 1] if i < self.num_layers - 1 else None
+            )
+            if i > 0 and self.observation_to_upper_list[i - 1] is not None:
+                lower_observation = self.observation_to_upper_list[i - 1]
+            else:
+                lower_observation = observation
+            if lower_observation is None:
+                raise ValueError(
+                    f"Lower observation for layer {i} is None, which is not allowed."
+                )
+            observation = lower_observation
+            layer_input = LayerInput(
+                observation=observation,
+                upper_action=upper_action,
+                upper_reward=upper_reward,
+            )
+            layer_output = agent.step(layer_input)
+            self.action_to_lower_list[i] = layer_output.action
+            self.reward_to_lower_list[i] = layer_output.reward
+            self.observation_to_upper_list[i] = layer_output.lower_observation
+
+        if self.action_to_lower_list[0] is None:
+            raise ValueError(
+                "Action to lower layer for the top layer is None, which is not allowed."
+            )
+        action = self.action_to_lower_list[0]
+        self.counter = (self.counter + 1) % self.period
+        return action
