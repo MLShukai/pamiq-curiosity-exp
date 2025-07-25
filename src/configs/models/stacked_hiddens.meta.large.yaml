@@ -1,0 +1,15 @@
+# StackedHidden Models
+defaults:
+  - stacked_hiddens.meta
+
+policy_value:
+  model:
+    core_model:
+      dim: 2048
+      depth: 10
+
+forward_dynamics:
+  model_hparams:
+    core_model:
+      dim: 2048
+      depth: 10

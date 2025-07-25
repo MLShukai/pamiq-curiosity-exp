@@ -1,6 +1,5 @@
-from collections.abc import Sequence
 from pathlib import Path
-from typing import override
+from typing import Literal, override
 
 import torch
 from pamiq_core import Agent
@@ -10,6 +9,7 @@ from torch.distributions import Distribution
 
 from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
+from exp.envs.transforms import Standardize
 from exp.models import ModelName
 
 
@@ -30,7 +30,8 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         num_meta_levels: int = 2,
-        surprisal_coefficients: Sequence[float] = (-1, 1),
+        surprisal_coefficients_method: str
+        | Literal["maximize_top", "minimize", "maximize"] = "maximize_top",
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -40,8 +41,11 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         Args:
             num_meta_levels: Number of meta levels for forward dynamics models.
                 Must be >= 1.
-            surprisal_coefficients: Coefficients that weight prediction errors at each meta level.
-                Must have same length as num_meta_levels.
+            surprisal_coefficients_method: Method to generate coefficients that weight
+                prediction errors at each meta level. Options:
+                - "maximize_top": Top level coefficient set to 1.0, others are -1.0.
+                - "minimize": All coefficients set to -1.0
+                - "maximize": All coefficients set to 1.0
             log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
@@ -54,14 +58,21 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
             raise ValueError(
                 f"`num_meta_levels` must be >= 1! Your input: {num_meta_levels}"
             )
-        if len(surprisal_coefficients) != num_meta_levels:
-            raise ValueError(
-                f"Length of surprisal_coefficients ({len(surprisal_coefficients)}) must equal "
-                f"num_meta_levels ({num_meta_levels})"
-            )
+
+        match surprisal_coefficients_method:
+            case "maximize":
+                surprisal_coefficients = [1.0] * num_meta_levels
+            case "minimize":
+                surprisal_coefficients = [-1.0] * num_meta_levels
+            case "maximize_top":
+                surprisal_coefficients = [-1.0] * (num_meta_levels - 1) + [1.0]
+            case _:
+                raise ValueError(
+                    f"Unknown surprisal_coefficients_method: {surprisal_coefficients_method!r}"
+                )
 
         self.num_meta_levels = num_meta_levels
-        self.surprisal_coefficients = list(surprisal_coefficients)  # copy
+        self.surprisal_coefficients = surprisal_coefficients
 
         self.metrics: dict[str, float] = {}
         self.scheduler = StepIntervalScheduler(log_every_n_steps, self.log_metrics)
@@ -75,6 +86,8 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         self.forward_dynamics_hiddens: list[Tensor | None] = [
             None
         ] * self.num_meta_levels
+
+        self.standardize = Standardize(eps=1e-6)
 
     @override
     def on_inference_models_attached(self) -> None:
@@ -148,6 +161,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
                 )
             ):
                 # Store target observation
+                target_obs = self.standardize(target_obs)
                 self.step_data_fd[i][DataKey.TARGET] = target_obs
 
                 # Collect forward dynamics step data.
@@ -185,6 +199,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         self.step_data_policy[DataKey.ACTION] = action.cpu()
         self.step_data_policy[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()
         self.step_data_policy[DataKey.VALUE] = value.cpu()
+        self.metrics["value"] = value.cpu().item()
 
         # ==============================================================================
         #                           Forward Dynamics Process

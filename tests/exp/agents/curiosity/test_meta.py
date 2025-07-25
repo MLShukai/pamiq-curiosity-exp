@@ -63,7 +63,7 @@ class TestMetaCuriosityAgent:
     def agent(self, models, buffers, mock_aim_run):
         agent = MetaCuriosityAgent(
             num_meta_levels=NUM_LEVELS,
-            surprisal_coefficients=(-1.0, 0.5, 1.0),
+            surprisal_coefficients_method="maximize_top",
             log_every_n_steps=5,
         )
         connect_components(agent, buffers=buffers, models=models)
@@ -76,6 +76,31 @@ class TestMetaCuriosityAgent:
 
         with pytest.raises(ValueError, match="`num_meta_levels` must be >= 1"):
             MetaCuriosityAgent(num_meta_levels=-1)
+
+    def test_surprisal_coefficients_methods(self):
+        """Test different surprisal coefficient generation methods."""
+        # Test maximize_top (default)
+        agent = MetaCuriosityAgent(
+            num_meta_levels=3, surprisal_coefficients_method="maximize_top"
+        )
+        assert len(agent.surprisal_coefficients) == 3
+        assert agent.surprisal_coefficients[0] == pytest.approx(-1.0)
+        assert agent.surprisal_coefficients[1] == pytest.approx(-1.0)
+        assert agent.surprisal_coefficients[2] == pytest.approx(1.0)
+
+        # Test minimize
+        agent = MetaCuriosityAgent(
+            num_meta_levels=3, surprisal_coefficients_method="minimize"
+        )
+        assert len(agent.surprisal_coefficients) == 3
+        assert all(coef == -1.0 for coef in agent.surprisal_coefficients)
+
+        # Test maximize
+        agent = MetaCuriosityAgent(
+            num_meta_levels=3, surprisal_coefficients_method="maximize"
+        )
+        assert len(agent.surprisal_coefficients) == 3
+        assert all(coef == 1.0 for coef in agent.surprisal_coefficients)
 
     def test_setup_step_teardown(
         self, agent: MetaCuriosityAgent, mocker: MockerFixture
@@ -207,7 +232,7 @@ class TestMetaCuriosityAgent:
         # Create new agent and load state
         new_agent = MetaCuriosityAgent(
             num_meta_levels=NUM_LEVELS,
-            surprisal_coefficients=(-1.0, 0.5, 1.0),
+            surprisal_coefficients_method="maximize_top",
         )
         new_agent.load_state(save_path)
 

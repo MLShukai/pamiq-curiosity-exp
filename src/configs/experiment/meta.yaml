@@ -1,0 +1,21 @@
+# @package _global_
+
+defaults:
+  - override /interaction/agent: meta
+  - override /trainers: stacked_hiddens.meta
+  - override /models: stacked_hiddens.meta
+  - override /buffers: stacked_hiddens.meta
+
+shared:
+  num_meta_levels: 2
+  dtype: bfloat16
+
+trainers:
+  policy:
+    gamma: ${python.eval:"1 - 1 / 100"}
+
+experiment_name: "meta"
+
+tags:
+  - "stacked_hiddens.meta"
+  - "meta"
