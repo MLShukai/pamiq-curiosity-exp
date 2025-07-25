@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, override
 
 import torch
@@ -61,9 +62,9 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         coefficient, and reward lerp ratio.
 
         Args:
-            model_buffer_suffix (str): Suffix for the model buffer names.
-            reward_coef (float): Coefficient for the reward computation.
-            reward_lerp_ratio (float): Ratio for linear interpolation of rewards.
+            model_buffer_suffix: Suffix for the model buffer names.
+            reward_coef: Coefficient for the reward computation.
+            reward_lerp_ratio: Ratio for linear interpolation of rewards.
         """
         super().__init__()
         self.reward_coef = reward_coef
@@ -110,7 +111,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         and computing rewards and actions.
 
         Args:
-            observation (LayerInput): Input containing observation, action from upper layer, and reward from upper layer.
+            observation: Input containing observation, action from upper layer, and reward from upper layer.
         Returns:
             LayerOutput: Output containing the observation from lower layer, action taken, and computed reward.
         """
@@ -188,7 +189,13 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         )
 
     @override
-    def save_state(self, path):
+    def save_state(self, path: Path):
+        """Saves the agent's state, including the observation prediction,
+        policy hidden state, and forward dynamics hidden state.
+
+        Args:
+            path: The path to save the state.
+        """
         super().save_state(path)
         path.mkdir(exist_ok=True)
         torch.save(self.obs_hat, path / "obs_hat.pt")
@@ -196,7 +203,13 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         torch.save(self.fd_hidden, path / "fd_hidden.pt")
 
     @override
-    def load_state(self, path):
+    def load_state(self, path: Path):
+        """Loads the agent's state, including the observation prediction,
+        policy hidden state, and forward dynamics hidden state.
+
+        Args:
+            path: The path to load the state from.
+        """
         super().load_state(path)
         self.obs_hat = torch.load(path / "obs_hat.pt", map_location=self.device)
         self.policy_hidden = torch.load(
