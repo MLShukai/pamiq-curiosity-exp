@@ -31,9 +31,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         self,
         num_meta_levels: int = 2,
         surprisal_coefficients_method: str
-        | Literal[
-            "minimize_to_maximize", "minimize", "maximize"
-        ] = "minimize_to_maximize",
+        | Literal["maximize_top", "minimize", "maximize"] = "maximize_top",
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -45,7 +43,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
                 Must be >= 1.
             surprisal_coefficients_method: Method to generate coefficients that weight
                 prediction errors at each meta level. Options:
-                - "minimize_to_maximize": Linear interpolation from -1 to 1
+                - "maximize_top": Top level coefficient set to 1.0, others are -1.0.
                 - "minimize": All coefficients set to -1.0
                 - "maximize": All coefficients set to 1.0
             log_every_n_steps: Frequency of logging metrics to Aim.
@@ -66,10 +64,8 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
                 surprisal_coefficients = [1.0] * num_meta_levels
             case "minimize":
                 surprisal_coefficients = [-1.0] * num_meta_levels
-            case "minimize_to_maximize":
-                surprisal_coefficients: list[float] = torch.linspace(
-                    -1, 1, num_meta_levels
-                ).tolist()
+            case "maximize_top":
+                surprisal_coefficients = [-1.0] * (num_meta_levels - 1) + [1.0]
             case _:
                 raise ValueError(
                     f"Unknown surprisal_coefficients_method: {surprisal_coefficients_method!r}"
