@@ -113,7 +113,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         Args:
             observation: Input containing observation, action from upper layer, and reward from upper layer.
         Returns:
-            LayerOutput: Output containing the observation from lower layer, action taken, and computed reward.
+            Output containing the observation from lower layer, action taken, and computed reward.
         """
         obs, upper_action, upper_reward = (
             observation.observation,
