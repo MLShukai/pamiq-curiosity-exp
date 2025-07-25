@@ -9,6 +9,7 @@ from torch.distributions import Distribution
 
 from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
+from exp.envs.transforms import Standardize
 from exp.models import ModelName
 
 
@@ -90,6 +91,8 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
             None
         ] * self.num_meta_levels
 
+        self.standardize = Standardize(eps=1e-6)
+
     @override
     def on_inference_models_attached(self) -> None:
         """Retrieve models when models are attached.
@@ -162,6 +165,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
                 )
             ):
                 # Store target observation
+                target_obs = self.standardize(target_obs)
                 self.step_data_fd[i][DataKey.TARGET] = target_obs
 
                 # Collect forward dynamics step data.
