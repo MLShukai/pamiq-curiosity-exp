@@ -215,11 +215,24 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
 
 
 class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
+    """Hierarchical Curiosity Agent that manages multiple LayerCuriosityAgents.
+
+    This agent coordinates multiple layers of curiosity agents, each
+    with its own time scale and action/reward propagation.
+    """
+
     def __init__(
         self,
         layer_agent_dict: dict[str, LayerCuriosityAgent],
         layer_timescale: list[int],
     ) -> None:
+        """Initializes the HierarchicalCuriosityAgent with layer agents and
+        their respective time scales.
+
+        Args:
+            layer_agent_dict: Dictionary mapping layer names to LayerCuriosityAgent instances.
+            layer_timescale: List of time scales for each layer agent.
+        """
         super().__init__(layer_agent_dict)
         self.layer_agents = list(layer_agent_dict.values())
         self.num_layers = len(layer_agent_dict)
@@ -244,11 +257,19 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
     @override
     def setup(self) -> None:
+        """Sets up the hierarchical agent by initializing each layer agent."""
+        super().setup()
         for agent in self.layer_agents:
             agent.setup()
 
     @override
     def step(self, observation: Tensor) -> Tensor:
+        """Performs a step through the hierarchical agent, propagating actions
+        and rewards through each layer.
+
+        Args:
+            observation: The input observation for the bottom layer.
+        """
         for i, agent in enumerate(self.layer_agents):
             if self.counter % self.layer_timescale[i] != 0:
                 continue
