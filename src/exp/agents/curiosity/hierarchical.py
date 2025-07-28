@@ -223,8 +223,11 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
     def __init__(
         self,
-        layer_agent_dict: dict[str, LayerCuriosityAgent],
-        layer_timescale: list[int],
+        reward_coef_list: list[float],
+        reward_lerp_ratio: float,
+        model_key_list: list[str],
+        device_list: list[torch.device | None],
+        layer_timescale_list: list[int],
     ) -> None:
         """Initializes the HierarchicalCuriosityAgent with layer agents and
         their respective time scales.
@@ -233,19 +236,35 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             layer_agent_dict: Dictionary mapping layer names to LayerCuriosityAgent instances.
             layer_timescale: List of time scales for each layer agent.
         """
-        super().__init__(layer_agent_dict)
-        self.layer_agents = list(layer_agent_dict.values())
-        self.num_layers = len(layer_agent_dict)
+        self.num_layers = len(reward_coef_list)
+        self.layer_agent_dict: dict[str, LayerCuriosityAgent] = {}
+        if (
+            len(model_key_list) != self.num_layers
+            or len(device_list) != self.num_layers
+            or len(layer_timescale_list) != self.num_layers
+        ):
+            raise ValueError(
+                "All input lists must have the same length as the number of layers."
+            )
+        for reward_coef, model_key, device in zip(
+            reward_coef_list, model_key_list, device_list
+        ):
+            layer_agent = LayerCuriosityAgent(
+                model_buffer_suffix=model_key,
+                reward_coef=reward_coef,
+                reward_lerp_ratio=reward_lerp_ratio,
+                device=device,
+            )
+            self.layer_agent_dict[model_key] = layer_agent
+        super().__init__(self.layer_agent_dict)
 
-        if len(layer_agent_dict) != len(layer_timescale):
-            raise ValueError("Layer agents and time scales must match in length.")
-        self.layer_timescale = []
+        self.layer_timescale_list = []
         timescale_cumprod = 1
-        for timescale in layer_timescale:
+        for timescale in layer_timescale_list:
             if timescale < 1:
                 raise ValueError("Layer time scale must be >= 1.")
             timescale_cumprod *= timescale
-            self.layer_timescale.append(timescale_cumprod)
+            self.layer_timescale_list.append(timescale_cumprod)
         self.period = timescale_cumprod
 
         self.action_to_lower_list: list[Tensor | None] = [None] * self.num_layers
@@ -262,8 +281,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         Args:
             observation: The input observation for the bottom layer.
         """
-        for i, agent in enumerate(self.layer_agents):
-            if self.counter % self.layer_timescale[i] != 0:
+        for i, agent in enumerate(self.layer_agent_dict.values()):
+            if self.counter % self.layer_timescale_list[i] != 0:
                 continue
             upper_action = (
                 self.action_to_lower_list[i + 1]

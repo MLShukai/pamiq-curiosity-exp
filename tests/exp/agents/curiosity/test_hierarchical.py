@@ -221,74 +221,38 @@ class TestHierarchicalCuriosityAgent:
         return model
 
     @pytest.fixture
-    def models_1(self, forward_dynamics, policy_value):
+    def models(self, forward_dynamics, policy_value):
         return {
             ModelName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: forward_dynamics,
             ModelName.POLICY_VALUE + MODEL_BUFFER_SUFFIX_1: policy_value,
-        }
-
-    @pytest.fixture
-    def buffers_1(self):
-        return {
-            BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
-            BufferName.POLICY + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
-        }
-
-    @pytest.fixture
-    def models_2(self, forward_dynamics, policy_value):
-        return {
             ModelName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_2: forward_dynamics,
             ModelName.POLICY_VALUE + MODEL_BUFFER_SUFFIX_2: policy_value,
         }
 
     @pytest.fixture
-    def buffers_2(self):
+    def buffers(self):
         return {
+            BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
+            BufferName.POLICY + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
             BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_2: create_mock_buffer(),
             BufferName.POLICY + MODEL_BUFFER_SUFFIX_2: create_mock_buffer(),
         }
 
     @pytest.fixture
-    def agent1(self, models_1, buffers_1):
-        agent = LayerCuriosityAgent(
-            model_buffer_suffix=MODEL_BUFFER_SUFFIX_1,
-            reward_coef=1.0,
-            reward_lerp_ratio=0.5,
-            device=torch.device("cpu"),
-        )
-        connect_components(agent, models=models_1, buffers=buffers_1)
-        return agent
-
-    @pytest.fixture
-    def agent2(self, models_2, buffers_2):
-        agent = LayerCuriosityAgent(
-            model_buffer_suffix=MODEL_BUFFER_SUFFIX_2,
-            reward_coef=1.0,
-            reward_lerp_ratio=0.5,
-            device=torch.device("cpu"),
-        )
-        connect_components(agent, models=models_2, buffers=buffers_2)
-        return agent
-
-    @pytest.fixture
-    def agent_dict(self, agent1, agent2):
-        return {
-            "layer1": agent1,
-            "layer2": agent2,
-        }
-
-    @pytest.fixture
-    def hierarchical_agent(self, agent_dict):
-        layer_timescale = [1, 2]
+    def hierarchical_agent(self, models, buffers):
         agent = HierarchicalCuriosityAgent(
-            layer_agent_dict=agent_dict,
-            layer_timescale=layer_timescale,
+            reward_coef_list=[1.0, 1.0],
+            reward_lerp_ratio=0.5,
+            model_key_list=[MODEL_BUFFER_SUFFIX_1, MODEL_BUFFER_SUFFIX_2],
+            device_list=[None, None],
+            layer_timescale_list=[1, 2],
         )
+        connect_components(agent, models=models, buffers=buffers)
         return agent
 
     def test_setup(self, hierarchical_agent: HierarchicalCuriosityAgent):
         hierarchical_agent.setup()
-        for agent in hierarchical_agent.layer_agents:
+        for agent in hierarchical_agent.layer_agent_dict.values():
             assert agent.step_data_fd == {}
             assert agent.step_data_policy == {}
 
@@ -296,10 +260,12 @@ class TestHierarchicalCuriosityAgent:
         self, hierarchical_agent: HierarchicalCuriosityAgent, mocker: MockerFixture
     ):
         spy_fd_collect_1 = mocker.spy(
-            hierarchical_agent.layer_agents[0].fd_collector, "collect"
+            hierarchical_agent.layer_agent_dict[MODEL_BUFFER_SUFFIX_1].fd_collector,
+            "collect",
         )
         spy_fd_collect_2 = mocker.spy(
-            hierarchical_agent.layer_agents[1].fd_collector, "collect"
+            hierarchical_agent.layer_agent_dict[MODEL_BUFFER_SUFFIX_2].fd_collector,
+            "collect",
         )
 
         hierarchical_agent.setup()
