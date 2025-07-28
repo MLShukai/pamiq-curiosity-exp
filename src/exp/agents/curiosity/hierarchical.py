@@ -237,9 +237,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.layer_agents = list(layer_agent_dict.values())
         self.num_layers = len(layer_agent_dict)
 
-        assert len(layer_agent_dict) == len(
-            layer_timescale
-        ), "Layer agents and time scales must match in length."
+        if len(layer_agent_dict) != len(layer_timescale):
+            raise ValueError("Layer agents and time scales must match in length.")
         self.layer_timescale = []
         timescale_cumprod = 1
         for timescale in layer_timescale:
