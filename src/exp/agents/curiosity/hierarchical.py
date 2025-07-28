@@ -279,7 +279,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
                 lower_observation = observation
             if lower_observation is None:
                 raise ValueError(
-                    f"Lower observation for layer {i} is None, which is not allowed."
+                    f"Lower observation for layer {i} is None, some program logic is broken."
                 )
             observation = lower_observation
             layer_input = LayerInput(
@@ -294,7 +294,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
         if self.action_to_lower_list[0] is None:
             raise ValueError(
-                "Action to lower layer for the top layer is None, which is not allowed."
+                "Action to lower layer for the top layer is None, some program logic is broken."
             )
         action = self.action_to_lower_list[0]
         self.counter = (self.counter + 1) % self.period
