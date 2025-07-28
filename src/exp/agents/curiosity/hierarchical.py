@@ -255,13 +255,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.counter = 0
 
     @override
-    def setup(self) -> None:
-        """Sets up the hierarchical agent by initializing each layer agent."""
-        super().setup()
-        for agent in self.layer_agents:
-            agent.setup()
-
-    @override
     def step(self, observation: Tensor) -> Tensor:
         """Performs a step through the hierarchical agent, propagating actions
         and rewards through each layer.
