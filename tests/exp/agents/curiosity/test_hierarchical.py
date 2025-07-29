@@ -243,7 +243,6 @@ class TestHierarchicalCuriosityAgent:
         agent = HierarchicalCuriosityAgent(
             reward_lerp_ratio=0.5,
             model_key_list=[MODEL_BUFFER_SUFFIX_1, MODEL_BUFFER_SUFFIX_2],
-            device_list=[None, None],
         )
         connect_components(agent, models=models, buffers=buffers)
         return agent
