@@ -241,11 +241,9 @@ class TestHierarchicalCuriosityAgent:
     @pytest.fixture
     def hierarchical_agent(self, models, buffers):
         agent = HierarchicalCuriosityAgent(
-            reward_coef_list=[1.0, 1.0],
             reward_lerp_ratio=0.5,
             model_key_list=[MODEL_BUFFER_SUFFIX_1, MODEL_BUFFER_SUFFIX_2],
             device_list=[None, None],
-            layer_timescale_list=[1, 2],
         )
         connect_components(agent, models=models, buffers=buffers)
         return agent
