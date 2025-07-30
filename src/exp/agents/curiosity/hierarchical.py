@@ -286,7 +286,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self,
         reward_lerp_ratio: float,
         model_key_list: list[str],
-        device_list: list[torch.device | None] | None = None,
+        device_list: list[torch.device | None] | torch.device | None = None,
         reward_coef_method: RewardCoefMethod = "minimize_lower_half",
         timescale_method: LayerTimescaleMethod = "exponential_growth",
     ) -> None:
@@ -299,8 +299,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         """
         self.num_layers = len(model_key_list)
         self.layer_agent_dict: dict[str, LayerCuriosityAgent] = {}
-        if device_list is None:
-            device_list = [None for _ in range(self.num_layers)]
+        if device_list is None or isinstance(device_list, torch.device):
+            device_list = [device_list for _ in range(self.num_layers)]
         if len(device_list) != self.num_layers:
             raise ValueError(
                 "All input lists must have the same length as the number of layers."
