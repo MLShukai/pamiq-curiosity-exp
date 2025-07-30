@@ -286,7 +286,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         reward_lerp_ratio: float,
-        model_key_list: list[str],
+        num_layers: int,
         device_list: list[torch.device | None] | torch.device | None = None,
         reward_coef_method: RewardCoefMethod = "minimize_lower_half",
         timescale_method: LayerTimescaleMethod = "exponential_growth",
@@ -298,14 +298,13 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             layer_agent_dict: Dictionary mapping layer names to LayerCuriosityAgent instances.
             layer_timescale: List of time scales for each layer agent.
         """
-        self.num_layers = len(model_key_list)
+        self.num_layers = num_layers
+        model_key_list = [str(i) for i in range(num_layers)]
         self.layer_agent_dict: dict[str, LayerCuriosityAgent] = {}
         if not isinstance(device_list, Sequence):
             device_list = [device_list] * self.num_layers
         if len(device_list) != self.num_layers:
-            raise ValueError(
-                "All input lists must have the same length as the number of layers."
-            )
+            raise ValueError("device_list must have the same length as num_layers.")
         reward_coef_list = create_reward_coef(reward_coef_method, self.num_layers)
         for reward_coef, model_key, device in zip(
             reward_coef_list, model_key_list, device_list

@@ -23,8 +23,8 @@ ACTION_DIM = 4
 HIDDEN_DIM = 32
 DEPTH = 2
 MODEL_BUFFER_SUFFIX = "_test"
-MODEL_BUFFER_SUFFIX_1 = "_test_1"
-MODEL_BUFFER_SUFFIX_2 = "_test_2"
+MODEL_BUFFER_SUFFIX_1 = "0"
+MODEL_BUFFER_SUFFIX_2 = "1"
 
 
 class TestLayerCuriosityAgent:
@@ -242,7 +242,7 @@ class TestHierarchicalCuriosityAgent:
     def hierarchical_agent(self, models, buffers):
         agent = HierarchicalCuriosityAgent(
             reward_lerp_ratio=0.5,
-            model_key_list=[MODEL_BUFFER_SUFFIX_1, MODEL_BUFFER_SUFFIX_2],
+            num_layers=2,
         )
         connect_components(agent, models=models, buffers=buffers)
         return agent
