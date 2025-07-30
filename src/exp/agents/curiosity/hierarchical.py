@@ -229,16 +229,17 @@ def create_reward_coef(method: RewardCoefMethod, num_layers: int) -> list[float]
     Returns:
         A list of reward coefficients for each layer.
     """
-    if method == "minimize_all":
-        return [-1.0] * num_layers
-    elif method == "maximize_all":
-        return [1.0] * num_layers
-    elif method == "minimize_lower_half":
-        return [-1.0] * (num_layers // 2) + [1.0] * (num_layers - num_layers // 2)
-    elif method == "maximize_lower_half":
-        return [1.0] * (num_layers // 2) + [-1.0] * (num_layers - num_layers // 2)
-    else:
-        raise ValueError(f"Unknown reward coefficient method: {method}")
+    match method:
+        case "minimize_all":
+            return [-1.0] * num_layers
+        case "maximize_all":
+            return [1.0] * num_layers
+        case "minimize_lower_half":
+            return [-1.0] * (num_layers // 2) + [1.0] * (num_layers - num_layers // 2)
+        case "maximize_lower_half":
+            return [1.0] * (num_layers // 2) + [-1.0] * (num_layers - num_layers // 2)
+        case _:
+            raise ValueError(f"Unknown reward coefficient method: {method}")
 
 
 type LayerTimescaleMethod = Literal["exponential_growth"]
@@ -257,10 +258,21 @@ def create_layer_timescale(
     Returns:
         A list of layer timescales for each layer.
     """
-    if method == "exponential_growth":
-        return [timescale_multiplier**i for i in range(num_layers)]
-    else:
-        raise ValueError(f"Unknown layer timescale method: {method}.")
+    match method:
+        case "exponential_growth":
+            if num_layers < 1:
+                raise ValueError(
+                    "Number of layers must be at least 1 for exponential growth."
+                )
+            if timescale_multiplier < 1:
+                raise ValueError(
+                    "Timescale multiplier must be at least 1 for exponential growth."
+                )
+            # Generate timescales as powers of the multiplier
+            # e.g., [1, 2, 4, 8] for num_layers = 4 and timescale_multiplier = 2
+            return [timescale_multiplier**i for i in range(num_layers)]
+        case _:
+            raise ValueError(f"Unknown layer timescale method: {method}")
 
 
 class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
