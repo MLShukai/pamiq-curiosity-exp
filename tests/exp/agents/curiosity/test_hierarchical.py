@@ -243,6 +243,8 @@ class TestHierarchicalCuriosityAgent:
         agent = HierarchicalCuriosityAgent(
             reward_lerp_ratio=0.5,
             num_layers=2,
+            reward_coef_list=[-1.0, 1.0],
+            timescale_list=[1, 2],
         )
         connect_components(agent, models=models, buffers=buffers)
         return agent

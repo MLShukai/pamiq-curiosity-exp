@@ -215,67 +215,6 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         self.fd_hidden = torch.load(path / "fd_hidden.pt", map_location=self.device)
 
 
-type RewardCoefMethod = Literal[
-    "minimize_all", "maxmize_all", "minimize_lower_half", "maximize_lower_half"
-]
-
-
-def create_reward_coef(method: RewardCoefMethod, num_layers: int) -> list[float]:
-    """Creates a list of reward coefficients based on the specified method.
-
-    Args:
-        method: The method to use for creating reward coefficients.
-        num_layers: The number of layers in the hierarchical agent.
-
-    Returns:
-        A list of reward coefficients for each layer.
-    """
-    match method:
-        case "minimize_all":
-            return [-1.0] * num_layers
-        case "maximize_all":
-            return [1.0] * num_layers
-        case "minimize_lower_half":
-            return [-1.0] * (num_layers // 2) + [1.0] * (num_layers - num_layers // 2)
-        case "maximize_lower_half":
-            return [1.0] * (num_layers // 2) + [-1.0] * (num_layers - num_layers // 2)
-        case _:
-            raise ValueError(f"Unknown reward coefficient method: {method}")
-
-
-type LayerTimescaleMethod = Literal["exponential_growth"]
-
-
-def create_layer_timescale(
-    method: LayerTimescaleMethod, num_layers: int, timescale_multiplier: int = 2
-) -> list[int]:
-    """Creates a list of layer timescales based on the specified method.
-
-    Args:
-        method: The method to use for creating layer timescales.
-        num_layers: The number of layers in the hierarchical agent.
-        timescale_multiplier: The multiplier for exponential growth.
-
-    Returns:
-        A list of layer timescales for each layer.
-    """
-    match method:
-        case "exponential_growth":
-            if num_layers < 1:
-                raise ValueError(
-                    "Number of layers must be at least 1 for exponential growth."
-                )
-            if timescale_multiplier < 1:
-                raise ValueError(
-                    "Timescale multiplier must be at least 1 for exponential growth."
-                )
-            # Generate timescales as powers of the multiplier
-            # e.g., [1, 2, 4, 8] for num_layers = 4 and timescale_multiplier = 2
-            return [timescale_multiplier**i for i in range(num_layers)]
-        case _:
-            raise ValueError(f"Unknown layer timescale method: {method}")
-
-
 class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
     """Hierarchical Curiosity Agent that manages multiple LayerCuriosityAgents.
 
@@ -287,9 +226,9 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self,
         reward_lerp_ratio: float,
         num_layers: int,
+        reward_coef_list: list[float],
+        timescale_list: list[int],
         device_list: list[torch.device | None] | torch.device | None = None,
-        reward_coef_method: RewardCoefMethod = "minimize_lower_half",
-        timescale_method: LayerTimescaleMethod = "exponential_growth",
     ) -> None:
         """Initializes the HierarchicalCuriosityAgent with layer agents and
         their respective time scales.
@@ -305,7 +244,6 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             device_list = [device_list] * self.num_layers
         if len(device_list) != self.num_layers:
             raise ValueError("device_list must have the same length as num_layers.")
-        reward_coef_list = create_reward_coef(reward_coef_method, self.num_layers)
         for reward_coef, model_key, device in zip(
             reward_coef_list, model_key_list, device_list
         ):
@@ -318,9 +256,13 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             self.layer_agent_dict[model_key] = layer_agent
         super().__init__(self.layer_agent_dict)
 
-        self.layer_timescale_list = create_layer_timescale(
-            timescale_method, self.num_layers
-        )
+        timescale_cumprod = 1
+        self.layer_timescale_list = []
+        for timescale in timescale_list:
+            if timescale <= 0:
+                raise ValueError("Timescale must be a positive integer.")
+            timescale_cumprod *= timescale
+            self.layer_timescale_list.append(timescale_cumprod)
         self.period = self.layer_timescale_list[-1]  # The period of the last layer
 
         self.action_to_lower_list: list[Tensor | None] = [None] * self.num_layers
