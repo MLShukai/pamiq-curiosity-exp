@@ -8,7 +8,7 @@ from pamiq_core.testing import (
 from pytest_mock import MockerFixture
 from torch.distributions import Normal
 
-from exp.agents.curiosity.meta import MetaCuriosityAgent
+from exp.agents.curiosity.meta import MetaCuriosityAgent, create_surprisal_coefficients
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
 
@@ -18,6 +18,42 @@ ACTION_DIM = 4
 HIDDEN_DIM = 32
 DEPTH = 2
 NUM_LEVELS = 3
+
+
+class TestCreateSurprisalCoefficients:
+    """Tests for create_surprisal_coefficients function."""
+
+    def test_maximize(self):
+        """Test maximize method returns all 1.0."""
+        coeffs = create_surprisal_coefficients("maximize", 3)
+        assert coeffs == [1.0, 1.0, 1.0]
+
+    def test_minimize(self):
+        """Test minimize method returns all -1.0."""
+        coeffs = create_surprisal_coefficients("minimize", 3)
+        assert coeffs == [-1.0, -1.0, -1.0]
+
+    def test_maximize_top(self):
+        """Test maximize_top method returns -1.0 for all except last."""
+        coeffs = create_surprisal_coefficients("maximize_top", 3)
+        assert coeffs == [-1.0, -1.0, 1.0]
+
+        # Test with single level
+        coeffs = create_surprisal_coefficients("maximize_top", 1)
+        assert coeffs == [1.0]
+
+    def test_invalid_num(self):
+        """Test error raised for invalid num parameter."""
+        with pytest.raises(ValueError, match="`num` must be >= 1"):
+            create_surprisal_coefficients("maximize", 0)
+
+        with pytest.raises(ValueError, match="`num` must be >= 1"):
+            create_surprisal_coefficients("maximize", -1)
+
+    def test_invalid_method(self):
+        """Test error raised for unknown method."""
+        with pytest.raises(ValueError, match="Unknown method"):
+            create_surprisal_coefficients("unknown", 3)
 
 
 class TestMetaCuriosityAgent:
@@ -61,46 +97,28 @@ class TestMetaCuriosityAgent:
 
     @pytest.fixture
     def agent(self, models, buffers, mock_aim_run):
+        # Create coefficients using maximize_top method
+        coefficients = create_surprisal_coefficients("maximize_top", NUM_LEVELS)
         agent = MetaCuriosityAgent(
-            num_meta_levels=NUM_LEVELS,
-            surprisal_coefficients_method="maximize_top",
+            surprisal_coefficients=coefficients,
             log_every_n_steps=5,
         )
         connect_components(agent, buffers=buffers, models=models)
         return agent
 
-    def test_invalid_num_meta_levels(self):
-        """Test that agent raises error for invalid num_meta_levels."""
-        with pytest.raises(ValueError, match="`num_meta_levels` must be >= 1"):
-            MetaCuriosityAgent(num_meta_levels=0)
+    def test_empty_coefficients(self):
+        """Test that agent works with empty coefficients list."""
+        # Empty list should create agent with 0 meta levels
+        agent = MetaCuriosityAgent(surprisal_coefficients=[])
+        assert agent.num_meta_levels == 0
+        assert len(agent.surprisal_coefficients) == 0
 
-        with pytest.raises(ValueError, match="`num_meta_levels` must be >= 1"):
-            MetaCuriosityAgent(num_meta_levels=-1)
-
-    def test_surprisal_coefficients_methods(self):
-        """Test different surprisal coefficient generation methods."""
-        # Test maximize_top (default)
-        agent = MetaCuriosityAgent(
-            num_meta_levels=3, surprisal_coefficients_method="maximize_top"
-        )
-        assert len(agent.surprisal_coefficients) == 3
-        assert agent.surprisal_coefficients[0] == pytest.approx(-1.0)
-        assert agent.surprisal_coefficients[1] == pytest.approx(-1.0)
-        assert agent.surprisal_coefficients[2] == pytest.approx(1.0)
-
-        # Test minimize
-        agent = MetaCuriosityAgent(
-            num_meta_levels=3, surprisal_coefficients_method="minimize"
-        )
-        assert len(agent.surprisal_coefficients) == 3
-        assert all(coef == -1.0 for coef in agent.surprisal_coefficients)
-
-        # Test maximize
-        agent = MetaCuriosityAgent(
-            num_meta_levels=3, surprisal_coefficients_method="maximize"
-        )
-        assert len(agent.surprisal_coefficients) == 3
-        assert all(coef == 1.0 for coef in agent.surprisal_coefficients)
+    def test_custom_coefficients(self):
+        """Test agent with custom coefficients."""
+        custom_coeffs = [0.5, -0.5, 1.0]
+        agent = MetaCuriosityAgent(surprisal_coefficients=custom_coeffs)
+        assert agent.num_meta_levels == 3
+        assert agent.surprisal_coefficients == custom_coeffs
 
     def test_setup_step_teardown(
         self, agent: MetaCuriosityAgent, mocker: MockerFixture
@@ -230,18 +248,21 @@ class TestMetaCuriosityAgent:
             assert (save_path / f"forward_dynamics_hidden_{i}.pt").exists()
 
         # Create new agent and load state
+        coefficients = create_surprisal_coefficients("maximize_top", NUM_LEVELS)
         new_agent = MetaCuriosityAgent(
-            num_meta_levels=NUM_LEVELS,
-            surprisal_coefficients_method="maximize_top",
+            surprisal_coefficients=coefficients,
         )
         new_agent.load_state(save_path)
 
         # Verify state was loaded correctly
         assert new_agent.global_step == 42
         assert new_agent.policy_hidden_state is not None
+        assert agent.policy_hidden_state is not None  # Type guard
         assert torch.allclose(new_agent.policy_hidden_state, agent.policy_hidden_state)
 
         for i in range(NUM_LEVELS):
+            assert agent.forward_dynamics_hiddens[i] is not None  # Type guard
+            assert new_agent.forward_dynamics_hiddens[i] is not None  # Type guard
             assert torch.allclose(
                 new_agent.forward_dynamics_hiddens[i],
                 agent.forward_dynamics_hiddens[i],

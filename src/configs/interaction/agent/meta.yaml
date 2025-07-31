@@ -1,7 +1,9 @@
 # @package interaction.agent.curiosity
 
 _target_: exp.agents.curiosity.meta.MetaCuriosityAgent
-num_meta_levels: ${shared.num_meta_levels}
-surprisal_coefficients_method: "maximize_top"
+surprisal_coefficients:
+  _target_: exp.agents.curiosity.meta.create_surprisal_coefficients
+  method: "maximize_top"
+  num: ${shared.num_meta_levels}
 device: ${shared.device}
 dtype: ${shared.dtype}
