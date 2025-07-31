@@ -23,32 +23,59 @@ NUM_LEVELS = 3
 class TestCreateSurprisalCoefficients:
     """Tests for create_surprisal_coefficients function."""
 
-    def test_maximize(self):
-        """Test maximize method returns all 1.0."""
-        coeffs = create_surprisal_coefficients("maximize", 3)
-        assert coeffs == [1.0, 1.0, 1.0]
+    @pytest.mark.parametrize(
+        "method, num, expected",
+        [
+            # maximize method
+            ("maximize", 1, [1.0]),
+            ("maximize", 3, [1.0, 1.0, 1.0]),
+            ("maximize", 5, [1.0, 1.0, 1.0, 1.0, 1.0]),
+            # minimize method
+            ("minimize", 1, [-1.0]),
+            ("minimize", 3, [-1.0, -1.0, -1.0]),
+            ("minimize", 5, [-1.0, -1.0, -1.0, -1.0, -1.0]),
+            # maximize_top method
+            ("maximize_top", 1, [1.0]),
+            ("maximize_top", 3, [-1.0, -1.0, 1.0]),
+            ("maximize_top", 5, [-1.0, -1.0, -1.0, -1.0, 1.0]),
+            # top_only method
+            ("top_only", 1, [1.0]),
+            ("top_only", 3, [0.0, 0.0, 1.0]),
+            ("top_only", 5, [0.0, 0.0, 0.0, 0.0, 1.0]),
+        ],
+    )
+    def test_fixed_coefficients(self, method: str, num: int, expected: list[float]):
+        """Test methods that return fixed coefficient patterns."""
+        coeffs = create_surprisal_coefficients(method, num)
+        assert coeffs == expected
 
-    def test_minimize(self):
-        """Test minimize method returns all -1.0."""
-        coeffs = create_surprisal_coefficients("minimize", 3)
-        assert coeffs == [-1.0, -1.0, -1.0]
+    @pytest.mark.parametrize(
+        "method, num, expected",
+        [
+            # lerp_min_max method
+            ("lerp_min_max", 1, [-1.0]),
+            ("lerp_min_max", 3, [-1.0, 0.0, 1.0]),
+            ("lerp_min_max", 5, [-1.0, -0.5, 0.0, 0.5, 1.0]),
+            # lerp_max_min method
+            ("lerp_max_min", 1, [1.0]),
+            ("lerp_max_min", 3, [1.0, 0.0, -1.0]),
+            ("lerp_max_min", 5, [1.0, 0.5, 0.0, -0.5, -1.0]),
+        ],
+    )
+    def test_interpolation_coefficients(
+        self, method: str, num: int, expected: list[float]
+    ):
+        """Test methods that return interpolated coefficient patterns."""
+        coeffs = create_surprisal_coefficients(method, num)
+        assert len(coeffs) == num
+        for i, (coef, exp) in enumerate(zip(coeffs, expected)):
+            assert coef == pytest.approx(exp), f"Coefficient {i} mismatch"
 
-    def test_maximize_top(self):
-        """Test maximize_top method returns -1.0 for all except last."""
-        coeffs = create_surprisal_coefficients("maximize_top", 3)
-        assert coeffs == [-1.0, -1.0, 1.0]
-
-        # Test with single level
-        coeffs = create_surprisal_coefficients("maximize_top", 1)
-        assert coeffs == [1.0]
-
-    def test_invalid_num(self):
+    @pytest.mark.parametrize("num", [0, -1, -10])
+    def test_invalid_num(self, num: int):
         """Test error raised for invalid num parameter."""
         with pytest.raises(ValueError, match="`num` must be >= 1"):
-            create_surprisal_coefficients("maximize", 0)
-
-        with pytest.raises(ValueError, match="`num` must be >= 1"):
-            create_surprisal_coefficients("maximize", -1)
+            create_surprisal_coefficients("maximize", num)
 
     def test_invalid_method(self):
         """Test error raised for unknown method."""

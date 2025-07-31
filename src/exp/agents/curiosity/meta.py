@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal, override
 
+import numpy as np
 import torch
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
@@ -13,9 +14,7 @@ from exp.envs.transforms import Standardize
 from exp.models import ModelName
 
 
-def create_surprisal_coefficients(
-    method: Literal["maximize_top", "minimize", "maximize"] | str, num: int
-) -> list[float]:
+def create_surprisal_coefficients(method: str, num: int) -> list[float]:
     """Create coefficients for weighting meta-level prediction errors.
 
     Args:
@@ -23,6 +22,9 @@ def create_surprisal_coefficients(
             - "maximize": All coefficients set to 1.0
             - "minimize": All coefficients set to -1.0
             - "maximize_top": Top level set to 1.0, others to -1.0
+            - "lerp_min_max": Linear interpolation from -1.0 to 1.0
+            - "lerp_max_min": Linear interpolation from 1.0 to -1.0
+            - "top_only": Top level set to 1.0, others to 0.0
         num: Number of coefficients to generate.
 
     Returns:
@@ -40,6 +42,12 @@ def create_surprisal_coefficients(
             return [-1.0] * num
         case "maximize_top":
             return [-1.0] * (num - 1) + [1.0]
+        case "lerp_min_max":
+            return np.linspace(-1.0, 1.0, num, dtype=float).tolist()
+        case "lerp_max_min":
+            return np.linspace(1.0, -1.0, num, dtype=float).tolist()
+        case "top_only":
+            return [0.0] * (num - 1) + [1.0]
         case _:
             raise ValueError(f"Unknown method: {method!r}")
 
