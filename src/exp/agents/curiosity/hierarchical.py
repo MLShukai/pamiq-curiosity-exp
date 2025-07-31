@@ -242,8 +242,14 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.layer_agent_dict: dict[str, LayerCuriosityAgent] = {}
         if not isinstance(device_list, Sequence):
             device_list = [device_list] * self.num_layers
-        if len(device_list) != self.num_layers:
-            raise ValueError("device_list must have the same length as num_layers.")
+        if (
+            len(device_list) != self.num_layers
+            or len(reward_coef_list) != self.num_layers
+            or len(timescale_list) != self.num_layers
+        ):
+            raise ValueError(
+                "device_list, reward_coef_list, and timescale_list must have the same length as num_layers."
+            )
         for reward_coef, model_key, device in zip(
             reward_coef_list, model_key_list, device_list
         ):
