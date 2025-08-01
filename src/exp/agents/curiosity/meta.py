@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal, override
 
+import numpy as np
 import torch
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
@@ -11,6 +12,44 @@ from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
 from exp.envs.transforms import Standardize
 from exp.models import ModelName
+
+
+def create_surprisal_coefficients(method: str, num: int) -> list[float]:
+    """Create coefficients for weighting meta-level prediction errors.
+
+    Args:
+        method: Strategy for generating coefficients:
+            - "maximize": All coefficients set to 1.0
+            - "minimize": All coefficients set to -1.0
+            - "maximize_top": Top level set to 1.0, others to -1.0
+            - "lerp_min_max": Linear interpolation from -1.0 to 1.0
+            - "lerp_max_min": Linear interpolation from 1.0 to -1.0
+            - "top_only": Top level set to 1.0, others to 0.0
+        num: Number of coefficients to generate.
+
+    Returns:
+        List of coefficients.
+
+    Raises:
+        ValueError: If num < 1 or unknown method is specified.
+    """
+    if num < 1:
+        raise ValueError(f"`num` must be >= 1! Your input: {num}")
+    match method:
+        case "maximize":
+            return [1.0] * num
+        case "minimize":
+            return [-1.0] * num
+        case "maximize_top":
+            return [-1.0] * (num - 1) + [1.0]
+        case "lerp_min_max":
+            return np.linspace(-1.0, 1.0, num, dtype=float).tolist()
+        case "lerp_max_min":
+            return np.linspace(1.0, -1.0, num, dtype=float).tolist()
+        case "top_only":
+            return [0.0] * (num - 1) + [1.0]
+        case _:
+            raise ValueError(f"Unknown method: {method!r}")
 
 
 class MetaCuriosityAgent(Agent[Tensor, Tensor]):
@@ -29,9 +68,7 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
 
     def __init__(
         self,
-        num_meta_levels: int = 2,
-        surprisal_coefficients_method: str
-        | Literal["maximize_top", "minimize", "maximize"] = "maximize_top",
+        surprisal_coefficients: list[float],
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -39,39 +76,15 @@ class MetaCuriosityAgent(Agent[Tensor, Tensor]):
         """Initialize the MetaCuriosityAgent.
 
         Args:
-            num_meta_levels: Number of meta levels for forward dynamics models.
-                Must be >= 1.
-            surprisal_coefficients_method: Method to generate coefficients that weight
-                prediction errors at each meta level. Options:
-                - "maximize_top": Top level coefficient set to 1.0, others are -1.0.
-                - "minimize": All coefficients set to -1.0
-                - "maximize": All coefficients set to 1.0
+            surprisal_coefficients: Coefficients for weighting prediction errors
+                at each meta level. The length determines the number of meta levels.
             log_every_n_steps: Frequency of logging metrics to Aim.
             device: Device to run computations on.
             dtype: Data type for tensors.
-        Raises:
-            ValueError: If num_meta_levels is less than 1.
         """
         super().__init__()
 
-        if num_meta_levels < 1:
-            raise ValueError(
-                f"`num_meta_levels` must be >= 1! Your input: {num_meta_levels}"
-            )
-
-        match surprisal_coefficients_method:
-            case "maximize":
-                surprisal_coefficients = [1.0] * num_meta_levels
-            case "minimize":
-                surprisal_coefficients = [-1.0] * num_meta_levels
-            case "maximize_top":
-                surprisal_coefficients = [-1.0] * (num_meta_levels - 1) + [1.0]
-            case _:
-                raise ValueError(
-                    f"Unknown surprisal_coefficients_method: {surprisal_coefficients_method!r}"
-                )
-
-        self.num_meta_levels = num_meta_levels
+        self.num_meta_levels = len(surprisal_coefficients)
         self.surprisal_coefficients = surprisal_coefficients
 
         self.metrics: dict[str, float] = {}
