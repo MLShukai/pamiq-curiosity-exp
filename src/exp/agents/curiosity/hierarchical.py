@@ -286,9 +286,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         reward_lerp_ratio: float,
-        num_layers: int,
-        reward_coef_list: list[float],
-        timescale_list: list[int],
+        reward_coefficients: list[float],
+        timescales: list[int],
         device_list: list[torch.device | None] | torch.device | None = None,
     ) -> None:
         """Initializes the HierarchicalCuriosityAgent with layer agents and
@@ -298,21 +297,22 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             layer_agent_dict: Dictionary mapping layer names to LayerCuriosityAgent instances.
             layer_timescale: List of time scales for each layer agent.
         """
-        self.num_layers = num_layers
-        model_key_list = [str(i) for i in range(num_layers)]
+        self.num_layers = len(reward_coefficients)
+        model_key_list = [str(i) for i in range(self.num_layers)]
         self.layer_agent_dict: dict[str, LayerCuriosityAgent] = {}
         if not isinstance(device_list, Sequence):
             device_list = [device_list] * self.num_layers
-        if (
-            len(device_list) != self.num_layers
-            or len(reward_coef_list) != self.num_layers
-            or len(timescale_list) != self.num_layers
+        if not (
+            len(device_list)
+            == len(reward_coefficients)
+            == len(timescales)
+            == self.num_layers
         ):
             raise ValueError(
                 "device_list, reward_coef_list, and timescale_list must have the same length as num_layers."
             )
         for reward_coef, model_key, device in zip(
-            reward_coef_list, model_key_list, device_list
+            reward_coefficients, model_key_list, device_list
         ):
             layer_agent = LayerCuriosityAgent(
                 model_buffer_suffix=model_key,
@@ -325,7 +325,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
 
         timescale_cumprod = 1
         self.layer_timescale_list = []
-        for timescale in timescale_list:
+        for timescale in timescales:
             if timescale <= 0:
                 raise ValueError("Timescale must be a positive integer.")
             timescale_cumprod *= timescale

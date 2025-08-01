@@ -246,9 +246,8 @@ class TestHierarchicalCuriosityAgent:
     def hierarchical_agent(self, models, buffers):
         agent = HierarchicalCuriosityAgent(
             reward_lerp_ratio=0.5,
-            num_layers=2,
-            reward_coef_list=[-1.0, 1.0],
-            timescale_list=[1, 2],
+            reward_coefficients=[-1.0, 1.0],
+            timescales=[1, 2],
         )
         connect_components(agent, models=models, buffers=buffers)
         return agent
@@ -334,6 +333,6 @@ class TestLayerTimescaleCreation:
 
         # Test constant timescale
         timescale = create_layer_timescale(
-            "exponential_growth", num_layers, timescale_multiplier=3.0
+            "exponential_growth", num_layers, timescale_multiplier=3
         )
-        assert timescale == [3.0**i for i in range(num_layers)]
+        assert timescale == [3**i for i in range(num_layers)]
