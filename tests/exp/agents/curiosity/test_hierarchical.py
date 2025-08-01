@@ -13,6 +13,10 @@ from exp.agents.curiosity.hierarchical import (
     LayerCuriosityAgent,
     LayerInput,
     LayerOutput,
+    LayerTimescaleMethod,
+    RewardCoefMethod,
+    create_layer_timescale,
+    create_reward_coef,
 )
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
@@ -297,3 +301,39 @@ class TestHierarchicalCuriosityAgent:
         assert action.shape == (OBSERVATION_DIM,)
         assert spy_fd_collect_1.call_count == 3
         assert spy_fd_collect_2.call_count == 2
+
+
+class TestRewardCoefCreation:
+    """Test suite for reward coefficient creation."""
+
+    def test_create_reward_coef(self):
+        num_layers = 4
+
+        # Test minimize_all
+        coef = create_reward_coef("minimize_all", num_layers)
+        assert coef == [-1.0] * num_layers
+
+        # Test maximize_all
+        coef = create_reward_coef("maximize_all", num_layers)
+        assert coef == [1.0] * num_layers
+
+        # Test minimize_lower_half
+        coef = create_reward_coef("minimize_lower_half", num_layers)
+        assert coef == [-1.0, -1.0, 1.0, 1.0]
+
+        # Test maximize_lower_half
+        coef = create_reward_coef("maximize_lower_half", num_layers)
+        assert coef == [1.0, 1.0, -1.0, -1.0]
+
+
+class TestLayerTimescaleCreation:
+    """Test suite for layer timescale creation."""
+
+    def test_create_layer_timescale(self):
+        num_layers = 4
+
+        # Test constant timescale
+        timescale = create_layer_timescale(
+            "exponential_growth", num_layers, timescale_multiplier=3.0
+        )
+        assert timescale == [3.0**i for i in range(num_layers)]
