@@ -171,13 +171,13 @@ class TestLatentFD:
             obs_tensor, action_tensor, hidden_encoder_tensor, hidden_predictor_tensor
         )
         # Check output types
-        assert isinstance(obs_dist, Normal)
+        assert isinstance(obs_dist, torch.Tensor)
         assert isinstance(latent, torch.Tensor)
         assert isinstance(next_hidden_encoder, torch.Tensor)
         assert isinstance(next_hidden_predictor, torch.Tensor)
 
         # Check shapes
-        assert obs_dist.mean.shape == (
+        assert obs_dist.shape == (
             self.BATCH_SIZE,
             self.SEQ_LEN,
             self.OBS_NUM_TOKENS,

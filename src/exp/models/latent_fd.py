@@ -55,7 +55,7 @@ class LatentFD(nn.Module):
         hidden_encoder: Tensor | None = None,
         hidden_predictor: Tensor | None = None,
         no_len: bool = False,
-    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         """Forward pass through the LatentFD model.
 
         Args:
@@ -97,7 +97,7 @@ class LatentFD(nn.Module):
         hidden_encoder: Tensor | None = None,
         hidden_predictor: Tensor | None = None,
         no_len: bool = False,
-    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         """Override __call__ with proper type annotations.
 
         See forward() method for full documentation.
@@ -112,7 +112,7 @@ class LatentFD(nn.Module):
         action: Tensor,
         hidden_encoder: Tensor | None = None,
         hidden_predictor: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         """Forward pass for single-step processing without length dimension.
 
         Convenience method for inference where inputs don't have a sequence length dimension.
@@ -213,13 +213,12 @@ class ObsPredictionHead(nn.Module):
                 lerp-based feature extraction. If int, uses direct dimension.
         """
         super().__init__()
-        self.obs_hat_dist_head = nn.Sequential(
-            ToStackedFeatures(input_dim, obs_info.dim, obs_info.num_tokens),
-            FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
+        self.obs_hat_dist_head = ToStackedFeatures(
+            input_dim, obs_info.dim, obs_info.num_tokens
         )
 
     @override
-    def forward(self, latent: Tensor) -> Distribution:
+    def forward(self, latent: Tensor) -> Tensor:
         """Predict observation distribution from latent representation.
 
         Args:
@@ -231,7 +230,7 @@ class ObsPredictionHead(nn.Module):
         return self.obs_hat_dist_head(latent)
 
     @override
-    def __call__(self, latent: Tensor) -> Distribution:
+    def __call__(self, latent: Tensor) -> Tensor:
         """Override __call__ with proper type annotations.
 
         See forward() method for full documentation.
