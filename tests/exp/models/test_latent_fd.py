@@ -4,8 +4,202 @@ import torch.nn as nn
 from torch.distributions import Normal
 
 from exp.models.components.stacked_hidden_state import StackedHiddenState
-from exp.models.latent_fd import Encoder, Predictor
+from exp.models.latent_fd import (
+    Encoder,
+    LatentFD,
+    ObsActionFlattenHead,
+    ObsPredictionHead,
+    Predictor,
+)
 from exp.models.utils import ActionInfo, ObsInfo
+
+
+class TestLatentFD:
+    """Test suite for the LatentFD model components."""
+
+    # Test hyperparameters
+    BATCH_SIZE = 2
+    SEQ_LEN = 3
+    DEPTH = 2
+    DIM_CORE_MODEL = 16
+    DIM_EMBED = 12
+    OBS_DIM = 8
+    OBS_DIM_HIDDEN = 10
+    OBS_NUM_TOKENS = 4
+    ACTION_DIM = 6
+    ACTION_CHOICES = [2, 3, 4]
+
+    @pytest.fixture
+    def obs_info(self):
+        return ObsInfo(
+            dim=self.OBS_DIM,
+            dim_hidden=self.OBS_DIM_HIDDEN,
+            num_tokens=self.OBS_NUM_TOKENS,
+        )
+
+    @pytest.fixture
+    def action_info(self):
+        return ActionInfo(
+            choices=self.ACTION_CHOICES,
+            dim=self.ACTION_DIM,
+        )
+
+    @pytest.fixture
+    def mock_encoder(self, mocker):
+        """Mock StackedHiddenState for isolated testing."""
+        mock = mocker.Mock(spec=StackedHiddenState)
+        # Set up the mock to return predictable outputs
+        output_tensor = torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.DIM_CORE_MODEL)
+        hidden_tensor = torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
+        )
+        output_tensor_no_len = torch.randn(self.BATCH_SIZE, self.DIM_CORE_MODEL)
+        hidden_tensor_no_len = torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL
+        )
+
+        # Configure return values based on no_len parameter
+        def side_effect(x, hidden=None, *, no_len=False):
+            if no_len:
+                return output_tensor_no_len, hidden_tensor_no_len
+            else:
+                return output_tensor, hidden_tensor
+
+        mock.side_effect = side_effect
+        mock.forward_with_no_len.return_value = (
+            output_tensor_no_len,
+            hidden_tensor_no_len,
+        )
+        return mock
+
+    @pytest.fixture
+    def mock_predictor(self, mocker):
+        """Mock StackedHiddenState for isolated testing."""
+        mock = mocker.Mock(spec=StackedHiddenState)
+        # Set up the mock to return predictable outputs
+        output_tensor = torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.DIM_CORE_MODEL)
+        hidden_tensor = torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
+        )
+        output_tensor_no_len = torch.randn(self.BATCH_SIZE, self.DIM_CORE_MODEL)
+        hidden_tensor_no_len = torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL
+        )
+
+        # Configure return values based on no_len parameter
+        def side_effect(x, hidden=None, *, no_len=False):
+            if no_len:
+                return output_tensor_no_len, hidden_tensor_no_len
+            else:
+                return output_tensor, hidden_tensor
+
+        mock.side_effect = side_effect
+        mock.forward_with_no_len.return_value = (
+            output_tensor_no_len,
+            hidden_tensor_no_len,
+        )
+        return mock
+
+    @pytest.fixture
+    def obs_action_flatten_head(self, obs_info, action_info):
+        return ObsActionFlattenHead(
+            obs_info=obs_info,
+            action_info=action_info,
+            output_dim=self.DIM_CORE_MODEL,
+        )
+
+    @pytest.fixture
+    def obs_prediction_head(self, obs_info):
+        return ObsPredictionHead(
+            input_dim=self.DIM_CORE_MODEL,
+            obs_info=obs_info,
+        )
+
+    @pytest.fixture
+    def latent_fd(
+        self, obs_action_flatten_head, obs_prediction_head, mock_encoder, mock_predictor
+    ):
+        """LatentFD model initialized with ObsInfo and ActionInfo."""
+        return LatentFD(
+            obs_action_flatten_head=obs_action_flatten_head,
+            obs_predict_head=obs_prediction_head,
+            encoder=mock_encoder,
+            predictor=mock_predictor,
+        )
+
+    @pytest.fixture
+    def obs_tensor(self):
+        """Observation tensor for testing."""
+        return torch.randn(
+            self.BATCH_SIZE, self.SEQ_LEN, self.OBS_NUM_TOKENS, self.OBS_DIM
+        )
+
+    @pytest.fixture
+    def action_tensor(self):
+        """Action tensor for testing."""
+        actions = []
+        for choice in self.ACTION_CHOICES:
+            actions.append(torch.randint(0, choice, (self.BATCH_SIZE, self.SEQ_LEN)))
+        return torch.stack(actions, dim=-1)
+
+    @pytest.fixture
+    def hidden_encoder_tensor(self):
+        """Hidden state tensor for testing."""
+        return torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
+        )
+
+    @pytest.fixture
+    def hidden_predictor_tensor(self):
+        """Hidden state tensor for testing."""
+        return torch.randn(
+            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
+        )
+
+    def test_forward(
+        self,
+        latent_fd,
+        obs_tensor,
+        action_tensor,
+        hidden_encoder_tensor,
+        hidden_predictor_tensor,
+        mock_encoder,
+        mock_predictor,
+    ):
+        """Test forward pass with all inputs."""
+        obs_dist, latent, next_hidden_encoder, next_hidden_predictor = latent_fd(
+            obs_tensor, action_tensor, hidden_encoder_tensor, hidden_predictor_tensor
+        )
+        # Check output types
+        assert isinstance(obs_dist, Normal)
+        assert isinstance(latent, torch.Tensor)
+        assert isinstance(next_hidden_encoder, torch.Tensor)
+        assert isinstance(next_hidden_predictor, torch.Tensor)
+
+        # Check shapes
+        assert obs_dist.mean.shape == (
+            self.BATCH_SIZE,
+            self.SEQ_LEN,
+            self.OBS_NUM_TOKENS,
+            self.OBS_DIM,
+        )
+        assert latent.shape == (self.BATCH_SIZE, self.SEQ_LEN, self.DIM_CORE_MODEL)
+        assert next_hidden_encoder.shape == (
+            self.BATCH_SIZE,
+            self.DEPTH,
+            self.SEQ_LEN,
+            self.DIM_CORE_MODEL,
+        )
+        assert next_hidden_predictor.shape == (
+            self.BATCH_SIZE,
+            self.DEPTH,
+            self.SEQ_LEN,
+            self.DIM_CORE_MODEL,
+        )
+
+        # Verify encoder and predictor were called
+        mock_encoder.assert_called_once()
+        mock_predictor.assert_called_once()
 
 
 class TestEncoder:
