@@ -8,11 +8,15 @@ from pamiq_core.testing import (
 from pytest_mock import MockerFixture
 from torch.distributions import Normal
 
-from exp.agents.curiosity.adversarial import AdversarialCuriosityAgent
 from exp.agents.curiosity.hierarchical import (
+    HierarchicalCuriosityAgent,
     LayerCuriosityAgent,
     LayerInput,
     LayerOutput,
+    LayerTimescaleMethod,
+    RewardCoefMethod,
+    create_layer_timescale,
+    create_reward_coef,
 )
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
@@ -23,6 +27,8 @@ ACTION_DIM = 4
 HIDDEN_DIM = 32
 DEPTH = 2
 MODEL_BUFFER_SUFFIX = "_test"
+MODEL_BUFFER_SUFFIX_1 = "0"
+MODEL_BUFFER_SUFFIX_2 = "1"
 
 
 class TestLayerCuriosityAgent:
@@ -195,3 +201,138 @@ class TestLayerCuriosityAgent:
             and agent.fd_hidden is not None
             and torch.equal(new_agent.fd_hidden, agent.fd_hidden)
         )
+
+
+class TestHierarchicalCuriosityAgent:
+    """Test suite for HierarchicalCuriosityAgent."""
+
+    @pytest.fixture
+    def forward_dynamics(self):
+        model, _ = create_mock_models()
+        obs_hat = torch.zeros(OBSERVATION_DIM)
+        latent_obs = torch.zeros(OBSERVATION_DIM)
+        hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        model.inference_model.return_value = (obs_hat, latent_obs, hidden)
+        return model
+
+    @pytest.fixture
+    def policy_value(self):
+        model, _ = create_mock_models()
+        action_dist = Normal(torch.zeros(OBSERVATION_DIM), torch.ones(OBSERVATION_DIM))
+        value = torch.tensor(0.5)
+        policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        model.inference_model.return_value = (action_dist, value, policy_hidden)
+        return model
+
+    @pytest.fixture
+    def models(self, forward_dynamics, policy_value):
+        return {
+            ModelName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: forward_dynamics,
+            ModelName.POLICY_VALUE + MODEL_BUFFER_SUFFIX_1: policy_value,
+            ModelName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_2: forward_dynamics,
+            ModelName.POLICY_VALUE + MODEL_BUFFER_SUFFIX_2: policy_value,
+        }
+
+    @pytest.fixture
+    def buffers(self):
+        return {
+            BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
+            BufferName.POLICY + MODEL_BUFFER_SUFFIX_1: create_mock_buffer(),
+            BufferName.FORWARD_DYNAMICS + MODEL_BUFFER_SUFFIX_2: create_mock_buffer(),
+            BufferName.POLICY + MODEL_BUFFER_SUFFIX_2: create_mock_buffer(),
+        }
+
+    @pytest.fixture
+    def hierarchical_agent(self, models, buffers):
+        agent = HierarchicalCuriosityAgent(
+            reward_lerp_ratio=0.5,
+            reward_coefficients=[-1.0, 1.0],
+            timescales=[1, 2],
+        )
+        connect_components(agent, models=models, buffers=buffers)
+        return agent
+
+    def test_setup(self, hierarchical_agent: HierarchicalCuriosityAgent):
+        hierarchical_agent.setup()
+        for agent in hierarchical_agent.layer_agent_dict.values():
+            assert agent.step_data_fd == {}
+            assert agent.step_data_policy == {}
+
+    def test_setup_step(
+        self, hierarchical_agent: HierarchicalCuriosityAgent, mocker: MockerFixture
+    ):
+        spy_fd_collect_1 = mocker.spy(
+            hierarchical_agent.layer_agent_dict[MODEL_BUFFER_SUFFIX_1].fd_collector,
+            "collect",
+        )
+        spy_fd_collect_2 = mocker.spy(
+            hierarchical_agent.layer_agent_dict[MODEL_BUFFER_SUFFIX_2].fd_collector,
+            "collect",
+        )
+
+        hierarchical_agent.setup()
+        assert (
+            hierarchical_agent.action_to_lower_list
+            == [None] * hierarchical_agent.num_layers
+        )
+        assert (
+            hierarchical_agent.reward_to_lower_list
+            == [None] * hierarchical_agent.num_layers
+        )
+        assert (
+            hierarchical_agent.observation_to_upper_list
+            == [None] * hierarchical_agent.num_layers
+        )
+
+        observation = torch.zeros(OBSERVATION_DIM)
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 1
+        assert spy_fd_collect_2.call_count == 1
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 2
+        assert spy_fd_collect_2.call_count == 1
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 3
+        assert spy_fd_collect_2.call_count == 2
+
+
+class TestRewardCoefCreation:
+    """Test suite for reward coefficient creation."""
+
+    def test_create_reward_coef(self):
+        num_layers = 4
+
+        # Test minimize_all
+        coef = create_reward_coef("minimize_all", num_layers)
+        assert coef == [-1.0] * num_layers
+
+        # Test maximize_all
+        coef = create_reward_coef("maximize_all", num_layers)
+        assert coef == [1.0] * num_layers
+
+        # Test minimize_lower_half
+        coef = create_reward_coef("minimize_lower_half", num_layers)
+        assert coef == [-1.0, -1.0, 1.0, 1.0]
+
+        # Test maximize_lower_half
+        coef = create_reward_coef("maximize_lower_half", num_layers)
+        assert coef == [1.0, 1.0, -1.0, -1.0]
+
+
+class TestLayerTimescaleCreation:
+    """Test suite for layer timescale creation."""
+
+    def test_create_layer_timescale(self):
+        num_layers = 4
+
+        # Test constant timescale
+        timescale = create_layer_timescale(
+            "exponential_growth", num_layers, timescale_multiplier=3
+        )
+        assert timescale == [3**i for i in range(num_layers)]
