@@ -373,14 +373,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             self.layer_agent_dict[model_key] = layer_agent
         super().__init__(self.layer_agent_dict)
 
-        timescale_cumprod = 1
-        self.layer_timescale_list = []
-        for timescale in timescales:
-            if timescale <= 0:
-                raise ValueError("Timescale must be a positive integer.")
-            timescale_cumprod *= timescale
-            self.layer_timescale_list.append(timescale_cumprod)
-        self.period = self.layer_timescale_list[-1]  # The period of the last layer
+        self.timescales = timescales
+        self.period = timescales[-1]  # The period of the last layer
 
         self.action_to_lower_list: list[Tensor | None] = [None] * self.num_layers
         self.reward_to_lower_list: list[Tensor | None] = [None] * self.num_layers
@@ -397,7 +391,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             observation: The input observation for the bottom layer.
         """
         for i, agent in enumerate(self.layer_agent_dict.values()):
-            if self.counter % self.layer_timescale_list[i] != 0:
+            if self.counter % self.timescales[i] != 0:
                 continue
             upper_action = (
                 self.action_to_lower_list[i + 1]
