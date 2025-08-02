@@ -7,7 +7,7 @@ defaults:
   - override /buffers: hierarchical
 
 shared:
-  num_hierarchical_layers: 3
+  num_hierarchical_layers: 4
   max_imagination_steps: 3
   dtype: float
 

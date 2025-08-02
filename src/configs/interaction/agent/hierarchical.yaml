@@ -1,7 +1,7 @@
 # @package interaction.agent.curiosity
 
 _target_: exp.agents.curiosity.hierarchical.HierarchicalCuriosityAgent
-reward_lerp_ratio: 0.2
+reward_lerp_ratio: 0.5
 reward_coefficients:
   _target_: exp.agents.curiosity.hierarchical.create_reward_coef
   method: "lerp_min_max"

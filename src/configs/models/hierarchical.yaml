@@ -97,7 +97,7 @@ policy_value1:
       output_dim: ${..encoder.dim}
     encoder:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 1536
+      dim: 1024
       dim_ff_hidden: ${python.eval:"${.dim} * 2"}
       depth: 4
       dropout: 0.1
@@ -132,7 +132,7 @@ forward_dynamics1:
       output_dim: ${..encoder.dim}
     encoder:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 1536
+      dim: 1024
       dim_ff_hidden: ${python.eval:"${.dim} * 2"}
       depth: 4
       dropout: 0.1
@@ -160,11 +160,11 @@ policy_value2:
     obs_upper_action_flatten_head:
       _target_: exp.models.latent_policy.LatentObsUpperActionFlattenHead
       obs_dim: ${models.forward_dynamics1.model.encoder.dim}
-      action_dim: ${models.forward_dynamics2.model.encoder.dim}
+      action_dim: ${models.policy_value3.model.action_dist_head.dim_out}
       output_dim: ${..encoder.dim}
     encoder:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 2048
+      dim: 1024
       dim_ff_hidden: ${python.eval:"${.dim} * 2"}
       depth: 4
       dropout: 0.1
@@ -177,7 +177,7 @@ policy_value2:
     action_dist_head:
       _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
       dim_in: ${..encoder.dim}
-      dim_out: 1536
+      dim_out: 1024
     value_head:
       _target_: exp.models.components.fc_scalar_head.FCScalarHead
       dim_in: ${..encoder.dim}
@@ -199,7 +199,7 @@ forward_dynamics2:
       output_dim: ${..encoder.dim}
     encoder:
       _target_: exp.models.components.qlstm.QLSTM
-      dim: 2048
+      dim: 1024
       dim_ff_hidden: ${python.eval:"${.dim} * 2"}
       depth: 4
       dropout: 0.1
@@ -213,3 +213,70 @@ forward_dynamics2:
       _target_: torch.nn.Linear
       in_features: ${..encoder.dim}
       out_features: ${models.forward_dynamics1.model.encoder.dim}
+
+policy_value3:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_policy.LatentPolicy.forward_with_no_len
+  model:
+    _target_: exp.models.latent_policy.LatentPolicy
+    obs_upper_action_flatten_head:
+      _target_: exp.models.latent_policy.LatentObsUpperActionFlattenHead
+      obs_dim: ${models.forward_dynamics2.model.encoder.dim}
+      action_dim: ${models.forward_dynamics3.model.encoder.dim}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    action_dist_head:
+      _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
+      dim_in: ${..encoder.dim}
+      dim_out: 1024
+    value_head:
+      _target_: exp.models.components.fc_scalar_head.FCScalarHead
+      dim_in: ${..encoder.dim}
+
+forward_dynamics3:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_fd.LatentFD.forward_with_no_len
+  model:
+    _target_: exp.models.latent_fd.LatentFD
+    obs_action_flatten_head:
+      _target_: exp.models.latent_fd.LatentObsActionFlattenHead
+      obs_dim: ${models.forward_dynamics2.model.encoder.dim}
+      action_dim: ${models.policy_value3.model.action_dist_head.dim_out}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    obs_prediction_head:
+      _target_: torch.nn.Linear
+      in_features: ${..encoder.dim}
+      out_features: ${models.forward_dynamics2.model.encoder.dim}
