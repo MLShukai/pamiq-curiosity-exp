@@ -1,5 +1,6 @@
-forward_dynamics0:
-  _target_: exp.trainers.forward_dynamics.LatentFDTrainer
+forward_dynamics:
+  _target_: exp.trainers.forward_dynamics.LatentFDTrainer.create_multiple
+  num_trainers: ${shared.num_hierarchical_layers}
   partial_optimizer:
     _target_: torch.optim.SGD
     _partial_: true
@@ -11,8 +12,6 @@ forward_dynamics0:
   max_samples: 32
   imagination_length:  ${shared.max_imagination_steps}
   min_new_data_count: 128
-  model_name: "forward_dynamics0"
-  data_user_name: "forward_dynamics0"
 
 policy0:
   _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer
@@ -33,22 +32,6 @@ policy0:
   model_name: "policy_value0"
   data_user_name: "policy0"
 
-forward_dynamics1:
-  _target_: exp.trainers.forward_dynamics.LatentFDTrainer
-  partial_optimizer:
-    _target_: torch.optim.SGD
-    _partial_: true
-    lr: 1e-4
-    momentum: 0.9
-    nesterov: true
-    weight_decay: 1e-4
-  seq_len: 256
-  max_samples: 32
-  imagination_length:  ${shared.max_imagination_steps}
-  min_new_data_count: 128
-  model_name: "forward_dynamics1"
-  data_user_name: "forward_dynamics1"
-
 policy1:
   _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer
   partial_optimizer:
@@ -67,22 +50,6 @@ policy1:
   min_new_data_count: 128
   model_name: "policy_value1"
   data_user_name: "policy1"
-
-forward_dynamics2:
-  _target_: exp.trainers.forward_dynamics.LatentFDTrainer
-  partial_optimizer:
-    _target_: torch.optim.SGD
-    _partial_: true
-    lr: 1e-4
-    momentum: 0.9
-    nesterov: true
-    weight_decay: 1e-4
-  seq_len: 256
-  max_samples: 32
-  imagination_length:  ${shared.max_imagination_steps}
-  min_new_data_count: 128
-  model_name: "forward_dynamics2"
-  data_user_name: "forward_dynamics2"
 
 policy2:
   _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer
