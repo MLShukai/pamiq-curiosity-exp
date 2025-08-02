@@ -503,6 +503,7 @@ class LatentFDTrainer(TorchTrainer):
         max_epochs: int = 1,
         imagination_length: int = 1,
         imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
+        model_name: str = ModelName.FORWARD_DYNAMICS,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
@@ -541,6 +542,7 @@ class LatentFDTrainer(TorchTrainer):
         )
         self.partial_dataloader = partial(DataLoader, batch_size=batch_size)
         self.max_epochs = max_epochs
+        self.model_name = model_name
         self.data_user_name = data_user_name
         self.imagination_length = imagination_length
         self.imagination_average_method = imagination_average_method
@@ -572,9 +574,7 @@ class LatentFDTrainer(TorchTrainer):
         """
 
         super().on_training_models_attached()
-        self.forward_dynamics = self.get_torch_training_model(
-            ModelName.FORWARD_DYNAMICS, LatentFD
-        )
+        self.forward_dynamics = self.get_torch_training_model(self.model_name, LatentFD)
 
     @override
     def create_optimizers(self) -> OptimizersSetup:

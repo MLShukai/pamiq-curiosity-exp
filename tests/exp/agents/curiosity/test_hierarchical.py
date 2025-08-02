@@ -39,8 +39,14 @@ class TestLayerCuriosityAgent:
         model, _ = create_mock_models()
         obs_hat = torch.zeros(OBSERVATION_DIM)
         latent_obs = torch.zeros(LATENT_OBSERVATION_DIM)
-        hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        model.inference_model.return_value = (obs_hat, latent_obs, hidden)
+        encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        model.inference_model.return_value = (
+            obs_hat,
+            latent_obs,
+            encoder_hidden,
+            predictor_hidden,
+        )
         return model
 
     @pytest.fixture
@@ -48,8 +54,16 @@ class TestLayerCuriosityAgent:
         model, _ = create_mock_models()
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
         value = torch.tensor(0.5)
-        policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        model.inference_model.return_value = (action_dist, value, policy_hidden)
+        encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        latent = torch.zeros(LATENT_OBSERVATION_DIM)
+        model.inference_model.return_value = (
+            action_dist,
+            value,
+            latent,
+            encoder_hidden,
+            predictor_hidden,
+        )
         return model
 
     @pytest.fixture
@@ -87,8 +101,10 @@ class TestLayerCuriosityAgent:
         spy_policy_collect = mocker.spy(agent.policy_collector, "collect")
         agent.setup()
         assert agent.obs_hat is None
-        assert agent.policy_hidden is None
-        assert agent.fd_hidden is None
+        assert agent.policy_encoder_hidden is None
+        assert agent.policy_predictor_hidden is None
+        assert agent.fd_encoder_hidden is None
+        assert agent.fd_predictor_hidden is None
 
         observation = LayerInput(
             observation=torch.zeros(OBSERVATION_DIM),
@@ -97,8 +113,10 @@ class TestLayerCuriosityAgent:
         )
 
         assert agent.obs_hat is None
-        assert agent.policy_hidden is None
-        assert agent.fd_hidden is None
+        assert agent.policy_encoder_hidden is None
+        assert agent.policy_predictor_hidden is None
+        assert agent.fd_encoder_hidden is None
+        assert agent.fd_predictor_hidden is None
 
         output = agent.step(observation)
         observation_from_lower, action, reward = (
@@ -110,13 +128,84 @@ class TestLayerCuriosityAgent:
         assert action.shape == (ACTION_DIM,)
         assert reward is None
         assert agent.obs_hat is not None and agent.obs_hat.shape == (OBSERVATION_DIM,)
-        assert agent.policy_hidden is not None and agent.policy_hidden.shape == (
-            DEPTH,
-            HIDDEN_DIM,
+        assert (
+            agent.policy_encoder_hidden is not None
+            and agent.policy_encoder_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
         )
-        assert agent.fd_hidden is not None and agent.fd_hidden.shape == (
-            DEPTH,
-            HIDDEN_DIM,
+        assert (
+            agent.policy_predictor_hidden is not None
+            and agent.policy_predictor_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.fd_encoder_hidden is not None
+            and agent.fd_encoder_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.fd_predictor_hidden is not None
+            and agent.fd_predictor_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert spy_fd_collect.call_count == 0
+        assert spy_policy_collect.call_count == 0
+        assert spy_fd_collect.call_count == 0
+        assert spy_policy_collect.call_count == 0
+
+        output = agent.step(observation)
+        observation_from_lower, action, reward = (
+            output.lower_observation,
+            output.action,
+            output.reward,
+        )
+        assert observation_from_lower.shape == (LATENT_OBSERVATION_DIM,)
+        assert action.shape == (ACTION_DIM,)
+        assert reward is not None and reward.shape == ()
+        assert agent.obs_hat is not None and agent.obs_hat.shape == (OBSERVATION_DIM,)
+        assert (
+            agent.policy_encoder_hidden is not None
+            and agent.policy_encoder_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.policy_predictor_hidden is not None
+            and agent.policy_predictor_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.fd_encoder_hidden is not None
+            and agent.fd_encoder_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.fd_predictor_hidden is not None
+            and agent.fd_predictor_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
         )
         assert spy_fd_collect.call_count == 1
         assert spy_policy_collect.call_count == 0
@@ -131,36 +220,39 @@ class TestLayerCuriosityAgent:
         assert action.shape == (ACTION_DIM,)
         assert reward is not None and reward.shape == ()
         assert agent.obs_hat is not None and agent.obs_hat.shape == (OBSERVATION_DIM,)
-        assert agent.policy_hidden is not None and agent.policy_hidden.shape == (
-            DEPTH,
-            HIDDEN_DIM,
+        assert (
+            agent.policy_encoder_hidden is not None
+            and agent.policy_encoder_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
         )
-        assert agent.fd_hidden is not None and agent.fd_hidden.shape == (
-            DEPTH,
-            HIDDEN_DIM,
+        assert (
+            agent.policy_predictor_hidden is not None
+            and agent.policy_predictor_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.fd_encoder_hidden is not None
+            and agent.fd_encoder_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
+        )
+        assert (
+            agent.fd_predictor_hidden is not None
+            and agent.fd_predictor_hidden.shape
+            == (
+                DEPTH,
+                HIDDEN_DIM,
+            )
         )
         assert spy_fd_collect.call_count == 2
-        assert spy_policy_collect.call_count == 0
-
-        output = agent.step(observation)
-        observation_from_lower, action, reward = (
-            output.lower_observation,
-            output.action,
-            output.reward,
-        )
-        assert observation_from_lower.shape == (LATENT_OBSERVATION_DIM,)
-        assert action.shape == (ACTION_DIM,)
-        assert reward is not None and reward.shape == ()
-        assert agent.obs_hat is not None and agent.obs_hat.shape == (OBSERVATION_DIM,)
-        assert agent.policy_hidden is not None and agent.policy_hidden.shape == (
-            DEPTH,
-            HIDDEN_DIM,
-        )
-        assert agent.fd_hidden is not None and agent.fd_hidden.shape == (
-            DEPTH,
-            HIDDEN_DIM,
-        )
-        assert spy_fd_collect.call_count == 3
         assert spy_policy_collect.call_count == 1
 
     def test_save_and_load(self, agent: LayerCuriosityAgent, tmp_path):
@@ -192,14 +284,28 @@ class TestLayerCuriosityAgent:
             and torch.equal(new_agent.obs_hat, agent.obs_hat)
         )
         assert (
-            new_agent.policy_hidden is not None
-            and agent.policy_hidden is not None
-            and torch.equal(new_agent.policy_hidden, agent.policy_hidden)
+            new_agent.policy_encoder_hidden is not None
+            and agent.policy_encoder_hidden is not None
+            and torch.equal(
+                new_agent.policy_encoder_hidden, agent.policy_encoder_hidden
+            )
         )
         assert (
-            new_agent.fd_hidden is not None
-            and agent.fd_hidden is not None
-            and torch.equal(new_agent.fd_hidden, agent.fd_hidden)
+            new_agent.policy_predictor_hidden is not None
+            and agent.policy_predictor_hidden is not None
+            and torch.equal(
+                new_agent.policy_predictor_hidden, agent.policy_predictor_hidden
+            )
+        )
+        assert (
+            new_agent.fd_encoder_hidden is not None
+            and agent.fd_encoder_hidden is not None
+            and torch.equal(new_agent.fd_encoder_hidden, agent.fd_encoder_hidden)
+        )
+        assert (
+            new_agent.fd_predictor_hidden is not None
+            and agent.fd_predictor_hidden is not None
+            and torch.equal(new_agent.fd_predictor_hidden, agent.fd_predictor_hidden)
         )
 
 
@@ -211,8 +317,14 @@ class TestHierarchicalCuriosityAgent:
         model, _ = create_mock_models()
         obs_hat = torch.zeros(OBSERVATION_DIM)
         latent_obs = torch.zeros(OBSERVATION_DIM)
-        hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        model.inference_model.return_value = (obs_hat, latent_obs, hidden)
+        encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        model.inference_model.return_value = (
+            obs_hat,
+            latent_obs,
+            encoder_hidden,
+            predictor_hidden,
+        )
         return model
 
     @pytest.fixture
@@ -220,8 +332,16 @@ class TestHierarchicalCuriosityAgent:
         model, _ = create_mock_models()
         action_dist = Normal(torch.zeros(OBSERVATION_DIM), torch.ones(OBSERVATION_DIM))
         value = torch.tensor(0.5)
-        policy_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        model.inference_model.return_value = (action_dist, value, policy_hidden)
+        policy_encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        policy_predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        latent = torch.zeros(OBSERVATION_DIM)
+        model.inference_model.return_value = (
+            action_dist,
+            value,
+            latent,
+            policy_encoder_hidden,
+            policy_predictor_hidden,
+        )
         return model
 
     @pytest.fixture
@@ -288,18 +408,18 @@ class TestHierarchicalCuriosityAgent:
 
         action = hierarchical_agent.step(observation)
         assert action.shape == (OBSERVATION_DIM,)
+        assert spy_fd_collect_1.call_count == 0
+        assert spy_fd_collect_2.call_count == 0
+
+        action = hierarchical_agent.step(observation)
+        assert action.shape == (OBSERVATION_DIM,)
         assert spy_fd_collect_1.call_count == 1
-        assert spy_fd_collect_2.call_count == 1
+        assert spy_fd_collect_2.call_count == 0
 
         action = hierarchical_agent.step(observation)
         assert action.shape == (OBSERVATION_DIM,)
         assert spy_fd_collect_1.call_count == 2
         assert spy_fd_collect_2.call_count == 1
-
-        action = hierarchical_agent.step(observation)
-        assert action.shape == (OBSERVATION_DIM,)
-        assert spy_fd_collect_1.call_count == 3
-        assert spy_fd_collect_2.call_count == 2
 
 
 class TestRewardCoefCreation:

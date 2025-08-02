@@ -165,6 +165,7 @@ class ObsUpperActionFlattenHead(nn.Module):
             output_dim: Dimension of the output latent representation.
         """
         super().__init__()
+        self.action_dim = action_dim
         self.obs_flatten = LerpStackedFeatures(
             obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
         )
@@ -174,7 +175,7 @@ class ObsUpperActionFlattenHead(nn.Module):
         )
 
     @override
-    def forward(self, obs: Tensor, action: Tensor) -> Tensor:
+    def forward(self, obs: Tensor, upper_action: Tensor | None) -> Tensor:
         """Process observations and actions into latent representations.
 
         Args:
@@ -185,7 +186,67 @@ class ObsUpperActionFlattenHead(nn.Module):
             Latent representation tensor of shape (*batch, len, output_dim).
         """
         obs = self.obs_flatten(obs)
-        return self.obs_action_proj(torch.cat((obs, action), dim=-1))
+        if upper_action is None:
+            upper_action = torch.zeros(
+                (*obs.shape[:-1], self.action_dim), dtype=obs.dtype, device=obs.device
+            )
+        return self.obs_action_proj(torch.cat((obs, upper_action), dim=-1))
+
+    @override
+    def __call__(self, obs: Tensor, action: Tensor) -> Tensor:
+        """Override __call__ with proper type annotations.
+
+        See forward() method for full documentation.
+        """
+        return super().__call__(obs, action)
+
+
+class LatentObsUpperActionFlattenHead(nn.Module):
+    """Head that processes observations and actions into latent
+    representations.
+
+    This head combines observation and action inputs, processes them
+    through a stacked hidden state model, and outputs latent
+    representations suitable for forward dynamics prediction.
+    """
+
+    @override
+    def __init__(
+        self,
+        obs_dim: int,
+        action_dim: int,
+        output_dim: int,
+    ) -> None:
+        """Initialize the observation-action head.
+
+        Args:
+            obs_info: Configuration for observation processing.
+            action_dim: Dimension of the action input.
+            output_dim: Dimension of the output latent representation.
+        """
+        super().__init__()
+        self.action_dim = action_dim
+        self.obs_action_proj = nn.Linear(
+            obs_dim + action_dim,
+            output_dim,
+        )
+
+    @override
+    def forward(self, obs: Tensor, upper_action: Tensor | None) -> Tensor:
+        """Process observations and actions into latent representations.
+
+        Args:
+            obs: Observation tensor. Shape is (*batch, len, obs_dim).
+            action: Action tensor. Shape is (*batch, len, action_dim).
+
+        Returns:
+            Latent representation tensor of shape (*batch, len, output_dim).
+        """
+        if upper_action is None:
+            upper_action = torch.zeros(
+                (*obs.shape[:-1], self.action_dim), dtype=obs.dtype, device=obs.device
+            )
+        return self.obs_action_proj(torch.cat((obs, upper_action), dim=-1))
 
     @override
     def __call__(self, obs: Tensor, action: Tensor) -> Tensor:

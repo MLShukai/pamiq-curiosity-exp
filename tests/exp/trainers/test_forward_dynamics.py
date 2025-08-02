@@ -332,7 +332,7 @@ class TestLatentFDTrainer:
             obs_action_flatten_head=obs_action_flatten_head,
             encoder=encoder,
             predictor=predictor,
-            obs_predict_head=obs_prediction_head,
+            obs_prediction_head=obs_prediction_head,
         )
 
     @pytest.fixture

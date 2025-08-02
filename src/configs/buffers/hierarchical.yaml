@@ -1,0 +1,23 @@
+forward_dynamics0:
+  _target_: exp.trainers.forward_dynamics.LatentFDTrainer.create_buffer
+  max_size: 1000 #  10 fps 100 secs
+
+policy0:
+  _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer.create_buffer
+  max_size: 1000 # 10 fps 100 secs
+
+forward_dynamics1:
+  _target_: exp.trainers.forward_dynamics.LatentFDTrainer.create_buffer
+  max_size: 1000 #  10 fps 100 secs
+
+policy1:
+  _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer.create_buffer
+  max_size: 1000 # 10 fps 100 secs
+
+forward_dynamics2:
+  _target_: exp.trainers.forward_dynamics.LatentFDTrainer.create_buffer
+  max_size: 1000 #  10 fps 100 secs
+
+policy2:
+  _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer.create_buffer
+  max_size: 1000 # 10 fps 100 secs

@@ -1,0 +1,13 @@
+# @package interaction.agent.curiosity
+
+_target_: exp.agents.curiosity.hierarchical.HierarchicalCuriosityAgent
+reward_lerp_ratio: 0.5
+reward_coefficients:
+  _target_: exp.agents.curiosity.hierarchical.create_reward_coef
+  method: "minimize_lower_half"
+  num_layers: ${shared.num_hierarchical_layers}
+timescales:
+  _target_: exp.agents.curiosity.hierarchical.create_layer_timescale
+  method: "exponential_growth"
+  num_layers: ${shared.num_hierarchical_layers}
+device_list: ${shared.device}

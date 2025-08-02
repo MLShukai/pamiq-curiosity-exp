@@ -122,7 +122,7 @@ class TestLatentFD:
         """LatentFD model initialized with ObsInfo and ActionInfo."""
         return LatentFD(
             obs_action_flatten_head=obs_action_flatten_head,
-            obs_predict_head=obs_prediction_head,
+            obs_prediction_head=obs_prediction_head,
             encoder=mock_encoder,
             predictor=mock_predictor,
         )

@@ -308,6 +308,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
         clip_coef: float = 0.1,
         entropy_coef: float = 0.0,
         vfunc_coef: float = 0.5,
+        model_name: str = ModelName.POLICY_VALUE,
         data_user_name: str = BufferName.POLICY,
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
@@ -346,6 +347,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
         self.gamma = gamma
         self.gae_lambda = gae_lambda
 
+        self.model_name = model_name
         self.data_user_name = data_user_name
         self.partial_optimizer = partial_optimizer
         self.partial_sampler = partial(
@@ -372,9 +374,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
     def on_training_models_attached(self) -> None:
         """Set up model references when they are attached to the trainer."""
         super().on_training_models_attached()
-        self.policy_value = self.get_torch_training_model(
-            ModelName.POLICY_VALUE, LatentPolicy
-        )
+        self.policy_value = self.get_torch_training_model(self.model_name, LatentPolicy)
 
     @override
     def create_optimizers(self) -> OptimizersSetup:

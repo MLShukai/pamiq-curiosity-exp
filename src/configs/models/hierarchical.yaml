@@ -1,0 +1,215 @@
+policy_value0:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_policy.LatentPolicy.forward_with_no_len
+  model:
+    _target_: exp.models.latent_policy.LatentPolicy
+    obs_upper_action_flatten_head:
+      _target_: exp.models.latent_policy.ObsUpperActionFlattenHead
+      obs_info:
+        _target_: exp.models.utils.ObsInfo
+        dim: 128 # Same as JEPA instantiattion.
+        num_tokens:
+          _target_: exp.models.jepa.compute_image_jepa_output_patch_count
+          image_size:
+            - ${shared.image.height}
+            - ${shared.image.width}
+          patch_size: 12 # Same as JEPA Instantiation
+          output_downsample: 3 # Same as JEPA Instantiation
+        dim_hidden: ${...encoder.dim}
+      action_dim: ${models.policy_value1.model.action_dist_head.dim_out}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    action_dist_head:
+      _target_: exp.models.components.multi_discretes.FCMultiCategoricalHead
+      dim_in: ${..encoder.dim}
+      choices_per_category:
+        _target_: hydra.utils.get_object
+        path: exp.envs.vrchat.OSC_ACTION_CHOICES
+    value_head:
+      _target_: exp.models.components.fc_scalar_head.FCScalarHead
+      dim_in: ${..encoder.dim}
+
+forward_dynamics0:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_fd.LatentFD.forward_with_no_len
+  model:
+    _target_: exp.models.latent_fd.LatentFD
+    obs_action_flatten_head:
+      _target_: exp.models.latent_fd.ObsActionFlattenHead
+      obs_info: ${models.policy_value0.model.obs_upper_action_flatten_head.obs_info}
+      action_info:
+        _target_: exp.models.utils.ActionInfo
+        choices: ${models.policy_value0.model.action_dist_head.choices_per_category}
+        dim: 256
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    obs_prediction_head:
+      _target_: exp.models.latent_fd.ObsPredictionHead
+      input_dim: ${..encoder.dim}
+      obs_info: ${models.policy_value0.model.obs_upper_action_flatten_head.obs_info}
+
+policy_value1:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_policy.LatentPolicy.forward_with_no_len
+  model:
+    _target_: exp.models.latent_policy.LatentPolicy
+    obs_upper_action_flatten_head:
+      _target_: exp.models.latent_policy.LatentObsUpperActionFlattenHead
+      obs_dim: ${models.forward_dynamics0.model.encoder.dim}
+      action_dim: ${models.policy_value2.model.action_dist_head.dim_out}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1536
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    action_dist_head:
+      _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
+      dim_in: ${..encoder.dim}
+      dim_out: 1024
+    value_head:
+      _target_: exp.models.components.fc_scalar_head.FCScalarHead
+      dim_in: ${..encoder.dim}
+
+forward_dynamics1:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_fd.LatentFD.forward_with_no_len
+  model:
+    _target_: exp.models.latent_fd.LatentFD
+    obs_action_flatten_head:
+      _target_: exp.models.latent_fd.LatentObsActionFlattenHead
+      obs_dim: ${models.forward_dynamics0.model.encoder.dim}
+      action_dim: ${models.policy_value1.model.action_dist_head.dim_out}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 1536
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    obs_prediction_head:
+      _target_: torch.nn.Linear
+      in_features: ${..encoder.dim}
+      out_features: ${models.forward_dynamics0.model.encoder.dim}
+
+policy_value2:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_policy.LatentPolicy.forward_with_no_len
+  model:
+    _target_: exp.models.latent_policy.LatentPolicy
+    obs_upper_action_flatten_head:
+      _target_: exp.models.latent_policy.LatentObsUpperActionFlattenHead
+      obs_dim: ${models.forward_dynamics1.model.encoder.dim}
+      action_dim: ${models.forward_dynamics2.model.encoder.dim}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 2048
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    action_dist_head:
+      _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
+      dim_in: ${..encoder.dim}
+      dim_out: 1536
+    value_head:
+      _target_: exp.models.components.fc_scalar_head.FCScalarHead
+      dim_in: ${..encoder.dim}
+
+forward_dynamics2:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.latent_fd.LatentFD.forward_with_no_len
+  model:
+    _target_: exp.models.latent_fd.LatentFD
+    obs_action_flatten_head:
+      _target_: exp.models.latent_fd.LatentObsActionFlattenHead
+      obs_dim: ${models.forward_dynamics1.model.encoder.dim}
+      action_dim: ${models.policy_value2.model.action_dist_head.dim_out}
+      output_dim: ${..encoder.dim}
+    encoder:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: 2048
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    predictor:
+      _target_: exp.models.components.qlstm.QLSTM
+      dim: ${..encoder.dim}
+      dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+      depth: 4
+      dropout: 0.1
+    obs_prediction_head:
+      _target_: torch.nn.Linear
+      in_features: ${..encoder.dim}
+      out_features: ${models.forward_dynamics1.model.encoder.dim}
