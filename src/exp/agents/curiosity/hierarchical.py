@@ -249,7 +249,12 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
 
 
 type RewardCoefMethod = Literal[
-    "minimize_all", "maximize_all", "minimize_lower_half", "maximize_lower_half"
+    "minimize_all",
+    "maximize_all",
+    "minimize_lower_half",
+    "maximize_lower_half",
+    "lerp_min_max",
+    "lerp_max_min",
 ]
 
 
@@ -272,6 +277,18 @@ def create_reward_coef(method: RewardCoefMethod, num_layers: int) -> list[float]
             return [-1.0] * (num_layers // 2) + [1.0] * (num_layers - num_layers // 2)
         case "maximize_lower_half":
             return [1.0] * (num_layers // 2) + [-1.0] * (num_layers - num_layers // 2)
+        case "lerp_min_max":
+            if num_layers < 2:
+                raise ValueError(
+                    "Number of layers must be at least 2 for lerp_min_max."
+                )
+            return [-1.0 + (i / (num_layers - 1)) * 2.0 for i in range(num_layers)]
+        case "lerp_max_min":
+            if num_layers < 2:
+                raise ValueError(
+                    "Number of layers must be at least 2 for lerp_max_min."
+                )
+            return [1.0 - (i / (num_layers - 1)) * 2.0 for i in range(num_layers)]
         case _:
             raise ValueError(f"Unknown reward coefficient method: {method}")
 

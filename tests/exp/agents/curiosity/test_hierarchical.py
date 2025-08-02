@@ -444,6 +444,14 @@ class TestRewardCoefCreation:
         coef = create_reward_coef("maximize_lower_half", num_layers)
         assert coef == [1.0, 1.0, -1.0, -1.0]
 
+        # Test lerp_min_max
+        coef = create_reward_coef("lerp_min_max", num_layers)
+        assert coef == [-1.0 + (i / (num_layers - 1)) * 2.0 for i in range(num_layers)]
+
+        # Test lerp_max_min
+        coef = create_reward_coef("lerp_max_min", num_layers)
+        assert coef == [1.0 - (i / (num_layers - 1)) * 2.0 for i in range(num_layers)]
+
 
 class TestLayerTimescaleCreation:
     """Test suite for layer timescale creation."""
