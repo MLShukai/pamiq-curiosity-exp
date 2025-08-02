@@ -398,7 +398,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
             predictor_hiddens,
             actions,
             action_log_probs,
-            _,
+            reward,
             values,
             advantages,
             returns,
@@ -461,6 +461,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
             "entropy": entropy_loss,
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
+            "reward": reward.mean(),
         }
 
     @override
