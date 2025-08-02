@@ -1,6 +1,6 @@
 from functools import partial
 from pathlib import Path
-from typing import override
+from typing import Any, Self, override
 
 import torch
 from pamiq_core import DataUser
@@ -310,6 +310,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
         vfunc_coef: float = 0.5,
         model_name: str = ModelName.POLICY_VALUE,
         data_user_name: str = BufferName.POLICY,
+        log_prefix: str = "ppo-policy",
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
@@ -359,6 +360,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
         self.clip_coef = clip_coef
         self.entropy_coef = entropy_coef
         self.vfunc_coef = vfunc_coef
+        self.log_prefix = log_prefix
         self.global_step = 0
 
     @override
@@ -534,7 +536,7 @@ class PPOLatentPolicyTrainer(TorchTrainer):
                             step=self.global_step,
                             context={
                                 "namespace": "trainer",
-                                "trainer_type": "ppo-policy",
+                                "trainer_type": self.log_prefix,
                             },
                         )
                 self.global_step += 1
@@ -568,6 +570,32 @@ class PPOLatentPolicyTrainer(TorchTrainer):
             ],
             max_size=max_size,
         )
+
+    @classmethod
+    def create_multiple(cls, num_trainers: int, **trainer_params: Any) -> list[Self]:
+        """Create multiple PPOLatentPolicyTrainer instances.
+
+        Each trainer is assigned a unique model_name and data_user_name by
+        appending an index (0 to num_trainers-1) to the base names.
+
+        Args:
+            num_trainers: Number of trainers to create.
+            **trainer_params: Parameters to pass to each trainer constructor.
+
+        Returns:
+            List of configured trainer instances.
+        """
+        trainers = list[Self]()
+        for i in range(num_trainers):
+            trainers.append(
+                cls(
+                    **trainer_params,
+                    model_name=ModelName.POLICY_VALUE + str(i),
+                    data_user_name=BufferName.POLICY + str(i),
+                    log_prefix="ppo-policy" + str(i),
+                )
+            )
+        return trainers
 
 
 def compute_advantage(
