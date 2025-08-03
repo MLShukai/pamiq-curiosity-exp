@@ -4,6 +4,7 @@ from typing import override
 
 import torch
 import torch.nn as nn
+from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
 from torch.distributions import Distribution
 
@@ -519,3 +520,41 @@ class Predictor(nn.Module):
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         return self.forward(latent, hidden, no_len=True)
+
+
+def create_hierarchical(
+    num_hierarchical_layers: int,
+    encoder: StackedHiddenState,
+    predictor: StackedHiddenState,
+    bottom_obs_action_flatten_head: nn.Module,
+    latent_obs_action_flatten_head: nn.Module,
+    bottom_obs_prediction_head: nn.Module,
+    latent_obs_prediction_head: nn.Module,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> list[TorchTrainingModel[LatentFD]]:
+    models = []
+    for i in range(num_hierarchical_layers):
+        obs_action_flatten_head = (
+            bottom_obs_action_flatten_head if i == 0 else latent_obs_action_flatten_head
+        )
+        obs_prediction_head = (
+            bottom_obs_prediction_head if i == 0 else latent_obs_prediction_head
+        )
+
+        model = LatentFD(
+            obs_action_flatten_head=obs_action_flatten_head,
+            encoder=encoder,
+            predictor=predictor,
+            obs_prediction_head=obs_prediction_head,
+        )
+        models.append(
+            TorchTrainingModel(
+                model,
+                has_inference_model=True,
+                inference_procedure=LatentFD.forward_with_no_len,
+                device=device,
+                dtype=dtype,
+            )
+        )
+    return models

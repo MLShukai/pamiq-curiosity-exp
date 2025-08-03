@@ -4,6 +4,7 @@ from typing import override
 
 import torch
 import torch.nn as nn
+from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
 from torch.distributions import Distribution
 
@@ -255,3 +256,45 @@ class LatentObsUpperActionFlattenHead(nn.Module):
         See forward() method for full documentation.
         """
         return super().__call__(obs, action)
+
+
+def create_hierarchical(
+    num_hierarchical_layers: int,
+    encoder: StackedHiddenState,
+    predictor: StackedHiddenState,
+    bottom_obs_upper_action_flatten_head: nn.Module,
+    latent_obs_upper_action_flatten_head: nn.Module,
+    bottom_action_dist_head: nn.Module,
+    latent_action_dist_head: nn.Module,
+    value_head: nn.Module,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> list[TorchTrainingModel[LatentPolicy]]:
+    models = []
+    for i in range(num_hierarchical_layers):
+        action_dist_head = (
+            bottom_action_dist_head if i == 0 else latent_action_dist_head
+        )
+        obs_upper_action_flatten_head = (
+            bottom_obs_upper_action_flatten_head
+            if i == 0
+            else latent_obs_upper_action_flatten_head
+        )
+
+        model = LatentPolicy(
+            obs_upper_action_flatten_head=obs_upper_action_flatten_head,
+            encoder=encoder,
+            predictor=predictor,
+            action_dist_head=action_dist_head,
+            value_head=value_head,
+        )
+        models.append(
+            TorchTrainingModel(
+                model,
+                has_inference_model=True,
+                inference_procedure=LatentPolicy.forward_with_no_len,
+                device=device,
+                dtype=dtype,
+            )
+        )
+    return models
