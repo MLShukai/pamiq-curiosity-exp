@@ -108,7 +108,7 @@ policy_value1:
       depth: 4
       dropout: 0.1
     action_dist_head:
-      _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
+      _target_: exp.models.components.normal.FCNormalHead
       dim_in: ${..encoder.dim}
       dim_out: 1024
     value_head:
@@ -175,7 +175,7 @@ policy_value2:
       depth: 4
       dropout: 0.1
     action_dist_head:
-      _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
+      _target_: exp.models.components.normal.FCNormalHead
       dim_in: ${..encoder.dim}
       dim_out: 1024
     value_head:
@@ -242,7 +242,7 @@ policy_value3:
       depth: 4
       dropout: 0.1
     action_dist_head:
-      _target_: exp.models.components.deterministic_normal.FCDeterministicNormalHead
+      _target_: exp.models.components.normal.FCNormalHead
       dim_in: ${..encoder.dim}
       dim_out: 1024
     value_head:
