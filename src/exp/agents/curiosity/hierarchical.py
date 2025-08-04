@@ -145,7 +145,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         #                 Policy Step
         # ================================================
 
-        if set(self.step_data_policy.keys()) == set(STEP_DATA_POLICY_REQUIRED_KEYS):
+        if set(self.step_data_policy.keys()) == STEP_DATA_POLICY_REQUIRED_KEYS:
             self.policy_collector.collect(self.step_data_policy.copy())
 
         if self.policy_encoder_hidden is not None:
@@ -199,7 +199,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         self.step_data_fd[DataKey.OBSERVATION] = obs.cpu()
         self.step_data_fd[DataKey.ACTION] = action.cpu()
 
-        if set(self.step_data_fd.keys()) == set(STEP_DATA_FD_REQUIRED_KEYS):
+        if set(self.step_data_fd.keys()) == STEP_DATA_FD_REQUIRED_KEYS:
             self.fd_collector.collect(self.step_data_fd.copy())
 
         # ================================================
