@@ -1,0 +1,89 @@
+policy_value:
+  _target_: exp.models.latent_policy.create_hierarchical
+  num_hierarchical_layers: ${shared.num_hierarchical_layers}
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  encoder:
+    _target_: exp.models.components.qlstm.QLSTM
+    dim: 1024
+    dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+    depth: 4
+    dropout: 0.1
+  predictor:
+    _target_: exp.models.components.qlstm.QLSTM
+    dim: ${..encoder.dim}
+    dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+    depth: 4
+    dropout: 0.1
+  bottom_obs_upper_action_flatten_head:
+    _target_: exp.models.latent_policy.ObsUpperActionFlattenHead
+    obs_info:
+      _target_: exp.models.utils.ObsInfo
+      dim: 128 # Same as JEPA instantiattion.
+      num_tokens:
+        _target_: exp.models.jepa.compute_image_jepa_output_patch_count
+        image_size:
+          - ${shared.image.height}
+          - ${shared.image.width}
+        patch_size: 12 # Same as JEPA Instantiation
+        output_downsample: 3 # Same as JEPA Instantiation
+      dim_hidden: ${...encoder.dim}
+    action_dim: ${..latent_action_dist_head.dim_out}
+    output_dim: ${..encoder.dim}
+  latent_obs_upper_action_flatten_head:
+    _target_: exp.models.latent_policy.LatentObsUpperActionFlattenHead
+    obs_dim: ${models.forward_dynamics.encoder.dim}
+    action_dim: ${..latent_action_dist_head.dim_out}
+    output_dim: ${..encoder.dim}
+  bottom_action_dist_head:
+    _target_: exp.models.components.multi_discretes.FCMultiCategoricalHead
+    dim_in: ${..encoder.dim}
+    choices_per_category:
+      _target_: hydra.utils.get_object
+      path: exp.envs.vrchat.OSC_ACTION_CHOICES
+  latent_action_dist_head:
+    _target_: exp.models.components.normal.FCNormalHead
+    dim_in: ${..encoder.dim}
+    dim_out: 1024
+  value_head:
+    _target_: exp.models.components.fc_scalar_head.FCScalarHead
+    dim_in: ${..encoder.dim}
+
+forward_dynamics:
+  _target_: exp.models.latent_fd.create_hierarchical
+  num_hierarchical_layers: ${shared.num_hierarchical_layers}
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  encoder:
+    _target_: exp.models.components.qlstm.QLSTM
+    dim: 1024
+    dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+    depth: 4
+    dropout: 0.1
+  predictor:
+    _target_: exp.models.components.qlstm.QLSTM
+    dim: ${..encoder.dim}
+    dim_ff_hidden: ${python.eval:"${.dim} * 2"}
+    depth: 4
+    dropout: 0.1
+  bottom_obs_action_flatten_head:
+    _target_: exp.models.latent_fd.ObsActionFlattenHead
+    obs_info: ${models.policy_value.bottom_obs_upper_action_flatten_head.obs_info}
+    action_info:
+      _target_: exp.models.utils.ActionInfo
+      choices: ${models.policy_value.bottom_action_dist_head.choices_per_category}
+      dim: 256
+    output_dim: ${..encoder.dim}
+  latent_obs_action_flatten_head:
+    _target_: exp.models.latent_fd.LatentObsActionFlattenHead
+    obs_dim: ${..encoder.dim}
+    action_dim: ${models.policy_value.latent_action_dist_head.dim_out}
+    output_dim: ${..encoder.dim}
+  bottom_obs_prediction_head:
+    _target_: exp.models.latent_fd.ObsPredictionHead
+    input_dim: ${..encoder.dim}
+    obs_info: ${models.policy_value.bottom_obs_upper_action_flatten_head.obs_info}
+  latent_obs_prediction_head:
+    _target_: torch.nn.Linear
+    in_features: ${..encoder.dim}
+    out_features: ${..encoder.dim}
