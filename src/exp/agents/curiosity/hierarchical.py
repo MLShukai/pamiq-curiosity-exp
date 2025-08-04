@@ -248,17 +248,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         )
 
 
-type RewardCoefMethod = Literal[
-    "minimize_all",
-    "maximize_all",
-    "minimize_lower_half",
-    "maximize_lower_half",
-    "lerp_min_max",
-    "lerp_max_min",
-]
-
-
-def create_reward_coef(method: RewardCoefMethod, num_layers: int) -> list[float]:
+def create_reward_coef(method: str, num_layers: int) -> list[float]:
     """Creates a list of reward coefficients based on the specified method.
 
     Args:
@@ -293,11 +283,8 @@ def create_reward_coef(method: RewardCoefMethod, num_layers: int) -> list[float]
             raise ValueError(f"Unknown reward coefficient method: {method}")
 
 
-type LayerTimescaleMethod = Literal["exponential_growth"]
-
-
 def create_layer_timescale(
-    method: LayerTimescaleMethod, num_layers: int, timescale_multiplier: int = 2
+    method: str, num_layers: int, timescale_multiplier: int = 2
 ) -> list[int]:
     """Creates a list of layer timescales based on the specified method.
 

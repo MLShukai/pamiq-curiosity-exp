@@ -13,8 +13,6 @@ from exp.agents.curiosity.hierarchical import (
     LayerCuriosityAgent,
     LayerInput,
     LayerOutput,
-    LayerTimescaleMethod,
-    RewardCoefMethod,
     create_layer_timescale,
     create_reward_coef,
 )
