@@ -1,5 +1,6 @@
 """Defines forward dynamics models."""
 
+import copy
 from typing import Any, override
 
 import torch
@@ -138,7 +139,7 @@ def create_multiple(
     """
     return [
         TorchTrainingModel(
-            model=StackedHiddenFD(**model_hparams),
+            model=StackedHiddenFD(**copy.deepcopy(model_hparams)),
             has_inference_model=True,
             inference_procedure=StackedHiddenFD.forward_with_no_len,
             device=device,
