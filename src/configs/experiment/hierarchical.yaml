@@ -11,10 +11,6 @@ shared:
   max_imagination_steps: 3
   dtype: float
 
-#trainers:
-#  policy:
-#    gamma: 0.0 # Set purery adversarial cost function.
-
 experiment_name: "hierarchical"
 
 tags:
