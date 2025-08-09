@@ -7,9 +7,12 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .components.multi_discretes import MultiEmbeddings
-from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
-from .components.stacked_hidden_state import StackedHiddenState
+from .components import (
+    LerpStackedFeatures,
+    MultiEmbeddings,
+    StackedHiddenState,
+    ToStackedFeatures,
+)
 from .utils import ActionInfo, ObsInfo
 
 
