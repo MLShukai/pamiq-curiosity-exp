@@ -96,6 +96,53 @@ class TestEncoder:
         assert output.shape == (batch_size, seq_len, 16)
         assert next_hidden.shape == (batch_size, 2, seq_len, 16)
 
+    @parametrize_device
+    def test_encoder_with_upper_action(self, obs_info, core_model, device):
+        """Test encoder with upper_action_dim parameter requires
+        upper_action."""
+        upper_action_dim = 5
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+            out_dim=12,
+            upper_action_dim=upper_action_dim,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+        # When upper_action_dim is specified, upper_action must be provided
+        upper_action = torch.randn(batch_size, seq_len, upper_action_dim, device=device)
+
+        output, hidden = encoder(obs, upper_action=upper_action)
+
+        assert output.shape == (batch_size, seq_len, 12)
+        assert hidden.shape == (batch_size, 2, seq_len, 16)
+
+    @parametrize_device
+    def test_encoder_without_upper_action_dim(self, obs_info, core_model, device):
+        """Test encoder without upper_action_dim works without upper_action."""
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+            out_dim=12,
+            # No upper_action_dim specified
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+
+        # Should work without upper_action when upper_action_dim is not specified
+        output, hidden = encoder(obs)
+
+        assert output.shape == (batch_size, seq_len, 12)
+        assert hidden.shape == (batch_size, 2, seq_len, 16)
+
 
 class TestGenerator:
     """Test suite for the Generator module."""

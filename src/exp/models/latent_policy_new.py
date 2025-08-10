@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import override
 
+import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Distribution
@@ -73,6 +74,7 @@ class Encoder(nn.Module):
         core_model_dim: int,
         core_model: StackedHiddenState,
         out_dim: int | None = None,
+        upper_action_dim: int | None = None,
     ) -> None:
         """Initialize the Encoder.
 
@@ -82,20 +84,27 @@ class Encoder(nn.Module):
             core_model_dim: Input dimension for the core model.
             core_model: Stacked hidden state model for processing features.
             out_dim: Optional output dimension. If None, uses core_model output dimension.
+            upper_action_dim: Optional dimension for upper-level policy actions. If provided,
+                enables hierarchical policy by concatenating upper-level actions with observations.
         """
         super().__init__()
 
         # Setup observation projection.
         self.obs_flatten = nn.Identity()
+        obs_action_dim = 0
         if isinstance(obs_info, ObsInfo):
             self.obs_flatten = LerpStackedFeatures(
                 obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
             )
-            obs_dim = obs_info.dim_hidden
+            obs_action_dim += obs_info.dim_hidden
         else:
-            obs_dim = obs_info
+            obs_action_dim += obs_info
 
-        self.obs_proj = nn.Linear(obs_dim, core_model_dim)
+        # Setup upper action projection
+        if upper_action_dim is not None:
+            obs_action_dim += upper_action_dim
+
+        self.obs_action_proj = nn.Linear(obs_action_dim, core_model_dim)
         self.core_model = core_model
 
         self.out_proj = nn.Identity()
@@ -107,6 +116,7 @@ class Encoder(nn.Module):
         self,
         obs: Tensor,
         hidden: Tensor | None = None,
+        upper_action: Tensor | None = None,
         *,
         no_len: bool = False,
     ) -> tuple[Tensor, Tensor]:
@@ -117,6 +127,9 @@ class Encoder(nn.Module):
                 was provided, otherwise (*batch, len, obs_dim).
             hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
                 If None, the core model will initialize its hidden state.
+            upper_action: Optional upper-level policy action tensor for hierarchical policies.
+                Shape is (*batch, len, upper_action_dim). If provided, concatenated with
+                observations before processing.
             no_len: If True, processes inputs as single-step without sequence length dimension.
 
         Returns:
@@ -125,7 +138,9 @@ class Encoder(nn.Module):
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         x = self.obs_flatten(obs)
-        x = self.obs_proj(x)
+        if upper_action is not None:
+            x = torch.cat([x, upper_action], dim=-1)
+        x = self.obs_action_proj(x)
         x, hidden = self.core_model.forward(x, hidden, no_len=no_len)
         return self.out_proj(x), hidden
 
@@ -134,6 +149,7 @@ class Encoder(nn.Module):
         self,
         obs: Tensor,
         hidden: Tensor | None = None,
+        upper_action: Tensor | None = None,
         *,
         no_len: bool = False,
     ) -> tuple[Tensor, Tensor]:
@@ -141,7 +157,7 @@ class Encoder(nn.Module):
 
         See forward() method for full documentation.
         """
-        return super().__call__(obs, hidden, no_len=no_len)
+        return super().__call__(obs, hidden, upper_action, no_len=no_len)
 
 
 class Generator(nn.Module):
