@@ -1,16 +1,18 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, override
+from typing import Any, override
 
 import torch
 import torch.nn.functional as F
-from pamiq_core import Agent
+from pamiq_core.torch import TorchAgent
 from torch import Tensor
-from torch.distributions import Distribution
 
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
+from exp.models.latent_fd_new import LatentFDFramework
+from exp.models.latent_policy_new import LatentPiVFramework
+from exp.models.utils import layer_norm
 
 
 @dataclass(frozen=True)
@@ -32,8 +34,7 @@ STEP_DATA_POLICY_REQUIRED_KEYS = {
     DataKey.ACTION_LOG_PROB,
     DataKey.OBSERVATION,
     DataKey.UPPER_ACTION,
-    DataKey.ENCODER_HIDDEN,
-    DataKey.PREDICTOR_HIDDEN,
+    DataKey.HIDDEN,
     DataKey.VALUE,
     DataKey.REWARD,
 }
@@ -41,12 +42,11 @@ STEP_DATA_POLICY_REQUIRED_KEYS = {
 STEP_DATA_FD_REQUIRED_KEYS = {
     DataKey.OBSERVATION,
     DataKey.ACTION,
-    DataKey.ENCODER_HIDDEN,
-    DataKey.PREDICTOR_HIDDEN,
+    DataKey.HIDDEN,
 }
 
 
-class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
+class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
     """A Layer Curiosity Agent for hierarchical reinforcement learning.
 
     This layer takes observations and actions from an upper layer,
@@ -59,6 +59,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         model_buffer_suffix: str,
         reward_coef: float,
         reward_lerp_ratio: float,
+        is_top: bool,
         device: torch.device | None = None,
     ) -> None:
         """Initializes the LayerCuriosityAgent with model buffer suffix, reward
@@ -68,17 +69,22 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
             model_buffer_suffix: Suffix for the model buffer names.
             reward_coef: Coefficient for the reward computation.
             reward_lerp_ratio: Ratio for linear interpolation of rewards.
+            is_top: Top layer or not.
         """
         super().__init__()
         self.reward_coef = reward_coef
         self.reward_lerp_ratio = reward_lerp_ratio
         self.model_buffer_suffix = model_buffer_suffix
+        self.is_top = is_top
+
         self.obs_hat: Tensor | None = None
         self.policy_encoder_hidden: Tensor | None = None
-        self.policy_predictor_hidden: Tensor | None = None
         self.fd_encoder_hidden: Tensor | None = None
-        self.fd_predictor_hidden: Tensor | None = None
         self.device = device or torch.get_default_device()
+
+        self.step_data_policy_required_keys = STEP_DATA_POLICY_REQUIRED_KEYS.copy()
+        if is_top:
+            self.step_data_policy_required_keys.discard(DataKey.UPPER_ACTION)
 
     @override
     def on_data_collectors_attached(self) -> None:
@@ -95,11 +101,11 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
     def on_inference_models_attached(self) -> None:
         """Attaches inference models for policy value and forward dynamics."""
         super().on_inference_models_attached()
-        self.policy_value = self.get_inference_model(
-            ModelName.POLICY_VALUE + self.model_buffer_suffix
+        self.policy_value = self.get_torch_inference_model(
+            ModelName.POLICY_VALUE + self.model_buffer_suffix, LatentPiVFramework
         )
-        self.forward_dynamics = self.get_inference_model(
-            ModelName.FORWARD_DYNAMICS + self.model_buffer_suffix
+        self.forward_dynamics = self.get_torch_inference_model(
+            ModelName.FORWARD_DYNAMICS + self.model_buffer_suffix, LatentFDFramework
         )
 
     @override
@@ -111,6 +117,7 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         self.step_data_policy = dict[str, Any]()
 
     @override
+    @torch.inference_mode()
     def step(self, observation: LayerInput) -> LayerOutput:
         """Performs a step in the agent's operation, processing the observation
         and computing rewards and actions.
@@ -145,33 +152,20 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         #                 Policy Step
         # ================================================
 
-        if set(self.step_data_policy.keys()) == STEP_DATA_POLICY_REQUIRED_KEYS:
+        if set(self.step_data_policy.keys()) == self.step_data_policy_required_keys:
             self.policy_collector.collect(self.step_data_policy.copy())
 
         if self.policy_encoder_hidden is not None:
-            self.step_data_policy[DataKey.ENCODER_HIDDEN] = (
-                self.policy_encoder_hidden.cpu()
-            )
+            self.step_data_policy[DataKey.HIDDEN] = self.policy_encoder_hidden.cpu()
 
-        if self.policy_predictor_hidden is not None:
-            self.step_data_policy[DataKey.PREDICTOR_HIDDEN] = (
-                self.policy_predictor_hidden.cpu()
-            )
-
-        if upper_action is not None:
+        if upper_action is not None and not self.is_top:
             self.step_data_policy[DataKey.UPPER_ACTION] = upper_action.cpu()
 
-        action_dist: Distribution
-        value: Tensor
-        (
-            action_dist,
-            value,
-            _,
-            self.policy_encoder_hidden,
-            self.policy_predictor_hidden,
-        ) = self.policy_value(
-            obs, upper_action, self.policy_encoder_hidden, self.policy_predictor_hidden
-        )
+        with self.policy_value.unwrap() as m:
+            latent_action, self.policy_encoder_hidden = m.encoder(
+                obs, self.policy_encoder_hidden, upper_action, no_len=True
+            )
+            action_dist, value = m.generator(latent_action)
 
         action = action_dist.sample()
         action_log_prob = action_dist.log_prob(action)
@@ -186,18 +180,16 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         # ================================================
 
         if self.fd_encoder_hidden is not None:
-            self.step_data_fd[DataKey.ENCODER_HIDDEN] = self.fd_encoder_hidden.cpu()
+            self.step_data_fd[DataKey.HIDDEN] = self.fd_encoder_hidden.cpu()
 
-        if self.fd_predictor_hidden is not None:
-            self.step_data_fd[DataKey.PREDICTOR_HIDDEN] = self.fd_predictor_hidden.cpu()
-
-        self.obs_hat, latent_obs, self.fd_encoder_hidden, self.fd_predictor_hidden = (
-            self.forward_dynamics(
-                obs, action, self.fd_encoder_hidden, self.fd_predictor_hidden
+        with self.forward_dynamics.unwrap() as m:
+            latent_obs, self.fd_encoder_hidden = m.encoder(
+                obs, latent_action, self.fd_encoder_hidden, no_len=True
             )
-        )
+            self.obs_hat = m.predictor(latent_obs)
+
         self.step_data_fd[DataKey.OBSERVATION] = obs.cpu()
-        self.step_data_fd[DataKey.ACTION] = action.cpu()
+        self.step_data_fd[DataKey.ACTION] = latent_action.cpu()
 
         if set(self.step_data_fd.keys()) == STEP_DATA_FD_REQUIRED_KEYS:
             self.fd_collector.collect(self.step_data_fd.copy())
@@ -206,7 +198,9 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         #                 Return Output
         # ================================================
 
-        return LayerOutput(lower_observation=latent_obs, action=action, reward=reward)
+        return LayerOutput(
+            lower_observation=layer_norm(latent_obs), action=action, reward=reward
+        )
 
     @override
     def save_state(self, path: Path):
@@ -219,10 +213,10 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         super().save_state(path)
         path.mkdir(exist_ok=True)
         torch.save(self.obs_hat, path / "obs_hat.pt")
-        torch.save(self.policy_encoder_hidden, path / "policy_encoder_hidden.pt")
-        torch.save(self.policy_predictor_hidden, path / "policy_predictor_hidden.pt")
-        torch.save(self.fd_encoder_hidden, path / "fd_encoder_hidden.pt")
-        torch.save(self.fd_predictor_hidden, path / "fd_predictor_hidden.pt")
+        if self.policy_encoder_hidden is not None:
+            torch.save(self.policy_encoder_hidden, path / "policy_encoder_hidden.pt")
+        if self.fd_encoder_hidden is not None:
+            torch.save(self.fd_encoder_hidden, path / "fd_encoder_hidden.pt")
 
     @override
     def load_state(self, path: Path):
@@ -234,18 +228,10 @@ class LayerCuriosityAgent(Agent[LayerInput, LayerOutput]):
         """
         super().load_state(path)
         self.obs_hat = torch.load(path / "obs_hat.pt", map_location=self.device)
-        self.policy_encoder_hidden = torch.load(
-            path / "policy_encoder_hidden.pt", map_location=self.device
-        )
-        self.policy_predictor_hidden = torch.load(
-            path / "policy_predictor_hidden.pt", map_location=self.device
-        )
-        self.fd_encoder_hidden = torch.load(
-            path / "fd_encoder_hidden.pt", map_location=self.device
-        )
-        self.fd_predictor_hidden = torch.load(
-            path / "fd_predictor_hidden.pt", map_location=self.device
-        )
+        if (p := path / "policy_encoder_hidden.pt").is_file():
+            self.policy_encoder_hidden = torch.load(p, map_location=self.device)
+        if (p := path / "fd_encoder_hidden.pt").is_file():
+            self.fd_encoder_hidden = torch.load(p, map_location=self.device)
 
 
 def create_reward_coef(method: str, num_layers: int) -> list[float]:
@@ -313,7 +299,7 @@ def create_layer_timescale(
             raise ValueError(f"Unknown layer timescale method: {method}")
 
 
-class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
+class HierarchicalCuriosityAgent(TorchAgent[Tensor, Tensor]):
     """Hierarchical Curiosity Agent that manages multiple LayerCuriosityAgents.
 
     This agent coordinates multiple layers of curiosity agents, each
@@ -348,13 +334,18 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             raise ValueError(
                 "device_list, reward_coef_list, and timescale_list must have the same length as num_layers."
             )
-        for reward_coef, model_key, device in zip(
-            reward_coefficients, model_key_list, device_list
+
+        def is_top(index: int) -> bool:
+            return (index + 1) == self.num_layers
+
+        for i, (reward_coef, model_key, device) in enumerate(
+            zip(reward_coefficients, model_key_list, device_list, strict=True)
         ):
             layer_agent = LayerCuriosityAgent(
                 model_buffer_suffix=model_key,
                 reward_coef=reward_coef,
                 reward_lerp_ratio=reward_lerp_ratio,
+                is_top=is_top(i),
                 device=device,
             )
             self.layer_agent_dict[model_key] = layer_agent
@@ -363,9 +354,12 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         self.timescales = timescales
         self.period = timescales[-1]  # The period of the last layer
 
-        self.action_to_lower_list: list[Tensor | None] = [None] * self.num_layers
-        self.reward_to_lower_list: list[Tensor | None] = [None] * self.num_layers
-        self.observation_to_upper_list: list[Tensor | None] = [None] * self.num_layers
+        self.action_to_lower_list: list[Tensor | None] = [None] * (
+            self.num_layers + 1
+        )  # +1 for top (always None)
+        self.reward_to_lower_list: list[Tensor | None] = [None] * (
+            self.num_layers + 1
+        )  # +1 for top (always None)
 
         self.counter = 0
 
@@ -380,23 +374,8 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         for i, agent in enumerate(self.layer_agent_dict.values()):
             if self.counter % self.timescales[i] != 0:
                 continue
-            upper_action = (
-                self.action_to_lower_list[i + 1]
-                if i < self.num_layers - 1
-                else self.observation_to_upper_list[i]
-            )
-            upper_reward = (
-                self.reward_to_lower_list[i + 1] if i < self.num_layers - 1 else None
-            )
-            if i > 0 and self.observation_to_upper_list[i - 1] is not None:
-                lower_observation = self.observation_to_upper_list[i - 1]
-            else:
-                lower_observation = observation
-            if lower_observation is None:
-                raise ValueError(
-                    f"Lower observation for layer {i} is None, some program logic is broken."
-                )
-            observation = lower_observation
+            upper_action = self.action_to_lower_list[i + 1]
+            upper_reward = self.reward_to_lower_list[i + 1]
             layer_input = LayerInput(
                 observation=observation,
                 upper_action=upper_action,
@@ -405,7 +384,7 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
             layer_output = agent.step(layer_input)
             self.action_to_lower_list[i] = layer_output.action
             self.reward_to_lower_list[i] = layer_output.reward
-            self.observation_to_upper_list[i] = layer_output.lower_observation
+            observation = layer_output.lower_observation
 
         if self.action_to_lower_list[0] is None:
             raise ValueError(
@@ -414,3 +393,20 @@ class HierarchicalCuriosityAgent(Agent[Tensor, Tensor]):
         action = self.action_to_lower_list[0]
         self.counter = (self.counter + 1) % self.period
         return action
+
+    @override
+    def save_state(self, path: Path) -> None:
+        super().save_state(path)
+        path.mkdir(exist_ok=True)
+
+        torch.save(self.action_to_lower_list, path / "action_to_lower_list.pt")
+        torch.save(self.reward_to_lower_list, path / "reward_to_lower_list.pt")
+        (path / "counter").write_text(str(self.counter), encoding="utf-8")
+
+    @override
+    def load_state(self, path: Path) -> None:
+        super().load_state(path)
+
+        self.action_to_lower_list = torch.load(path / "action_to_lower_list.pt")
+        self.reward_to_lower_list = torch.load(path / "reward_to_lower_list.pt")
+        self.counter = int((path / "counter").read_text("utf-8"))
