@@ -14,8 +14,6 @@ class DataKey(StrEnum):
 
     OBSERVATION = auto()
     HIDDEN = auto()
-    ENCODER_HIDDEN = auto()
-    PREDICTOR_HIDDEN = auto()
     ACTION = auto()
     ACTION_LOG_PROB = auto()
     REWARD = auto()
