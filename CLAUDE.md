@@ -87,5 +87,60 @@ This is a reinforcement learning research project for curiosity-driven explorati
 ### テストの方針
 
 - 極力 Pythonのprivate属性、内部実装を直接扱うようなテストは記述せず、公開されているインターフェイス・変数を用いて、入出力をテストする。
-- テストの直接的なターゲットが抽象クラスの場合は、ダミー実装を `Impl` prefixをつけて実装する。依存関係に抽象クラスが含まれていた場合は Mockする。
+- テストの直接的なターゲットが抽象クラスの場合は、ダミー実装を `Impl` suffixをつけて実装する。依存関係に抽象クラスが含まれていた場合は Mockする。
 - 1つのテストメソッドは単一の機能検証のみにフォーカスすることが望ましい。
+
+## Docstring スタイルガイド
+
+### 重要な原則
+
+- **簡潔性**: 冗長な説明を避け、必要最小限の情報のみ記載
+- **保守性**: メンテナンスしやすいよう、実装詳細より本質的な説明を重視
+- **一貫性**: 同じ種類の要素には同じフォーマットを適用
+
+### 抽象基底クラス (ABC)
+
+```python
+class HiddenStateFD(ABC, nn.Module):
+    """Abstract base class for forward dynamics models with hidden state.
+
+    Brief description of the interface purpose.
+    """
+
+    @abstractmethod
+    def forward(self, ...) -> ...:
+        """One-line summary.
+
+        Args:
+            param: Brief description with shape if tensor.
+
+        Returns:
+            Brief description of return value.
+        """
+```
+
+### 実装クラス
+
+```python
+class StackedHiddenFD(HiddenStateFD):
+    """One-line class description."""
+
+    def __init__(self, ...):
+        """Initialize with brief purpose.
+
+        Args:
+            param: Essential description only.
+        """
+```
+
+### Shape記法
+
+- Tensor shapes: `(*batch, len, dim)` or `(batch, seq_len, hidden_dim)`
+- 省略可能な詳細は削除: "If None, initialized to zeros" → "or None"
+
+### 避けるべきパターン
+
+- ❌ "Sets up neural network components for..."
+- ❌ "A tuple containing:"の後の長い箇条書き
+- ❌ 実装の詳細説明
+- ✅ 本質的な機能の簡潔な説明
