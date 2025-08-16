@@ -13,10 +13,11 @@ from .components import (
     StackedHiddenState,
     ToStackedFeatures,
 )
+from .forward_dynamics import HiddenStateFD
 from .utils import ActionInfo, ObsInfo
 
 
-class LatentFDFramework(nn.Module):
+class LatentFDFramework(HiddenStateFD):
     """Forward Dynamics framework with separated Encoder and Predictor
     components.
 
@@ -47,6 +48,8 @@ class LatentFDFramework(nn.Module):
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
+        *,
+        no_len: bool = False,
     ) -> tuple[Tensor, Tensor]:
         """Forward pass through the framework.
 
@@ -60,7 +63,7 @@ class LatentFDFramework(nn.Module):
                 - Predicted next observation from the predictor.
                 - Updated hidden state from the encoder.
         """
-        x, hidden = self.encoder(obs, action, hidden)
+        x, hidden = self.encoder(obs, action, hidden, no_len=no_len)
         return self.predictor(x), hidden
 
 
