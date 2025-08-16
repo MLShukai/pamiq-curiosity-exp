@@ -9,13 +9,14 @@ from torch import Tensor
 from torch.distributions import Distribution
 
 from .components import (
+    FCDeterministicNormalHead,
     FCMultiCategoricalHead,
     FCScalarHead,
     LerpStackedFeatures,
     StackedHiddenState,
 )
 from .policy import HiddenStatePiV
-from .utils import ObsInfo
+from .utils import ActionInfo, ObsInfo
 
 
 class LatentPiVFramework(HiddenStatePiV):
@@ -171,7 +172,7 @@ class Generator(nn.Module):
     def __init__(
         self,
         latent_dim: int,
-        action_choices: list[int],
+        action_info: ActionInfo | int,
         core_model: nn.Module | None = None,
         core_model_dim: int | None = None,
     ) -> None:
@@ -179,8 +180,7 @@ class Generator(nn.Module):
 
         Args:
             latent_dim: Dimension of input latent representations.
-            action_choices: List specifying the number of choices for each discrete
-                action dimension.
+            action_info: Action configuration specifying action structure.
             core_model: Optional core model for processing latents. If None,
                 uses identity transformation.
             core_model_dim: Hidden dimension for core model. If provided,
@@ -197,7 +197,10 @@ class Generator(nn.Module):
         self.core_model = core_model
 
         head_dim_in = latent_dim if core_model_dim is None else core_model_dim
-        self.policy_head = FCMultiCategoricalHead(head_dim_in, action_choices)
+        if isinstance(action_info, ActionInfo):
+            self.policy_head = FCMultiCategoricalHead(head_dim_in, action_info.choices)
+        else:
+            self.policy_head = FCDeterministicNormalHead(head_dim_in, action_info)
         self.value_head = FCScalarHead(head_dim_in, squeeze_scalar_dim=True)
 
     @override

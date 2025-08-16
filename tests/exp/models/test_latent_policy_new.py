@@ -5,7 +5,7 @@ import torch.nn as nn
 from exp.models.components.multi_discretes import MultiCategoricals
 from exp.models.components.qlstm import QLSTM
 from exp.models.latent_policy_new import Encoder, Generator, LatentPiVFramework
-from exp.models.utils import ObsInfo
+from exp.models.utils import ActionInfo, ObsInfo
 from tests.helpers import parametrize_device
 
 
@@ -148,15 +148,15 @@ class TestGenerator:
     """Test suite for the Generator module."""
 
     @pytest.fixture
-    def action_choices(self):
-        return [2, 3, 4]  # Multi-discrete action space
+    def action_info(self):
+        return ActionInfo(choices=[2, 3, 4], dim=8)  # Multi-discrete action space
 
     @parametrize_device
-    def test_generator_basic(self, action_choices, device):
+    def test_generator_basic(self, action_info, device):
         """Test basic generator functionality."""
         generator = Generator(
             latent_dim=12,
-            action_choices=action_choices,
+            action_info=action_info,
         ).to(device)
 
         batch_size, seq_len = 2, 3
@@ -166,8 +166,8 @@ class TestGenerator:
 
         # Check policy distribution
         assert isinstance(policy_dist, MultiCategoricals)
-        assert len(policy_dist.dists) == len(action_choices)
-        for i, num_choices in enumerate(action_choices):
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
             assert policy_dist.dists[i].logits.shape == (
                 batch_size,
                 seq_len,
@@ -178,11 +178,11 @@ class TestGenerator:
         assert value.shape == (batch_size, seq_len)
 
     @parametrize_device
-    def test_generator_with_core_model(self, action_choices, device):
+    def test_generator_with_core_model(self, action_info, device):
         """Test generator with core model."""
         generator = Generator(
             latent_dim=12,
-            action_choices=action_choices,
+            action_info=action_info,
             core_model=nn.Linear(16, 16),
             core_model_dim=16,
         ).to(device)
@@ -194,8 +194,8 @@ class TestGenerator:
 
         # Check policy distribution
         assert isinstance(policy_dist, MultiCategoricals)
-        assert len(policy_dist.dists) == len(action_choices)
-        for i, num_choices in enumerate(action_choices):
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
             assert policy_dist.dists[i].logits.shape == (
                 batch_size,
                 seq_len,
@@ -206,11 +206,11 @@ class TestGenerator:
         assert value.shape == (batch_size, seq_len)
 
     @parametrize_device
-    def test_generator_single_step(self, action_choices, device):
+    def test_generator_single_step(self, action_info, device):
         """Test generator with single-step input."""
         generator = Generator(
             latent_dim=12,
-            action_choices=action_choices,
+            action_info=action_info,
         ).to(device)
 
         batch_size = 2
@@ -220,19 +220,19 @@ class TestGenerator:
 
         # Check policy distribution
         assert isinstance(policy_dist, MultiCategoricals)
-        assert len(policy_dist.dists) == len(action_choices)
-        for i, num_choices in enumerate(action_choices):
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
             assert policy_dist.dists[i].logits.shape == (batch_size, num_choices)
 
         # Check value output
         assert value.shape == (batch_size,)
 
     @parametrize_device
-    def test_generator_action_sampling(self, action_choices, device):
+    def test_generator_action_sampling(self, action_info, device):
         """Test that generator can sample valid actions."""
         generator = Generator(
             latent_dim=12,
-            action_choices=action_choices,
+            action_info=action_info,
         ).to(device)
 
         batch_size, seq_len = 2, 3
@@ -245,10 +245,10 @@ class TestGenerator:
 
         # Sample actions
         actions = policy_dist.sample()
-        assert actions.shape == (batch_size, seq_len, len(action_choices))
+        assert actions.shape == (batch_size, seq_len, len(action_info.choices))
 
         # Check that sampled actions are within valid range
-        for i, num_choices in enumerate(action_choices):
+        for i, num_choices in enumerate(action_info.choices):
             assert (actions[:, :, i] >= 0).all()
             assert (actions[:, :, i] < num_choices).all()
 
@@ -261,8 +261,8 @@ class TestLatentPiVFramework:
         return ObsInfo(dim=8, dim_hidden=10, num_tokens=4)
 
     @pytest.fixture
-    def action_choices(self):
-        return [2, 3]
+    def action_info(self):
+        return ActionInfo(choices=[2, 3], dim=8)
 
     @pytest.fixture
     def encoder(self, obs_info):
@@ -274,16 +274,14 @@ class TestLatentPiVFramework:
         )
 
     @pytest.fixture
-    def generator(self, action_choices):
+    def generator(self, action_info):
         return Generator(
             latent_dim=12,
-            action_choices=action_choices,
+            action_info=action_info,
         )
 
     @parametrize_device
-    def test_framework_forward(
-        self, encoder, generator, obs_info, action_choices, device
-    ):
+    def test_framework_forward(self, encoder, generator, obs_info, action_info, device):
         """Test forward pass through the complete framework."""
         framework = LatentPiVFramework(
             encoder=encoder.to(device),
@@ -299,8 +297,8 @@ class TestLatentPiVFramework:
 
         # Check policy distribution
         assert isinstance(policy_dist, MultiCategoricals)
-        assert len(policy_dist.dists) == len(action_choices)
-        for i, num_choices in enumerate(action_choices):
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
             assert policy_dist.dists[i].logits.shape == (
                 batch_size,
                 seq_len,
@@ -315,7 +313,7 @@ class TestLatentPiVFramework:
 
     @parametrize_device
     def test_framework_with_hidden_state(
-        self, encoder, generator, obs_info, action_choices, device
+        self, encoder, generator, obs_info, action_info, device
     ):
         """Test framework with provided hidden state."""
         framework = LatentPiVFramework(
@@ -338,6 +336,6 @@ class TestLatentPiVFramework:
 
         # Check outputs
         assert isinstance(policy_dist, MultiCategoricals)
-        assert len(policy_dist.dists) == len(action_choices)
+        assert len(policy_dist.dists) == len(action_info.choices)
         assert value.shape == (batch_size, seq_len)
         assert next_hidden.shape == (batch_size, 2, seq_len, 16)
