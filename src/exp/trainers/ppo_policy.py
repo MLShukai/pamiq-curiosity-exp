@@ -14,13 +14,13 @@ from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
 from exp.models.latent_policy import LatentPolicy
-from exp.models.policy import StackedHiddenPiV
+from exp.models.policy import HiddenStatePiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
 
 OPTIMIZER_NAME = "optimizer"
 
 
-class PPOStackedHiddenPiVTrainer(TorchTrainer):
+class PPOHiddenStatePiVTrainer(TorchTrainer):
     """Trainer for policy using Proximal Policy Optimization (PPO)."""
 
     @override
@@ -106,7 +106,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         """Set up model references when they are attached to the trainer."""
         super().on_training_models_attached()
         self.policy_value = self.get_torch_training_model(
-            self.model_name, StackedHiddenPiV
+            self.model_name, HiddenStatePiV
         )
 
     @override

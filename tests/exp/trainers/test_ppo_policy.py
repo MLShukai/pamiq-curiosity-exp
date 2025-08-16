@@ -18,14 +18,14 @@ from exp.models.latent_policy import LatentPolicy, ObsUpperActionFlattenHead
 from exp.models.policy import StackedHiddenPiV
 from exp.models.utils import ObsInfo
 from exp.trainers.ppo_policy import (
+    PPOHiddenStatePiVTrainer,
     PPOLatentPolicyTrainer,
-    PPOStackedHiddenPiVTrainer,
     compute_advantage,
 )
 from tests.helpers import parametrize_device
 
 
-class TestPPOStackedHiddenPiVTrainer:
+class TestPPOHiddenStatePiVTrainer:
     DEPTH = 2
     DIM = 8
     OBS_DIM = 16
@@ -81,7 +81,7 @@ class TestPPOStackedHiddenPiVTrainer:
         mocker: MockerFixture,
     ):
         mocker.patch("exp.trainers.ppo_policy.get_global_run")
-        return PPOStackedHiddenPiVTrainer(
+        return PPOHiddenStatePiVTrainer(
             partial_optimizer=partial(AdamW, lr=3e-4),
             gamma=0.99,
             gae_lambda=0.95,
@@ -97,7 +97,7 @@ class TestPPOStackedHiddenPiVTrainer:
 
         # Test invalid gamma
         with pytest.raises(ValueError, match="gamma must be in range"):
-            PPOStackedHiddenPiVTrainer(
+            PPOHiddenStatePiVTrainer(
                 partial_optimizer=partial(AdamW),
                 gamma=1.5,
                 gae_lambda=0.95,
@@ -105,7 +105,7 @@ class TestPPOStackedHiddenPiVTrainer:
 
         # Test invalid gae_lambda
         with pytest.raises(ValueError, match="gae_lambda must be in range"):
-            PPOStackedHiddenPiVTrainer(
+            PPOHiddenStatePiVTrainer(
                 partial_optimizer=partial(AdamW),
                 gamma=0.99,
                 gae_lambda=-0.1,
@@ -115,7 +115,7 @@ class TestPPOStackedHiddenPiVTrainer:
         with pytest.raises(
             ValueError, match="min_buffer_size .* must be at least seq_len"
         ):
-            PPOStackedHiddenPiVTrainer(
+            PPOHiddenStatePiVTrainer(
                 partial_optimizer=partial(AdamW),
                 gamma=0.99,
                 gae_lambda=0.95,
@@ -124,9 +124,7 @@ class TestPPOStackedHiddenPiVTrainer:
             )
 
     @parametrize_device
-    def test_run(
-        self, device, data_buffers, models, trainer: PPOStackedHiddenPiVTrainer
-    ):
+    def test_run(self, device, data_buffers, models, trainer: PPOHiddenStatePiVTrainer):
         """Test PPO Policy Trainer workflow."""
         models = {
             name: TorchTrainingModel(m, has_inference_model=False, device=device)
@@ -168,7 +166,7 @@ class TestPPOStackedHiddenPiVTrainer:
         assert trainer.global_step == global_step
 
     def test_save_and_load_state(
-        self, trainer: PPOStackedHiddenPiVTrainer, tmp_path: Path
+        self, trainer: PPOHiddenStatePiVTrainer, tmp_path: Path
     ):
         """Test saving and loading trainer state."""
         trainer.global_step = 42
