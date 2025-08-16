@@ -1,5 +1,5 @@
 forward_dynamics:
-  _target_: exp.trainers.forward_dynamics.StackedHiddenFDTrainer.create_buffer
+  _target_: exp.trainers.forward_dynamics.HiddenStateFDTrainer.create_buffer
   max_size: 1000 #  10 fps 100 secs
 
 policy:

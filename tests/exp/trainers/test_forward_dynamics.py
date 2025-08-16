@@ -16,14 +16,14 @@ from exp.models.forward_dynamics import StackedHiddenFD
 from exp.models.latent_fd import LatentFD, ObsActionFlattenHead, ObsPredictionHead
 from exp.models.utils import ActionInfo, ObsInfo
 from exp.trainers.forward_dynamics import (
+    HiddenStateFDTrainer,
+    HiddenStateFDTrainerExplicitTarget,
     LatentFDTrainer,
-    StackedHiddenFDTrainer,
-    StackedHiddenFDTrainerExplicitTarget,
 )
 from tests.helpers import parametrize_device
 
 
-class TestStackedHiddenFDTrainer:
+class TestHiddenStateFDTrainer:
     BATCH = 4
     DEPTH = 8
     DIM = 16
@@ -68,7 +68,7 @@ class TestStackedHiddenFDTrainer:
         mocker: MockerFixture,
     ):
         mocker.patch("exp.trainers.forward_dynamics.get_global_run")
-        trainer = StackedHiddenFDTrainer(
+        trainer = HiddenStateFDTrainer(
             partial(AdamW, lr=1e-4, weight_decay=0.04),
             seq_len=self.LEN_SEQ,
             max_samples=4,
@@ -129,7 +129,7 @@ class TestStackedHiddenFDTrainer:
         with pytest.raises(
             ValueError, match="Imagination length must be greater than 0"
         ):
-            StackedHiddenFDTrainer(
+            HiddenStateFDTrainer(
                 partial(AdamW, lr=1e-4, weight_decay=0.04),
                 seq_len=self.LEN_SEQ,
                 imagination_length=0,
@@ -144,7 +144,7 @@ class TestStackedHiddenFDTrainer:
             ValueError,
             match="Buffer size must be greater than imagination length \\+ sequence length",
         ):
-            StackedHiddenFDTrainer(
+            HiddenStateFDTrainer(
                 partial(AdamW, lr=1e-4, weight_decay=0.04),
                 seq_len=10,
                 imagination_length=5,
@@ -152,8 +152,8 @@ class TestStackedHiddenFDTrainer:
             )
 
 
-class TestStackedHiddenFDTrainerExplicitTarget:
-    """Test class for StackedHiddenFDTrainerExplicitTarget."""
+class TestHiddenStateFDTrainerExplicitTarget:
+    """Test class for HiddenStateFDTrainerExplicitTarget."""
 
     BATCH = 4
     DEPTH = 8
@@ -196,9 +196,9 @@ class TestStackedHiddenFDTrainerExplicitTarget:
 
     @pytest.fixture
     def trainer(self, mocker: MockerFixture):
-        """Create a StackedHiddenFDTrainerExplicitTarget for testing."""
+        """Create a HiddenStateFDTrainerExplicitTarget for testing."""
         mocker.patch("exp.trainers.forward_dynamics.get_global_run")
-        trainer = StackedHiddenFDTrainerExplicitTarget(
+        trainer = HiddenStateFDTrainerExplicitTarget(
             partial(AdamW, lr=1e-4, weight_decay=0.04),
             seq_len=self.LEN_SEQ,
             max_samples=4,
@@ -214,7 +214,7 @@ class TestStackedHiddenFDTrainerExplicitTarget:
         """Create a trainer with model_index for testing multi-model
         scenarios."""
         mocker.patch("exp.trainers.forward_dynamics.get_global_run")
-        trainer = StackedHiddenFDTrainerExplicitTarget(
+        trainer = HiddenStateFDTrainerExplicitTarget(
             partial(AdamW, lr=1e-4, weight_decay=0.04),
             seq_len=self.LEN_SEQ,
             max_samples=4,
@@ -281,7 +281,7 @@ class TestStackedHiddenFDTrainerExplicitTarget:
             ValueError,
             match="Buffer size must be greater than sequence length",
         ):
-            StackedHiddenFDTrainerExplicitTarget(
+            HiddenStateFDTrainerExplicitTarget(
                 partial(AdamW, lr=1e-4, weight_decay=0.04),
                 seq_len=10,
                 min_buffer_size=9,  # Less than seq_len

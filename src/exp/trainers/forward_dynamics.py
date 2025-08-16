@@ -24,7 +24,7 @@ from .sampler import RandomTimeSeriesSampler
 OPTIMIZER_NAME = "optimizer"
 
 
-class StackedHiddenFDTrainer(TorchTrainer):
+class HiddenStateFDTrainer(TorchTrainer):
     """Trainer for the StackedHiddenFD model.
 
     This trainer implements the training loop for the StackedHiddenFD
@@ -48,7 +48,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
-        """Initialize the StackedHiddenFDTrainer.
+        """Initialize the HiddenStateFDTrainer.
 
         Args:
             partial_optimizer: Partially configured optimizer to be used with
@@ -291,17 +291,17 @@ class StackedHiddenFDTrainer(TorchTrainer):
         return trainers
 
 
-class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
+class HiddenStateFDTrainerExplicitTarget(TorchTrainer):
     """Trainer for the StackedHiddenFD model with explicit targets.
 
-    This trainer is a simplified version of StackedHiddenFDTrainer that uses
+    This trainer is a simplified version of HiddenStateFDTrainer that uses
     explicitly provided targets rather than imagination sequences. Instead of
     predicting multiple steps into the future using imagination, this trainer
     directly uses target observations from the buffer to compute the loss.
     This approach is more straightforward and suitable when you have explicit
     target data available.
 
-    Key differences from StackedHiddenFDTrainer:
+    Key differences from HiddenStateFDTrainer:
     - Uses explicit target observations from DataKey.TARGET
     - No imagination sequence generation
     - Single-step prediction loss computation
@@ -321,7 +321,7 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
-        """Initialize the StackedHiddenFDTrainerExplicitTarget.
+        """Initialize the HiddenStateFDTrainerExplicitTarget.
 
         Args:
             partial_optimizer: Partially configured optimizer to be used with
@@ -496,7 +496,7 @@ class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
 
     @classmethod
     def create_multiple(cls, num_trainers: int, **trainer_params: Any) -> list[Self]:
-        """Create multiple StackedHiddenFDTrainerExplicitTarget instances.
+        """Create multiple HiddenStateFDTrainerExplicitTarget instances.
 
         Each trainer is assigned a unique model_name and data_user_name by
         appending an index (0 to num_trainers-1) to the base names.
@@ -545,7 +545,7 @@ class LatentFDTrainer(TorchTrainer):
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
-        """Initialize the StackedHiddenFDTrainer.
+        """Initialize the HiddenStateFDTrainer.
 
         Args:
             partial_optimizer: Partially configured optimizer to be used with

@@ -2,7 +2,7 @@ forward_dynamics:
   _target_: exp.utils.replicate
   num: ${shared.num_meta_levels}
   obj:
-    _target_: exp.trainers.forward_dynamics.StackedHiddenFDTrainerExplicitTarget.create_buffer
+    _target_: exp.trainers.forward_dynamics.HiddenStateFDTrainerExplicitTarget.create_buffer
     max_size: 1000 #  10 fps 100 secs
 
 policy:
