@@ -42,7 +42,9 @@ class StackedHiddenFDTrainer(TorchTrainer):
         max_epochs: int = 1,
         imagination_length: int = 1,
         imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
+        model_name: str = ModelName.FORWARD_DYNAMICS,
         data_user_name: str = BufferName.FORWARD_DYNAMICS,
+        log_prefix: str = "forward-dynamics",
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
@@ -80,7 +82,9 @@ class StackedHiddenFDTrainer(TorchTrainer):
         )
         self.partial_dataloader = partial(DataLoader, batch_size=batch_size)
         self.max_epochs = max_epochs
+        self.model_name = model_name
         self.data_user_name = data_user_name
+        self.log_prefix = log_prefix
         self.imagination_length = imagination_length
         self.imagination_average_method = imagination_average_method
 
@@ -112,7 +116,7 @@ class StackedHiddenFDTrainer(TorchTrainer):
 
         super().on_training_models_attached()
         self.forward_dynamics = self.get_torch_training_model(
-            ModelName.FORWARD_DYNAMICS, StackedHiddenFD
+            self.model_name, StackedHiddenFD
         )
 
     @override
@@ -229,7 +233,13 @@ class StackedHiddenFDTrainer(TorchTrainer):
                 if run := get_global_run():
                     for k, v in metrics.items():
                         run.track(
-                            v, name=f"forward-dynamics/{k}", step=self.global_step
+                            v,
+                            name=k,
+                            step=self.global_step,
+                            context={
+                                "namespace": "trainer",
+                                "trainer_type": self.log_prefix,
+                            },
                         )
                 self.optimizers[OPTIMIZER_NAME].step()
                 self.global_step += 1
@@ -253,6 +263,32 @@ class StackedHiddenFDTrainer(TorchTrainer):
         return DictSequentialBuffer(
             [DataKey.OBSERVATION, DataKey.ACTION, DataKey.HIDDEN], max_size=max_size
         )
+
+    @classmethod
+    def create_multiple(cls, num_trainers: int, **trainer_params: Any) -> list[Self]:
+        """Create multiple trainer instances.
+
+        Each trainer is assigned a unique model_name and data_user_name by
+        appending an index (0 to num_trainers-1) to the base names.
+
+        Args:
+            num_trainers: Number of trainers to create.
+            **trainer_params: Parameters to pass to each trainer constructor.
+
+        Returns:
+            List of configured trainer instances.
+        """
+        trainers = list[Self]()
+        for i in range(num_trainers):
+            trainers.append(
+                cls(
+                    **trainer_params,
+                    model_name=ModelName.FORWARD_DYNAMICS + str(i),
+                    data_user_name=BufferName.FORWARD_DYNAMICS + str(i),
+                    log_prefix="forward-dynamics" + str(i),
+                )
+            )
+        return trainers
 
 
 class StackedHiddenFDTrainerExplicitTarget(TorchTrainer):
