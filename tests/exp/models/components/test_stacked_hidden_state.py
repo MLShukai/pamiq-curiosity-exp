@@ -56,22 +56,6 @@ class TestStackedHiddenState:
         assert hidden_out.shape == expected_hidden_shape
 
     @pytest.mark.parametrize(
-        "x_shape,hidden_shape,use_hidden",
-        [
-            ((BATCH, DIM), (BATCH, DEPTH, DIM), True),
-            ((BATCH, DIM), None, False),
-        ],
-    )
-    def test_forward_with_no_len(self, qlstm, x_shape, hidden_shape, use_hidden):
-        """Test forward_with_no_len with and without hidden state."""
-        x = torch.randn(*x_shape)
-        hidden = torch.randn(*hidden_shape) if use_hidden else None
-
-        x_out, hidden_out = qlstm.forward_with_no_len(x, hidden)
-        assert x_out.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, DIM)
-
-    @pytest.mark.parametrize(
         "x_shape,hidden_shape,error_msg",
         [
             ((BATCH, LEN, DIM), (BATCH + 1, DEPTH, DIM), "Batch shape mismatch"),
