@@ -123,7 +123,7 @@ class StackedHiddenFD(HiddenStateFD):
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, len, num_token, action_chocies)
+            action: Action tensor. shape is (*batch, len, num_token, action_choices)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -147,7 +147,7 @@ class StackedHiddenFD(HiddenStateFD):
 
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            action: Action tensor. shape is (*batch, num_token, action_choices)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 

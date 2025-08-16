@@ -57,7 +57,7 @@ class HiddenStateFDTrainer(TorchTrainer):
             batch_size: Data sample size of 1 batch.
             max_epochs: Maximum number of epochs to train per training session.
             imagination_length: Length of the imagination sequence.
-            imagenation_average_method: Method to average the loss over the imagination sequence.
+            imagination_average_method: Method to average the loss over the imagination sequence.
             data_user_name: Name of the data user providing training data.
             min_buffer_size: Minimum buffer size required before training starts.
             min_new_data_count: Minimum number of new data points required for training.
