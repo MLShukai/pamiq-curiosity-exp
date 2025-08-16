@@ -1,5 +1,6 @@
 """Defines policy models."""
 
+from abc import ABC, abstractmethod
 from typing import override
 
 import torch.nn as nn
@@ -13,11 +14,55 @@ from .components.stacked_hidden_state import StackedHiddenState
 from .utils import ObsInfo
 
 
-class StackedHiddenPiV(nn.Module):
-    """Module with shared models for policy (pi) and value (V) functions.
+class HiddenStatePiV(ABC, nn.Module):
+    """Abstract base class for policy-value models with hidden state.
 
-    Using StackedHiddenState as core model.
+    Defines the interface for models that compute both policy
+    distributions and value estimates while maintaining internal hidden
+    state.
     """
+
+    @override
+    @abstractmethod
+    def forward(
+        self,
+        observation: Tensor,
+        hidden: Tensor | None = None,
+        upper_action: Tensor | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Compute policy distribution and value from observation.
+
+        Args:
+            observation: Input observation tensor.
+            hidden: Optional hidden state from previous timestep.
+            upper_action: Optional hierarchical action from upper-level policy.
+            no_len: If True, processes inputs without sequence dimension.
+
+        Returns:
+            Tuple of (policy_distribution, value_estimate, updated_hidden_state).
+        """
+        pass
+
+    @override
+    def __call__(
+        self,
+        observation: Tensor,
+        hidden: Tensor | None = None,
+        upper_action: Tensor | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Distribution, Tensor, Tensor]:
+        """Call method with proper type annotations.
+
+        See forward() for documentation.
+        """
+        return super().__call__(observation, hidden, upper_action, no_len=no_len)
+
+
+class StackedHiddenPiV(HiddenStatePiV):
+    """Policy-value model using StackedHiddenState core."""
 
     def __init__(
         self,
@@ -26,19 +71,13 @@ class StackedHiddenPiV(nn.Module):
         dim: int,
         core_model: StackedHiddenState,
     ) -> None:
-        """Initialize the policy-value model.
-
-        Sets up neural network components for computing both policy distributions
-        and value estimates from observations using a shared core model.
+        """Initialize policy-value model with shared core.
 
         Args:
-            obs_info: Configuration for observation processing including dimensions,
-                hidden dimensions, and number of tokens.
-            action_choices: List specifying the number of choices for each discrete
-                action dimension.
-            dim: Hidden dimension size for the core model and policy/value heads.
-            core_model: The main stacked hidden state model that processes the
-                flattened observation features.
+            obs_info: Observation configuration.
+            action_choices: Number of choices per discrete action.
+            dim: Hidden dimension size.
+            core_model: Stacked hidden state model for processing.
         """
         super().__init__()
 
@@ -49,48 +88,40 @@ class StackedHiddenPiV(nn.Module):
 
     @override
     def forward(
-        self, observation: Tensor, hidden: Tensor | None = None
+        self,
+        observation: Tensor,
+        hidden: Tensor | None = None,
+        upper_action: Tensor | None = None,
+        *,
+        no_len: bool = False,
     ) -> tuple[Distribution, Tensor, Tensor]:
-        """Process observation and compute policy and value outputs.
+        """Compute policy and value from observation.
 
         Args:
-            observation: Input observation tensor (*batch, len, num_token, obs_dim)
-            hidden: Optional hidden state tensor from previous timestep (*batch, depth, dim).
-                If None, the hidden state is initialized to zeros.
+            observation: Shape (*batch, len, num_token, obs_dim).
+            hidden: Shape (*batch, depth, dim) or None.
+            upper_action: Not used in this implementation.
+            no_len: Process without sequence dimension if True.
 
         Returns:
-            A tuple containing:
-                - Distribution representing the policy (action probabilities)
-                - Tensor containing the estimated state value
-                - Updated hidden state tensor for use in next forward pass
+            Tuple of (policy_distribution, value, updated_hidden).
         """
         obs_flat = self.obs_flatten(observation)
-        x, hidden_out = self.core_model(obs_flat, hidden)
+        x, hidden_out = self.core_model(obs_flat, hidden, no_len=no_len)
         return self.policy_head(x), self.value_head(x), hidden_out
-
-    @override
-    def __call__(
-        self, observation: Tensor, hidden: Tensor | None = None
-    ) -> tuple[Distribution, Tensor, Tensor]:
-        """Override __call__ with proper type annotations."""
-        return super().__call__(observation, hidden)
 
     def forward_with_no_len(
         self, observation: Tensor, hidden: Tensor | None = None
     ) -> tuple[Distribution, Tensor, Tensor]:
-        """Forward with data which has no len dim. (for inference procedure.)
+        """Single-step inference without sequence dimension.
 
         Args:
-            observation: Input observation tensor (*batch, num_token, obs_dim)
-            hidden: Optional hidden state from previous timestep (*batch, depth, dim).
-                If None, the hidden state is initialized to zeros.
+            observation: Shape (*batch, num_token, obs_dim).
+            hidden: Shape (*batch, depth, dim) or None.
 
         Returns:
-            A tuple containing:
-                - Distribution representing the policy (action probabilities)
-                - Tensor containing the estimated state value
-                - Updated hidden state tensor for use in next forward pass
+            Tuple of (policy_distribution, value, updated_hidden).
         """
         obs_flat = self.obs_flatten(observation)
-        x, hidden = self.core_model.forward_with_no_len(obs_flat, hidden)
-        return self.policy_head(x), self.value_head(x), hidden
+        x, hidden_out = self.core_model(obs_flat, hidden, no_len=True)
+        return self.policy_head(x), self.value_head(x), hidden_out

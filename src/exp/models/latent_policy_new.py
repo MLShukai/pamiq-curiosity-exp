@@ -14,10 +14,11 @@ from .components import (
     LerpStackedFeatures,
     StackedHiddenState,
 )
+from .policy import HiddenStatePiV
 from .utils import ObsInfo
 
 
-class LatentPiVFramework(nn.Module):
+class LatentPiVFramework(HiddenStatePiV):
     """Policy-Value framework with separated Encoder and Generator components.
 
     Attributes:
@@ -44,8 +45,11 @@ class LatentPiVFramework(nn.Module):
     @override
     def forward(
         self,
-        obs: Tensor,
+        observation: Tensor,
         hidden: Tensor | None = None,
+        upper_action: Tensor | None = None,
+        *,
+        no_len: bool = False,
     ) -> tuple[Distribution, Tensor, Tensor]:
         """Forward pass through the framework.
 
@@ -59,7 +63,7 @@ class LatentPiVFramework(nn.Module):
                 - Value estimate from the generator.
                 - Updated hidden state from the encoder.
         """
-        x, hidden = self.encoder(obs, hidden)
+        x, hidden = self.encoder(observation, hidden, upper_action, no_len=no_len)
         policy_dist, value = self.generator(x)
         return policy_dist, value, hidden
 
