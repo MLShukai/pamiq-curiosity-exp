@@ -162,8 +162,10 @@ class StackedHiddenFD(HiddenStateFD):
 
 
 def create_multiple(
-    num_models: int,
-    model_hparams: dict[str, Any],
+    obs_info: ObsInfo,
+    action_info: ActionInfo,
+    dim: int,
+    core_models: list[StackedHiddenState],
     *,
     device: torch.device | None = None,
     dtype: torch.dtype | None = None,
@@ -179,13 +181,19 @@ def create_multiple(
     Returns:
         List of initialized forward dynamics models.
     """
+
     return [
         TorchTrainingModel(
-            model=StackedHiddenFD(**copy.deepcopy(model_hparams)),
+            model=StackedHiddenFD(
+                obs_info=obs_info,
+                action_info=action_info,
+                dim=dim,
+                core_model=model,
+            ),
             has_inference_model=True,
             inference_procedure=StackedHiddenFD.forward_with_no_len,
             device=device,
             dtype=dtype,
         )
-        for _ in range(num_models)
+        for model in core_models
     ]
