@@ -333,6 +333,21 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         )
 
     @classmethod
+    def create_hierarchical_buffers(
+        cls, max_size: int, num: int
+    ) -> list[DictSequentialBuffer[Tensor]]:
+        """Create multiple buffer instances."""
+        bufs = []
+        for i in range(num):
+            bufs.append(
+                cls.create_buffer(
+                    max_size,
+                    include_upper_action=(i + 1) == num,  # Top only.
+                )
+            )
+        return bufs
+
+    @classmethod
     def create_multiple(cls, num_trainers: int, **trainer_params: Any) -> list[Self]:
         """Create multiple trainer instances.
 

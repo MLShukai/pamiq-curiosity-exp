@@ -245,6 +245,39 @@ class TestPPOHiddenStatePiVTrainer:
         trainer.load_state(trainer_path)
         assert trainer.global_step == 42
 
+    def test_create_hierarchical_buffers(self):
+        """Test creating hierarchical buffers."""
+        max_size = 100
+        num_buffers = 3
+
+        buffers = PPOHiddenStatePiVTrainer.create_hierarchical_buffers(
+            max_size, num_buffers
+        )
+
+        # Check correct number of buffers created
+        assert len(buffers) == num_buffers
+
+        # Check each buffer has correct configuration
+        for i, buffer in enumerate(buffers):
+            assert isinstance(buffer, DictSequentialBuffer)
+            assert buffer.max_size == max_size
+
+            # Check keys
+            expected_keys = [
+                DataKey.OBSERVATION,
+                DataKey.HIDDEN,
+                DataKey.ACTION,
+                DataKey.ACTION_LOG_PROB,
+                DataKey.REWARD,
+                DataKey.VALUE,
+            ]
+
+            # Only the last buffer should have UPPER_ACTION
+            if i == num_buffers - 1:
+                expected_keys.append(DataKey.UPPER_ACTION)
+
+            assert buffer.keys == set(expected_keys)
+
 
 class TestComputeAdvantage:
     """Test compute_advantage function."""
