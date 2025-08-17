@@ -1,5 +1,5 @@
 forward_dynamics:
-  _target_: exp.trainers.forward_dynamics.LatentFDTrainer.create_multiple
+  _target_: exp.trainers.forward_dynamics.HiddenStateFDTrainer.create_multiple
   num_trainers: ${shared.num_hierarchical_layers}
   partial_optimizer:
     _target_: torch.optim.SGD
@@ -14,7 +14,8 @@ forward_dynamics:
   min_new_data_count: 128
 
 policy:
-  _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer.create_multiple
+  _target_: exp.trainers.ppo_policy.PPOHiddenStatePiVTrainer.create_multiple
+  hierarchical: true
   num_trainers: ${shared.num_hierarchical_layers}
   partial_optimizer:
     _target_: torch.optim.SGD
