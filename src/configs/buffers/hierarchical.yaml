@@ -2,12 +2,10 @@ forward_dynamics:
   _target_: exp.utils.replicate
   num: ${shared.num_hierarchical_layers}
   obj:
-    _target_: exp.trainers.forward_dynamics.LatentFDTrainer.create_buffer
+    _target_: exp.trainers.forward_dynamics.HiddenStateFDTrainer.create_buffer
     max_size: 1000 #  10 fps 100 secs
 
 policy:
-  _target_: exp.utils.replicate
+  _target_: exp.trainers.ppo_policy.PPOHiddenStatePiVTrainer.create_hierarchical_buffers
   num: ${shared.num_hierarchical_layers}
-  obj:
-    _target_: exp.trainers.ppo_policy.PPOLatentPolicyTrainer.create_buffer
-    max_size: 1000 #  10 fps 100 secs
+  max_size: 1000 #  10 fps 100 secs
