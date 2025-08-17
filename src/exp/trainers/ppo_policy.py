@@ -348,20 +348,24 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         return bufs
 
     @classmethod
-    def create_multiple(cls, num_trainers: int, **trainer_params: Any) -> list[Self]:
+    def create_multiple(
+        cls, num_trainers: int, hierarchical: bool = False, **trainer_params: Any
+    ) -> list[Self]:
         """Create multiple trainer instances.
-
-        Each trainer is assigned a unique model_name and data_user_name by
-        appending an index (0 to num_trainers-1) to the base names.
 
         Args:
             num_trainers: Number of trainers to create.
+            hierarchical: If True, enable upper_action for all trainers except the last.
             **trainer_params: Parameters to pass to each trainer constructor.
 
         Returns:
-            List of configured trainer instances.
+            List of configured trainer instances with indexed names.
         """
         trainers = list[Self]()
+
+        def include_upper_action(idx: int) -> bool:
+            return idx < num_trainers - 1 and hierarchical
+
         for i in range(num_trainers):
             trainers.append(
                 cls(
@@ -369,6 +373,7 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
                     model_name=ModelName.POLICY_VALUE + str(i),
                     data_user_name=BufferName.POLICY + str(i),
                     log_prefix="ppo-policy" + str(i),
+                    include_upper_action=include_upper_action(i),
                 )
             )
         return trainers

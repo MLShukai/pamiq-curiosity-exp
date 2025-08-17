@@ -278,6 +278,32 @@ class TestPPOHiddenStatePiVTrainer:
 
             assert buffer.keys == set(expected_keys)
 
+    def test_create_multiple_hierarchical(self, mocker: MockerFixture):
+        """Test creating multiple trainers with hierarchical flag."""
+        mocker.patch("exp.trainers.ppo_policy.get_global_run")
+
+        num_trainers = 3
+        trainers = PPOHiddenStatePiVTrainer.create_multiple(
+            num_trainers=num_trainers,
+            hierarchical=True,
+            partial_optimizer=partial(AdamW, lr=3e-4),
+            gamma=0.99,
+        )
+
+        assert len(trainers) == num_trainers
+
+        # Check hierarchical setup: all except last should have upper_action
+        for i, trainer in enumerate(trainers):
+            if i < num_trainers - 1:
+                assert trainer.include_upper_action is True
+            else:
+                assert trainer.include_upper_action is False
+
+            # Check unique names
+            assert trainer.model_name == ModelName.POLICY_VALUE + str(i)
+            assert trainer.data_user_name == BufferName.POLICY + str(i)
+            assert trainer.log_prefix == "ppo-policy" + str(i)
+
 
 class TestComputeAdvantage:
     """Test compute_advantage function."""
