@@ -1,6 +1,6 @@
 from functools import partial
 from pathlib import Path
-from typing import Any, Self, override
+from typing import Any, Self, cast, override
 
 import torch
 from pamiq_core import DataUser
@@ -17,6 +17,17 @@ from exp.models.policy import HiddenStatePiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
 
 OPTIMIZER_NAME = "optimizer"
+
+type BatchType = tuple[
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor | None,
+]
 
 
 class PPOHiddenStatePiVTrainer(TorchTrainer):
@@ -39,6 +50,7 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         model_name: str = ModelName.POLICY_VALUE,
         data_user_name: str = BufferName.POLICY,
         log_prefix: str = "ppo-policy",
+        include_upper_action: bool = False,
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
@@ -91,6 +103,8 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         self.vfunc_coef = vfunc_coef
         self.global_step = 0
 
+        self.include_upper_action = include_upper_action
+
     @override
     def on_data_users_attached(self) -> None:
         """Set up data user references when they are attached to the
@@ -119,21 +133,23 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
             OPTIMIZER_NAME: self.partial_optimizer(self.policy_value.model.parameters())
         }
 
-    def training_step(self, batch: list[Tensor]) -> dict[str, Tensor]:
+    def training_step(self, batch: BatchType) -> dict[str, Tensor]:
         """Perform a single training step on a batch of data."""
         (
             observations,
             hiddens,
             actions,
             action_log_probs,
-            _,
             values,
             advantages,
             returns,
+            upper_action,
         ) = batch
 
         # Get new distributions and values
-        new_dist, new_values, _ = self.policy_value.model(observations, hiddens[:, 0])
+        new_dist, new_values, _ = self.policy_value.model(
+            observations, hiddens[:, 0], upper_action
+        )
         new_log_probs = new_dist.log_prob(actions)
         entropy = new_dist.entropy()
 
@@ -196,17 +212,18 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         # Get dataset from data user
         data = self.policy_data_user.get_data()
 
-        tensors = {
-            key: torch.stack(data[key][:-1])
-            for key in [
-                DataKey.OBSERVATION,
-                DataKey.HIDDEN,
-                DataKey.ACTION,
-                DataKey.ACTION_LOG_PROB,
-                DataKey.REWARD,
-                DataKey.VALUE,
-            ]
-        }
+        keys = [
+            DataKey.OBSERVATION,
+            DataKey.HIDDEN,
+            DataKey.ACTION,
+            DataKey.ACTION_LOG_PROB,
+            DataKey.REWARD,
+            DataKey.VALUE,
+        ]
+        if self.include_upper_action:
+            keys.append(DataKey.UPPER_ACTION)
+
+        tensors = {key: torch.stack(data[key][:-1]) for key in keys}
 
         # compute advantages and returns
         advantages = compute_advantage(
@@ -218,8 +235,20 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         )
         returns = advantages + tensors[DataKey.VALUE]
 
-        dataset = TensorDataset(*tensors.values(), advantages, returns)
+        tensor_list = [
+            tensors[DataKey.OBSERVATION],
+            tensors[DataKey.HIDDEN],
+            tensors[DataKey.ACTION],
+            tensors[DataKey.ACTION_LOG_PROB],
+            tensors[DataKey.VALUE],
+            advantages,
+            returns,
+        ]
 
+        if self.include_upper_action:
+            tensor_list.append(tensors[DataKey.UPPER_ACTION])
+
+        dataset = TensorDataset(*tensor_list)
         sampler = self.partial_sampler(dataset)
         dataloader = self.partial_dataloader(dataset=dataset, sampler=sampler)
         device = get_device(self.policy_value.model)
@@ -229,8 +258,12 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
             for batch in dataloader:
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
+                data_list: list[Tensor | None] = [d.to(device) for d in batch]
+                if not self.include_upper_action:
+                    data_list.append(None)
+
                 # Perform training step
-                outputs = self.training_step([d.to(device) for d in batch])
+                outputs = self.training_step(cast(BatchType, tuple(data_list)))
                 loss = outputs["loss"]
 
                 # Backward pass
@@ -279,17 +312,23 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
         self.global_step = int((path / "global_step").read_text("utf-8"))
 
     @staticmethod
-    def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
+    def create_buffer(
+        max_size: int, include_upper_action: bool = False
+    ) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
+        keys = [
+            DataKey.OBSERVATION,
+            DataKey.HIDDEN,
+            DataKey.ACTION,
+            DataKey.ACTION_LOG_PROB,
+            DataKey.REWARD,
+            DataKey.VALUE,
+        ]
+        if include_upper_action:
+            keys.append(DataKey.UPPER_ACTION)
+
         return DictSequentialBuffer(
-            [
-                DataKey.OBSERVATION,
-                DataKey.HIDDEN,
-                DataKey.ACTION,
-                DataKey.ACTION_LOG_PROB,
-                DataKey.REWARD,
-                DataKey.VALUE,
-            ],
+            keys,
             max_size=max_size,
         )
 

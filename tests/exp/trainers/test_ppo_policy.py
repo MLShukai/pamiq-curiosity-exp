@@ -161,6 +161,77 @@ class TestPPOHiddenStatePiVTrainer:
         assert trainer.run() is False
         assert trainer.global_step == global_step
 
+    @parametrize_device
+    def test_run_with_upper_action(self, device, models, mocker: MockerFixture):
+        """Test PPO Policy Trainer with include_upper_action=True."""
+        mocker.patch("exp.trainers.ppo_policy.get_global_run")
+
+        # Create trainer with include_upper_action=True
+        trainer = PPOHiddenStatePiVTrainer(
+            partial_optimizer=partial(AdamW, lr=3e-4),
+            gamma=0.99,
+            gae_lambda=0.95,
+            seq_len=self.SEQ_LEN,
+            max_samples=4,
+            batch_size=2,
+            min_new_data_count=1,
+            include_upper_action=True,
+        )
+
+        # Create buffer with UPPER_ACTION key
+        data_buffers = {
+            BufferName.POLICY.value: DictSequentialBuffer(
+                [
+                    DataKey.OBSERVATION,
+                    DataKey.HIDDEN,
+                    DataKey.ACTION,
+                    DataKey.ACTION_LOG_PROB,
+                    DataKey.REWARD,
+                    DataKey.VALUE,
+                    DataKey.UPPER_ACTION,
+                ],
+                max_size=32,
+            )
+        }
+
+        models = {
+            name: TorchTrainingModel(m, has_inference_model=False, device=device)
+            for name, m in models.items()
+        }
+
+        components = connect_components(
+            trainers=trainer, buffers=data_buffers, models=models
+        )
+        collector = components.data_collectors[BufferName.POLICY]
+
+        # Collect policy data with upper action
+        for _ in range(20):
+            observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
+            hidden = torch.randn(self.DEPTH, self.DIM)
+            actions = torch.stack(
+                [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
+            )
+            action_log_probs = torch.randn(len(self.ACTION_CHOICES))
+            rewards = torch.randn(())
+            values = torch.randn(())
+            upper_action = torch.randn(2)  # Example upper action dimension
+
+            collector.collect(
+                {
+                    DataKey.OBSERVATION: observations,
+                    DataKey.HIDDEN: hidden,
+                    DataKey.ACTION: actions,
+                    DataKey.ACTION_LOG_PROB: action_log_probs,
+                    DataKey.REWARD: rewards,
+                    DataKey.VALUE: values,
+                    DataKey.UPPER_ACTION: upper_action,
+                }
+            )
+
+        assert trainer.global_step == 0
+        assert trainer.run() is True
+        assert trainer.global_step > 0
+
     def test_save_and_load_state(
         self, trainer: PPOHiddenStatePiVTrainer, tmp_path: Path
     ):
