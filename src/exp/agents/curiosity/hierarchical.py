@@ -10,8 +10,8 @@ from torch import Tensor
 
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
-from exp.models.latent_fd_new import LatentFDFramework
-from exp.models.latent_policy_new import LatentPiVFramework
+from exp.models.latent_fd import LatentFDFramework
+from exp.models.latent_policy import LatentPiVFramework
 from exp.models.utils import layer_norm
 
 

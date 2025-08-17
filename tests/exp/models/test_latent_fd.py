@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from exp.models.components.qlstm import QLSTM
-from exp.models.latent_fd_new import Encoder, LatentFDFramework, Predictor
+from exp.models.latent_fd import Encoder, LatentFDFramework, Predictor
 from exp.models.utils import ActionInfo, ObsInfo
 from tests.helpers import parametrize_device
 

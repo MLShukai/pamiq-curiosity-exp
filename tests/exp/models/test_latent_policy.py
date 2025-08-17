@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from exp.models.components.multi_discretes import MultiCategoricals
 from exp.models.components.qlstm import QLSTM
-from exp.models.latent_policy_new import Encoder, Generator, LatentPiVFramework
+from exp.models.latent_policy import Encoder, Generator, LatentPiVFramework
 from exp.models.utils import ActionInfo, ObsInfo
 from tests.helpers import parametrize_device
 

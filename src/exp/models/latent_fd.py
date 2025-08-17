@@ -1,360 +1,139 @@
-"""Forward Dynamics construct with Latent Encoder and Predictor."""
+from __future__ import annotations
 
+from collections.abc import Callable
 from typing import override
 
 import torch
 import torch.nn as nn
-from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
-from torch.distributions import Distribution
 
-from .components.deterministic_normal import FCDeterministicNormalHead
-from .components.multi_discretes import MultiEmbeddings
-from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
-from .components.stacked_hidden_state import StackedHiddenState
+from .components import (
+    LerpStackedFeatures,
+    MultiEmbeddings,
+    StackedHiddenState,
+    ToStackedFeatures,
+)
+from .forward_dynamics import HiddenStateFD
 from .utils import ActionInfo, ObsInfo
 
 
-class LatentFD(nn.Module):
-    """Forward Dynamics model that outputs latent representations and predicts
-    next observations from those representations.
+class LatentFDFramework(HiddenStateFD):
+    """Forward Dynamics framework with separated Encoder and Predictor
+    components.
 
-    This model combines an encoder that processes observations and
-    actions into latent representations, and a predictor that generates
-    the distribution of next observations based on those latent
-    representations.
+    Attributes:
+        encoder: Module that encodes observation-action pairs into latent representations.
+        predictor: Module that predicts next observations from latent representations.
     """
 
-    @override
     def __init__(
         self,
-        obs_action_flatten_head: nn.Module,
-        encoder: StackedHiddenState,
-        predictor: StackedHiddenState,
-        obs_prediction_head: nn.Module,
+        encoder: Encoder,
+        predictor: Predictor,
     ) -> None:
-        """Initialize the LatentFD model.
+        """Initialize the LatentFDFramework.
 
         Args:
-            obs_action_flatten_head: The head that processes observations and actions
-            encoder: The stacked hidden state model for encoding observation-action pairs.
-            predictor: The stacked hidden state model for predicting next observations.
-            obs_predict_head: The head that generates the distribution of next observations
-                from latent representations.
+            encoder: Encoder module for processing observation-action pairs.
+            predictor: Predictor module for generating next observation predictions.
         """
         super().__init__()
-        self.obs_action_flatten_head = obs_action_flatten_head
+
         self.encoder = encoder
         self.predictor = predictor
-        self.obs_prediction_head = obs_prediction_head
 
     @override
     def forward(
         self,
         obs: Tensor,
         action: Tensor,
-        hidden_encoder: Tensor | None = None,
-        hidden_predictor: Tensor | None = None,
+        hidden: Tensor | None = None,
+        *,
         no_len: bool = False,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-        """Forward pass through the LatentFD model.
+    ) -> tuple[Tensor, Tensor]:
+        """Forward pass through the framework.
 
         Args:
-            obs: Observation tensor. Shape is (*batch, len, num_tokens, obs_dim) if ObsInfo
-                was provided, otherwise (*batch, len, obs_dim).
-            action: Action tensor. Shape is (*batch, len, action_choices) if ActionInfo
-                was provided, otherwise (*batch, len, action_dim).
-            hidden_encoder: Optional hidden state for the encoder. Shape is (*batch, depth, dim).
-                If None, the encoder will initialize its hidden state.
-            hidden_predictor: Optional hidden state for the predictor. Shape is (*batch, depth, dim).
-                If None, the predictor will initialize its hidden state.
-            no_len: If True, processes inputs as single-step without sequence length.
+            obs: Observation tensor. Shape depends on encoder configuration.
+            action: Action tensor. Shape depends on encoder configuration.
+            hidden: Optional hidden state for the encoder. Shape is (*batch, depth, dim).
 
         Returns:
             A tuple containing:
-                - Distribution representing predicted observations.
-                - Updated hidden state for the predictor.
-                - Updated hidden state for the encoder.
-                - Next hidden state for the predictor.
+                - Predicted next observation from the predictor.
+                - Updated hidden state from the encoder.
         """
-        latent = self.obs_action_flatten_head(obs, action)
-
-        latent_encoder, next_hidden_encoder = self.encoder(
-            latent, hidden_encoder, no_len=no_len
-        )
-        latent_predictor, next_hidden_predictor = self.predictor(
-            latent_encoder, hidden_predictor, no_len=no_len
-        )
-
-        obs_hat_dist = self.obs_prediction_head(latent_predictor)
-
-        return obs_hat_dist, latent_encoder, next_hidden_encoder, next_hidden_predictor
-
-    @override
-    def __call__(
-        self,
-        obs: Tensor,
-        action: Tensor,
-        hidden_encoder: Tensor | None = None,
-        hidden_predictor: Tensor | None = None,
-        no_len: bool = False,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(
-            obs, action, hidden_encoder, hidden_predictor, no_len=no_len
-        )
-
-    def forward_with_no_len(
-        self,
-        obs: Tensor,
-        action: Tensor,
-        hidden_encoder: Tensor | None = None,
-        hidden_predictor: Tensor | None = None,
-    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-        """Forward pass for single-step processing without length dimension.
-
-        Convenience method for inference where inputs don't have a sequence length dimension.
-
-        Args:
-            obs: Observation tensor. Shape is (*batch, num_tokens, obs_dim) if ObsInfo
-                was provided, otherwise (*batch, obs_dim).
-            action: Action tensor. Shape is (*batch, action_choices) if ActionInfo
-                was provided, otherwise (*batch, action_dim).
-            hidden_encoder: Optional hidden state for the encoder. Shape is (*batch, depth, dim).
-            hidden_predictor: Optional hidden state for the predictor. Shape is (*batch, depth, dim).
-
-        Returns:
-            A tuple containing:
-                - Distribution representing predicted observations.
-                - Updated hidden state for the predictor.
-                - Updated hidden state for the encoder.
-                - Next hidden state for the predictor.
-        """
-        return self.forward(obs, action, hidden_encoder, hidden_predictor, no_len=True)
-
-
-class ObsActionFlattenHead(nn.Module):
-    """Head that processes observations and actions into latent
-    representations.
-
-    This head combines observation and action inputs, processes them
-    through a stacked hidden state model, and outputs latent
-    representations suitable for forward dynamics prediction.
-    """
-
-    @override
-    def __init__(
-        self,
-        obs_info: ObsInfo,
-        action_info: ActionInfo,
-        output_dim: int,
-    ) -> None:
-        """Initialize the observation-action head.
-
-        Args:
-            obs_info: Configuration for observation processing.
-            action_info: Configuration for action processing.
-            output_dim: Dimension of the output latent representation.
-        """
-        super().__init__()
-        self.obs_flatten = LerpStackedFeatures(
-            obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
-        )
-        self.action_flatten = MultiEmbeddings(
-            action_info.choices, action_info.dim, do_flatten=True
-        )
-        self.obs_action_proj = nn.Linear(
-            obs_info.dim_hidden + len(action_info.choices) * action_info.dim,
-            output_dim,
-        )
-
-    @override
-    def forward(self, obs: Tensor, action: Tensor) -> Tensor:
-        """Process observations and actions into latent representations.
-
-        Args:
-            obs: Observation tensor. Shape is (*batch, len, num_tokens, obs_dim).
-            action: Action tensor. Shape is (*batch, len, action_choices).
-
-        Returns:
-            Latent representation tensor of shape (*batch, len, output_dim).
-        """
-        obs = self.obs_flatten(obs)
-        action = self.action_flatten(action)
-        return self.obs_action_proj(torch.cat((obs, action), dim=-1))
-
-    @override
-    def __call__(self, obs: Tensor, action: Tensor) -> Tensor:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(obs, action)
-
-
-class LatentObsActionFlattenHead(nn.Module):
-    """Head that processes latent observations and latent actions into latent
-    representations.
-
-    This head combines observation and action inputs, processes them
-    through a stacked hidden state model, and outputs latent
-    representations suitable for forward dynamics prediction.
-    """
-
-    @override
-    def __init__(
-        self,
-        obs_dim: int,
-        action_dim: int,
-        output_dim: int,
-    ) -> None:
-        """Initialize the observation-action head.
-
-        Args:
-            obs_info: Configuration for observation processing.
-            action_info: Configuration for action processing.
-            output_dim: Dimension of the output latent representation.
-        """
-        super().__init__()
-        self.obs_action_proj = nn.Linear(
-            obs_dim + action_dim,
-            output_dim,
-        )
-
-    @override
-    def forward(self, obs: Tensor, action: Tensor) -> Tensor:
-        """Process observations and actions into latent representations.
-
-        Args:
-            obs: Observation tensor. Shape is (*batch, len, obs_dim).
-            action: Action tensor. Shape is (*batch, len, action_dim).
-
-        Returns:
-            Latent representation tensor of shape (*batch, len, output_dim).
-        """
-        return self.obs_action_proj(torch.cat((obs, action), dim=-1))
-
-    @override
-    def __call__(self, obs: Tensor, action: Tensor) -> Tensor:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(obs, action)
-
-
-class ObsPredictionHead(nn.Module):
-    """Head that predicts the distribution of next observations from latent
-    representations.
-
-    This head takes latent representations and processes them through a
-    stacked hidden state model followed by a deterministic normal
-    distribution head.
-    """
-
-    @override
-    def __init__(self, input_dim: int, obs_info: ObsInfo) -> None:
-        """Initialize the observation prediction head.
-
-        Args:
-            input_dim: Dimension of the input latent representation.
-            obs_info: Configuration for observation processing. If ObsInfo, sets up
-                lerp-based feature extraction. If int, uses direct dimension.
-        """
-        super().__init__()
-        self.obs_hat_dist_head = ToStackedFeatures(
-            input_dim, obs_info.dim, obs_info.num_tokens
-        )
-
-    @override
-    def forward(self, latent: Tensor) -> Tensor:
-        """Predict observation distribution from latent representation.
-
-        Args:
-            latent: Latent representation tensor.
-
-        Returns:
-            A DeterministicNormal distribution representing predicted observations.
-        """
-        return self.obs_hat_dist_head(latent)
-
-    @override
-    def __call__(self, latent: Tensor) -> Tensor:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(latent)
+        x, hidden = self.encoder(obs, action, hidden, no_len=no_len)
+        return self.predictor(x), hidden
 
 
 class Encoder(nn.Module):
-    """Latent encoder that processes observations and actions into latent
-    representations.
+    """Encoder module for processing observation-action pairs into latent
+    representations."""
 
-    This encoder combines observation and action inputs, processes them
-    through a stacked hidden state model, and outputs latent
-    representations suitable for forward dynamics prediction.
-    """
-
-    @override
     def __init__(
         self,
         obs_info: ObsInfo | int,
         action_info: ActionInfo | int,
-        core_model: StackedHiddenState,
         core_model_dim: int,
-        embed_dim: int | None = None,
+        core_model: StackedHiddenState,
+        out_dim: int | None = None,
     ) -> None:
-        """Initialize the latent encoder.
+        """Initialize the Encoder.
 
         Args:
-            obs_info: Configuration for observation processing. If ObsInfo, sets up
-                lerp-based feature extraction. If int, uses direct dimension.
-            action_info: Configuration for action processing. If ActionInfo, sets up
-                multi-discrete embeddings. If int, uses direct dimension.
-            core_model: The stacked hidden state model for processing concatenated features.
+            obs_info: Observation configuration. If ObsInfo, uses lerp-based feature
+                extraction. If int, treats as direct observation dimension.
+            action_info: Action configuration. If ActionInfo, uses multi-discrete
+                embeddings. If int, treats as direct action dimension.
             core_model_dim: Input dimension for the core model.
-            embed_dim: Optional output embedding dimension. If None, uses core_model output dim.
+            core_model: Stacked hidden state model for processing concatenated features.
+            out_dim: Optional output dimension. If None, uses core_model output dimension.
         """
         super().__init__()
 
-        self.obs_flatten = None
-        dim_in = 0
+        # Setup observation and action projection.
+        obs_action_dim = 0
+
+        self.obs_flatten = nn.Identity()
         if isinstance(obs_info, ObsInfo):
             self.obs_flatten = LerpStackedFeatures(
                 obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
             )
-            dim_in += obs_info.dim_hidden
+            obs_action_dim += obs_info.dim_hidden
         else:
-            dim_in += obs_info
+            obs_action_dim += obs_info
 
-        self.action_flatten = None
+        self.action_flatten = nn.Identity()
         if isinstance(action_info, ActionInfo):
             self.action_flatten = MultiEmbeddings(
                 action_info.choices, action_info.dim, do_flatten=True
             )
-            dim_in += len(action_info.choices) * action_info.dim
+            obs_action_dim += len(action_info.choices) * action_info.dim
         else:
-            dim_in += action_info
+            obs_action_dim += action_info
 
-        self.obs_action_proj = nn.Linear(dim_in, core_model_dim)
+        self.obs_action_proj = nn.Linear(obs_action_dim, core_model_dim)
 
         self.core_model = core_model
 
-        self.out_proj = None
-        if embed_dim is not None and embed_dim != core_model_dim:
-            self.out_proj = nn.Linear(core_model_dim, embed_dim)
+        self.out_proj = nn.Identity()
+        if out_dim is not None:
+            self.out_proj = nn.Linear(core_model_dim, out_dim)
 
     def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
-        """Flatten and concat observation and action."""
-        if self.obs_flatten:
-            obs = self.obs_flatten(obs)
-        if self.action_flatten:
-            action = self.action_flatten(action)
-        return self.obs_action_proj(torch.cat((obs, action), dim=-1))
+        """Flatten and concatenate observation and action tensors.
+
+        Args:
+            obs: Observation tensor to be flattened.
+            action: Action tensor to be flattened.
+
+        Returns:
+            Concatenated and projected tensor ready for core model processing.
+        """
+        obs_flat = self.obs_flatten(obs)
+        action_flat = self.action_flatten(action)
+        return self.obs_action_proj(torch.cat((obs_flat, action_flat), dim=-1))
 
     @override
     def forward(
@@ -374,18 +153,16 @@ class Encoder(nn.Module):
                 was provided, otherwise (*batch, len, action_dim).
             hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
                 If None, the core model will initialize its hidden state.
-            no_len: If True, calls core_model.forward_with_no_len for single-step processing.
+            no_len: If True, processes inputs as single-step without sequence length dimension.
 
         Returns:
             A tuple containing:
-                - Latent representation tensor of shape (*batch, len, embed_dim).
+                - Latent representation tensor of shape (*batch, len, out_dim).
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         x = self._flatten_obs_action(obs, action)
-        x, next_hidden = self.core_model(x, hidden, no_len=no_len)
-        if self.out_proj:
-            x = self.out_proj(x)
-        return x, next_hidden
+        x, hidden = self.core_model.forward(x, hidden, no_len=no_len)
+        return self.out_proj(x), hidden
 
     @override
     def __call__(
@@ -402,159 +179,62 @@ class Encoder(nn.Module):
         """
         return super().__call__(obs, action, hidden, no_len=no_len)
 
-    def forward_with_no_len(
-        self,
-        obs: Tensor,
-        action: Tensor,
-        hidden: Tensor | None = None,
-    ) -> tuple[Tensor, Tensor]:
-        """Forward pass for single-step encoding without length dimension.
-
-        Convenience method for inference where inputs don't have a sequence length dimension.
-
-        Args:
-            obs: Observation tensor. Shape is (*batch, num_tokens, obs_dim) if ObsInfo
-                was provided, otherwise (*batch, obs_dim).
-            action: Action tensor. Shape is (*batch, action_choices) if ActionInfo
-                was provided, otherwise (*batch, action_dim).
-            hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
-
-        Returns:
-            A tuple containing:
-                - Latent representation tensor of shape (*batch, embed_dim).
-                - Updated hidden state tensor of shape (*batch, depth, dim).
-        """
-        return self.forward(obs, action, hidden, no_len=True)
-
 
 class Predictor(nn.Module):
-    """Latent predictor that generates observation distributions from latent
-    representations.
+    """Predictor module for generating observation predictions from latent
+    representations."""
 
-    This predictor takes latent representations from the encoder and
-    predicts the distribution of next observations using a stacked
-    hidden state model followed by a deterministic normal distribution
-    head.
-    """
-
-    @override
     def __init__(
         self,
+        latent_dim: int,
         obs_info: ObsInfo | int,
-        core_model: StackedHiddenState,
-        core_model_dim: int,
-        embed_dim: int | None = None,
+        core_model: nn.Module | None = None,
+        core_model_dim: int | None = None,
     ) -> None:
-        """Initialize the latent predictor.
+        """Initialize the Predictor.
 
         Args:
-            obs_info: Configuration for observation prediction. If ObsInfo, sets up
-                stacked features output. If int, uses direct dimension.
-            core_model: The stacked hidden state model for processing latent representations.
-            core_model_dim: Hidden dimension of the core model.
-            embed_dim: Optional input embedding dimension. If provided and different from
-                core_model_dim, adds an input projection layer.
+            latent_dim: Dimension of input latent representations.
+            obs_info: Observation configuration for output. If ObsInfo, uses
+                stacked features output. If int, uses direct linear projection.
+            core_model: Optional core model for processing latents. If None,
+                uses identity transformation.
+            core_model_dim: Hidden dimension for core model. If provided,
+                adds input projection from latent_dim to core_model_dim.
         """
         super().__init__()
 
-        self.input_proj = None
-        if embed_dim is not None:
-            self.input_proj = nn.Linear(embed_dim, core_model_dim)
+        self.input_proj = nn.Identity()
+        if core_model_dim is not None:
+            self.input_proj = nn.Linear(latent_dim, core_model_dim)
 
+        if core_model is None:
+            core_model = nn.Identity()
         self.core_model = core_model
 
+        obs_dim_in = latent_dim if core_model_dim is None else core_model_dim
         if isinstance(obs_info, ObsInfo):
-            self.obs_hat_dist_head = nn.Sequential(
-                ToStackedFeatures(core_model_dim, obs_info.dim, obs_info.num_tokens),
-                FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
+            self.obs_hat_head = ToStackedFeatures(
+                obs_dim_in, obs_info.dim, obs_info.num_tokens
             )
         else:
-            self.obs_hat_dist_head = FCDeterministicNormalHead(obs_info, obs_info)
+            self.obs_hat_head = nn.Linear(obs_dim_in, obs_info)
 
     @override
-    def forward(
-        self, latent: Tensor, hidden: Tensor | None = None, *, no_len: bool = False
-    ) -> tuple[Distribution, Tensor]:
-        """Predict observation distribution from latent representation.
+    def forward(self, latent: Tensor) -> Tensor:
+        """Generate observation predictions from latent representations.
 
         Args:
-            latent: Latent representation tensor. Shape is (*batch, len, embed_dim).
-            hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
-                If None, the core model will initialize its hidden state.
-            no_len: If True, calls core_model.forward_with_no_len for single-step processing.
+            latent: Latent representation tensor. Shape is (*batch, len, latent_dim)
+                for sequential inputs or (*batch, latent_dim) for single-step.
 
         Returns:
-            A tuple containing:
-                - Distribution representing predicted observations.
-                - Updated hidden state tensor of shape (*batch, depth, dim).
+            Predicted observations. Shape depends on obs_info configuration:
+                - If ObsInfo: (*batch, len, num_tokens, obs_dim)
+                - If int: (*batch, len, obs_dim)
         """
-        if self.input_proj:
-            latent = self.input_proj(latent)
+        x = self.input_proj(latent)
+        x = self.core_model(x)
+        return self.obs_hat_head(x)
 
-        x, next_hidden = self.core_model(latent, hidden, no_len=no_len)
-        obs_hat = self.obs_hat_dist_head(x)
-        return obs_hat, next_hidden
-
-    @override
-    def __call__(
-        self, latent: Tensor, hidden: Tensor | None = None, *, no_len: bool = False
-    ) -> tuple[Distribution, Tensor]:
-        return super().__call__(latent, hidden, no_len=no_len)
-
-    def forward_with_no_len(
-        self,
-        latent: Tensor,
-        hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
-        """Forward pass for single-step prediction without length dimension.
-
-        Convenience method for inference where inputs don't have a sequence length dimension.
-
-        Args:
-            latent: Latent representation tensor. Shape is (*batch, embed_dim).
-            hidden: Optional hidden state from previous timestep. Shape is (*batch, depth, dim).
-
-        Returns:
-            A tuple containing:
-                - Distribution representing predicted observations.
-                - Updated hidden state tensor of shape (*batch, depth, dim).
-        """
-        return self.forward(latent, hidden, no_len=True)
-
-
-def create_hierarchical(
-    num_hierarchical_layers: int,
-    encoder: StackedHiddenState,
-    predictor: StackedHiddenState,
-    bottom_obs_action_flatten_head: nn.Module,
-    latent_obs_action_flatten_head: nn.Module,
-    bottom_obs_prediction_head: nn.Module,
-    latent_obs_prediction_head: nn.Module,
-    device: torch.device | None = None,
-    dtype: torch.dtype | None = None,
-) -> list[TorchTrainingModel[LatentFD]]:
-    models = []
-    for i in range(num_hierarchical_layers):
-        obs_action_flatten_head = (
-            bottom_obs_action_flatten_head if i == 0 else latent_obs_action_flatten_head
-        )
-        obs_prediction_head = (
-            bottom_obs_prediction_head if i == 0 else latent_obs_prediction_head
-        )
-
-        model = LatentFD(
-            obs_action_flatten_head=obs_action_flatten_head,
-            encoder=encoder,
-            predictor=predictor,
-            obs_prediction_head=obs_prediction_head,
-        )
-        models.append(
-            TorchTrainingModel(
-                model,
-                has_inference_model=True,
-                inference_procedure=LatentFD.forward_with_no_len,
-                device=device,
-                dtype=dtype,
-            )
-        )
-    return models
+    __call__: Callable[[Tensor], Tensor]
