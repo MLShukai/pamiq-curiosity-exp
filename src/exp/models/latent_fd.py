@@ -5,6 +5,7 @@ from typing import override
 
 import torch
 import torch.nn as nn
+from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
 
 from .components import (
@@ -118,7 +119,7 @@ class Encoder(nn.Module):
         self.core_model = core_model
 
         self.out_proj = nn.Identity()
-        if out_dim is not None:
+        if out_dim is not None and core_model_dim != out_dim:
             self.out_proj = nn.Linear(core_model_dim, out_dim)
 
     def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
@@ -238,3 +239,43 @@ class Predictor(nn.Module):
         return self.obs_hat_head(x)
 
     __call__: Callable[[Tensor], Tensor]
+
+
+def create_hierarchical(
+    obs_info: ObsInfo,
+    latent_action_dims: list[int],
+    latent_obs_dims: list[int],
+    core_model_dims: list[int],
+    core_models: list[StackedHiddenState],
+) -> list[TorchTrainingModel[LatentFDFramework]]:
+    """Creates hierarchical LatentFD models."""
+    if not (
+        len(latent_action_dims)
+        == len(latent_obs_dims)
+        == len(core_model_dims)
+        == len(core_models)
+    ):
+        raise ValueError(...)
+
+    num_layers = len(core_models)
+    models = []
+    for i in range(num_layers):
+        obs_cfg = obs_info if i == 0 else latent_obs_dims[i - 1]
+        models.append(
+            TorchTrainingModel(
+                LatentFDFramework(
+                    encoder=Encoder(
+                        obs_info=obs_cfg,
+                        action_info=latent_action_dims[i],
+                        core_model_dim=core_model_dims[i],
+                        core_model=core_models[i],
+                        out_dim=latent_obs_dims[i],
+                    ),
+                    predictor=Predictor(
+                        latent_dim=latent_obs_dims[i],
+                        obs_info=obs_cfg,
+                    ),
+                )
+            )
+        )
+    return models
