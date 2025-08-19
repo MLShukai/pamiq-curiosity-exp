@@ -247,6 +247,9 @@ def create_hierarchical(
     latent_obs_dims: list[int],
     core_model_dims: list[int],
     core_models: list[StackedHiddenState],
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
 ) -> list[TorchTrainingModel[LatentFDFramework]]:
     """Creates hierarchical LatentFD models."""
     if not (
@@ -255,7 +258,7 @@ def create_hierarchical(
         == len(core_model_dims)
         == len(core_models)
     ):
-        raise ValueError(...)
+        raise ValueError("All dimension lists must have the same length.")
 
     num_layers = len(core_models)
     models = []
@@ -275,7 +278,9 @@ def create_hierarchical(
                         latent_dim=latent_obs_dims[i],
                         obs_info=obs_cfg,
                     ),
-                )
+                ),
+                device=device,
+                dtype=dtype,
             )
         )
     return models
