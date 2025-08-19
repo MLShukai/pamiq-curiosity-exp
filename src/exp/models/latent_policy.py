@@ -5,6 +5,7 @@ from typing import override
 
 import torch
 import torch.nn as nn
+from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
 from torch.distributions import Distribution
 
@@ -222,3 +223,53 @@ class Generator(nn.Module):
         return self.policy_head(x), self.value_head(x)
 
     __call__: Callable[[Tensor], tuple[Distribution, Tensor]]
+
+
+def create_hierarchical(
+    obs_info: ObsInfo,
+    action_info: ActionInfo,
+    action_dims: list[int],
+    latent_obs_dims: list[int],
+    latent_action_dims: list[int],
+    core_model_dims: list[int],
+    core_models: list[StackedHiddenState],
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> list[TorchTrainingModel[LatentPiVFramework]]:
+    """Creates hierarchical LatentPiV models."""
+    if not (
+        len(latent_obs_dims)
+        == len(action_dims)
+        == len(latent_action_dims)
+        == len(core_model_dims)
+        == len(core_models)
+    ):
+        raise ValueError("All dimension lists must have the same length.")
+
+    num_layers = len(core_models)
+    models = []
+    for i in range(num_layers):
+        obs_cfg = obs_info if i == 0 else latent_obs_dims[i - 1]
+        act_cfg = action_info if i == 0 else latent_action_dims[i - 1]
+        upper_action_dim = action_dims[i + 1] if (i + 1) < num_layers else None
+        models.append(
+            TorchTrainingModel(
+                LatentPiVFramework(
+                    encoder=Encoder(
+                        obs_info=obs_cfg,
+                        core_model_dim=core_model_dims[i],
+                        core_model=core_models[i],
+                        out_dim=latent_action_dims[i],
+                        upper_action_dim=upper_action_dim,
+                    ),
+                    generator=Generator(
+                        latent_dim=latent_action_dims[i],
+                        action_info=act_cfg,
+                    ),
+                ),
+                device=device,
+                dtype=dtype,
+            )
+        )
+    return models
