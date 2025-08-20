@@ -251,7 +251,7 @@ def create_hierarchical(
     models = []
     for i in range(num_layers):
         obs_cfg = obs_info if i == 0 else latent_obs_dims[i - 1]
-        act_cfg = action_info if i == 0 else latent_action_dims[i - 1]
+        act_cfg = action_info if i == 0 else action_dims[i - 1]
         upper_action_dim = action_dims[i + 1] if (i + 1) < num_layers else None
         models.append(
             TorchTrainingModel(
