@@ -252,6 +252,8 @@ def create_hierarchical(
     dtype: torch.dtype | None = None,
 ) -> list[TorchTrainingModel[LatentFDFramework]]:
     """Creates hierarchical LatentFD models."""
+    from .components.qlstm import FFNSwiGLU
+
     if not (
         len(latent_action_dims)
         == len(latent_obs_dims)
@@ -277,6 +279,10 @@ def create_hierarchical(
                     predictor=Predictor(
                         latent_dim=latent_obs_dims[i],
                         obs_info=obs_cfg,
+                        core_model=FFNSwiGLU(
+                            dim=core_model_dims[i], dim_ff_hidden=core_model_dims[i] * 4
+                        ),
+                        core_model_dim=core_model_dims[i],
                     ),
                 ),
                 device=device,
