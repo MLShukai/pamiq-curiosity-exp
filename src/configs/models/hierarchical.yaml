@@ -49,7 +49,7 @@ forward_dynamics:
         - ${shared.image.width}
       patch_size: 12 # Same as JEPA Instantiation
       output_downsample: 3 # Same as JEPA Instantiation
-    dim_hidden: ${..dim}
+    dim_hidden: ${.dim}
 
   latent_action_dims: ${models.policy_value.latent_action_dims}
 
