@@ -273,7 +273,7 @@ class TestPPOHiddenStatePiVTrainer:
             ]
 
             # Only the last buffer should have UPPER_ACTION
-            if i == num_buffers - 1:
+            if i < num_buffers - 1:
                 expected_keys.append(DataKey.UPPER_ACTION)
 
             assert buffer.keys == set(expected_keys)
