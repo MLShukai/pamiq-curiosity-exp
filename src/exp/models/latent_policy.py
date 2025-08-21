@@ -114,7 +114,7 @@ class Encoder(nn.Module):
         self.core_model = core_model
 
         self.out_proj = nn.Identity()
-        if out_dim is not None:
+        if out_dim is not None and out_dim != core_model_dim:
             self.out_proj = nn.Linear(core_model_dim, out_dim)
 
     @override
