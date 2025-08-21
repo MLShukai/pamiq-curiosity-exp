@@ -107,6 +107,7 @@ class Encoder(nn.Module):
             obs_action_dim += obs_info
 
         # Setup upper action projection
+        self.upper_action_dim = upper_action_dim
         if upper_action_dim is not None:
             obs_action_dim += upper_action_dim
 
@@ -144,7 +145,11 @@ class Encoder(nn.Module):
                 - Updated hidden state tensor of shape (*batch, depth, dim).
         """
         x = self.obs_flatten(obs)
-        if upper_action is not None:
+        if self.upper_action_dim is not None:
+            if upper_action is None:
+                upper_action = torch.zeros(
+                    *x.shape[:-1], self.upper_action_dim, device=x.device, dtype=x.dtype
+                )
             x = torch.cat([x, upper_action], dim=-1)
         x = self.obs_action_proj(x)
         x, hidden = self.core_model.forward(x, hidden, no_len=no_len)
