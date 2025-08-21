@@ -30,13 +30,21 @@ logging.captureWarnings(True)
 @hydra.main("./configs", "train", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     cfg_view = cfg.copy()
-    OmegaConf.resolve(cfg_view)
-    logger.info(f"Loaded configuration:\n{OmegaConf.to_yaml(cfg_view)}")
 
     # Convert device and dtype string object to pytorch object.
     shared_cfg = cfg.shared
     shared_cfg.device = f"${{torch.device:{shared_cfg.device}}}"
     shared_cfg.dtype = f"${{torch.dtype:{shared_cfg.dtype}}}"
+
+    # Instantiations
+    interaction = instantiate_interaction(cfg)
+    buffers = instantiate_buffers(cfg)
+    trainers = instantiate_trainers(cfg)
+    models = instantiate_models(cfg)
+
+    # Show omegaconf
+    OmegaConf.resolve(cfg_view)
+    logger.info(f"Loaded configuration:\n{OmegaConf.to_yaml(cfg_view)}")
 
     # Initialize Aim Run
     aim_run = aim.Run(
@@ -59,10 +67,10 @@ def main(cfg: DictConfig) -> None:
         log_config(cfg_view, aim_run)
 
         launch(
-            interaction=instantiate_interaction(cfg),
-            models=instantiate_models(cfg),
-            buffers=instantiate_buffers(cfg),
-            trainers=instantiate_trainers(cfg),
+            interaction=interaction,
+            models=models,
+            buffers=buffers,
+            trainers=trainers,
             config=LaunchConfig(
                 **cfg.launch,
             ),
