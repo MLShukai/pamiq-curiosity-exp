@@ -342,7 +342,7 @@ class PPOHiddenStatePiVTrainer(TorchTrainer):
             bufs.append(
                 cls.create_buffer(
                     max_size,
-                    include_upper_action=(i + 1) == num,  # Top only.
+                    include_upper_action=(i + 1) < num,  #  without top.
                 )
             )
         return bufs
