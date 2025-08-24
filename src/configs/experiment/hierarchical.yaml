@@ -8,7 +8,7 @@ defaults:
 
 shared:
   num_hierarchical_layers: 4
-  max_imagination_steps: 3
+  max_imagination_steps: 1
   dtype: bfloat16
 
 experiment_name: "hierarchical"
