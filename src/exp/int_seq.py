@@ -14,19 +14,18 @@ def same(value: int, num: int) -> list[int]:
     return [value] * num
 
 
-def exponential(base: int, power: float, num: int, shift: int = 0) -> list[int]:
-    """Generate exponential sequence.
+def geometric(init: float, ratio: float, num: int) -> list[int]:
+    """Generate geometric sequence.
 
     Args:
-        base: Base for exponential calculation.
-        power: Power multiplier for each step.
+        init: Initial value.
+        ratio: Common ratio between consecutive elements.
         num: Number of elements.
-        shift: Value added to each element.
 
     Returns:
-        List with exponential progression.
+        List with geometric progression.
     """
-    return [shift + int(base ** (power * i)) for i in range(num)]
+    return [int(init * ratio**i) for i in range(num)]
 
 
 def arithmetic(start: int, diff: int, num: int) -> list[int]:

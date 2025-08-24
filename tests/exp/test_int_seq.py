@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.exp.int_seq import arithmetic, exponential, same
+from src.exp.int_seq import arithmetic, geometric, same
 
 
 class TestSame:
@@ -24,30 +24,33 @@ class TestSame:
         assert result == expected
 
 
-class TestExponential:
-    """Tests for exponential function."""
+class TestGeometric:
+    """Tests for geometric function."""
 
     @pytest.mark.parametrize(
-        "base,power,num,shift,expected",
+        "init,ratio,num,expected",
         [
-            (2, 1.0, 4, 0, [1, 2, 4, 8]),
-            (3, 0.5, 3, 0, [1, 1, 3]),  # int(3^0.5) = int(1.732) = 1
-            (2, 2.0, 3, 5, [6, 9, 21]),  # [5+1, 5+4, 5+16]
-            (10, 0.0, 3, 0, [1, 1, 1]),  # 10^0 = 1 for all
-            (2, 1.0, 0, 0, []),
+            (1.0, 2.0, 4, [1, 2, 4, 8]),
+            (10.0, 0.5, 4, [10, 5, 2, 1]),
+            (3.0, 3.0, 3, [3, 9, 27]),
+            (100.0, 0.1, 3, [100, 10, 1]),
+            (2.0, 1.0, 3, [2, 2, 2]),  # ratio=1 gives constant sequence
+            (5.0, 2.0, 0, []),
+            (0.0, 2.0, 3, [0, 0, 0]),  # init=0 gives all zeros
         ],
     )
-    def test_exponential_basic_cases(
-        self, base: int, power: float, num: int, shift: int, expected: list[int]
+    def test_geometric_basic_cases(
+        self, init: float, ratio: float, num: int, expected: list[int]
     ) -> None:
-        """Test exponential function with various parameters."""
-        result = exponential(base, power, num, shift)
+        """Test geometric function with various parameters."""
+        result = geometric(init, ratio, num)
         assert result == expected
 
-    def test_exponential_default_shift(self) -> None:
-        """Test exponential function with default shift parameter."""
-        result = exponential(2, 1.0, 3)
-        assert result == [1, 2, 4]
+    def test_geometric_with_fractional_results(self) -> None:
+        """Test geometric function with values that get truncated."""
+        result = geometric(10.0, 0.3, 4)
+        # 10, 3, 0.9, 0.27 -> [10, 3, 0, 0] when converted to int
+        assert result == [10, 3, 0, 0]
 
 
 class TestArithmetic:
