@@ -6,8 +6,10 @@ from typing import Any, override
 import torch
 import torch.nn.functional as F
 from pamiq_core.torch import TorchAgent
+from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
 from exp.models.latent_fd import LatentFDFramework
@@ -61,6 +63,7 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
         reward_lerp_ratio: float,
         is_top: bool,
         device: torch.device | None = None,
+        log_every_n_steps: int = 1,
     ) -> None:
         """Initializes the LayerCuriosityAgent with model buffer suffix, reward
         coefficient, and reward lerp ratio.
@@ -85,6 +88,10 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
         self.step_data_policy_required_keys = STEP_DATA_POLICY_REQUIRED_KEYS.copy()
         if is_top:
             self.step_data_policy_required_keys.discard(DataKey.UPPER_ACTION)
+
+        self.metrics: dict[str, float] = {}
+        self.scheduler = StepIntervalScheduler(log_every_n_steps, self.log_metrics)
+        self.global_step = 0
 
     @override
     def on_data_collectors_attached(self) -> None:
@@ -145,6 +152,7 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
                     + (1 - self.reward_lerp_ratio) * upper_reward
                 )
             self.step_data_policy[DataKey.REWARD] = reward.cpu()
+            self.metrics["reward"] = reward.item()
         else:
             reward = None
 
@@ -174,6 +182,7 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
         self.step_data_policy[DataKey.ACTION] = action.cpu()
         self.step_data_policy[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()
         self.step_data_policy[DataKey.VALUE] = value.cpu()
+        self.metrics["value"] = value.cpu().item()
 
         # ================================================
         #             Forward Dynamics Step
@@ -198,9 +207,30 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
         #                 Return Output
         # ================================================
 
+        self.scheduler.update()
+        self.global_step += 1
         return LayerOutput(
             lower_observation=layer_norm(latent_obs), action=action, reward=reward
         )
+
+    def log_metrics(self) -> None:
+        """Log collected metrics to Aim.
+
+        Writes all metrics in the metrics dictionary to Aim with the
+        current global step.
+        """
+        if run := get_global_run():
+            for k, v in self.metrics.items():
+                run.track(
+                    v,
+                    name=k,
+                    step=self.global_step,
+                    context={
+                        "namespace": "agent",
+                        "curiosity_type": "hierarchical",
+                        "layer": self.model_buffer_suffix,
+                    },
+                )
 
     @override
     def save_state(self, path: Path):
@@ -217,6 +247,7 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
             torch.save(self.policy_encoder_hidden, path / "policy_encoder_hidden.pt")
         if self.fd_encoder_hidden is not None:
             torch.save(self.fd_encoder_hidden, path / "fd_encoder_hidden.pt")
+        (path / "global_step").write_text(str(self.global_step), "utf-8")
 
     @override
     def load_state(self, path: Path):
@@ -232,6 +263,7 @@ class LayerCuriosityAgent(TorchAgent[LayerInput, LayerOutput]):
             self.policy_encoder_hidden = torch.load(p, map_location=self.device)
         if (p := path / "fd_encoder_hidden.pt").is_file():
             self.fd_encoder_hidden = torch.load(p, map_location=self.device)
+        self.global_step = int((path / "global_step").read_text("utf-8"))
 
 
 def create_reward_coef(method: str, num_layers: int) -> list[float]:
