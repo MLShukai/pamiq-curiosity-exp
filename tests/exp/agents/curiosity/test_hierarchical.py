@@ -3,18 +3,17 @@ import torch
 from pamiq_core.testing import (
     connect_components,
     create_mock_buffer,
-    create_mock_models,
 )
+from pamiq_core.torch import TorchTrainingModel
 from pytest_mock import MockerFixture
 from torch.distributions import Normal
 
 from exp.agents.curiosity.hierarchical import (
     HierarchicalCuriosityAgent,
+    LatentFDFramework,
+    LatentPiVFramework,
     LayerCuriosityAgent,
     LayerInput,
-    LayerOutput,
-    LayerTimescaleMethod,
-    RewardCoefMethod,
     create_layer_timescale,
     create_reward_coef,
 )
@@ -35,36 +34,41 @@ class TestLayerCuriosityAgent:
     """Test suite for LayerCuriosityAgent."""
 
     @pytest.fixture
-    def forward_dynamics(self):
-        model, _ = create_mock_models()
-        obs_hat = torch.zeros(OBSERVATION_DIM)
+    def forward_dynamics(self, mocker: MockerFixture):
+        # Create a mock framework that will be returned by unwrap
+        mock_framework = mocker.MagicMock(spec=LatentFDFramework)
+
+        # Mock encoder method
         latent_obs = torch.zeros(LATENT_OBSERVATION_DIM)
         encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        model.inference_model.return_value = (
-            obs_hat,
-            latent_obs,
-            encoder_hidden,
-            predictor_hidden,
+        mock_framework.encoder = mocker.MagicMock(
+            return_value=(latent_obs, encoder_hidden)
         )
-        return model
+
+        # Mock predictor method
+        obs_hat = torch.zeros(OBSERVATION_DIM)
+        mock_framework.predictor = mocker.MagicMock(return_value=obs_hat)
+
+        return TorchTrainingModel(mock_framework)
 
     @pytest.fixture
-    def policy_value(self):
-        model, _ = create_mock_models()
+    def policy_value(self, mocker: MockerFixture):
+        # Create a mock framework that will be returned by unwrap
+        mock_framework = mocker.MagicMock(spec=LatentPiVFramework)
+
+        # Mock encoder method
+        latent_action = torch.zeros(LATENT_OBSERVATION_DIM)
+        encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        mock_framework.encoder = mocker.MagicMock(
+            return_value=(latent_action, encoder_hidden)
+        )
+
+        # Mock generator method
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
         value = torch.tensor(0.5)
-        encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        latent = torch.zeros(LATENT_OBSERVATION_DIM)
-        model.inference_model.return_value = (
-            action_dist,
-            value,
-            latent,
-            encoder_hidden,
-            predictor_hidden,
-        )
-        return model
+        mock_framework.generator = mocker.MagicMock(return_value=(action_dist, value))
+
+        return TorchTrainingModel(mock_framework)
 
     @pytest.fixture
     def models(self, forward_dynamics, policy_value):
@@ -86,6 +90,7 @@ class TestLayerCuriosityAgent:
             model_buffer_suffix=MODEL_BUFFER_SUFFIX,
             reward_coef=1.0,
             reward_lerp_ratio=0.5,
+            is_top=False,
             device=torch.device("cpu"),
         )
         connect_components(agent, models=models, buffers=buffers)
@@ -102,9 +107,7 @@ class TestLayerCuriosityAgent:
         agent.setup()
         assert agent.obs_hat is None
         assert agent.policy_encoder_hidden is None
-        assert agent.policy_predictor_hidden is None
         assert agent.fd_encoder_hidden is None
-        assert agent.fd_predictor_hidden is None
 
         observation = LayerInput(
             observation=torch.zeros(OBSERVATION_DIM),
@@ -114,9 +117,7 @@ class TestLayerCuriosityAgent:
 
         assert agent.obs_hat is None
         assert agent.policy_encoder_hidden is None
-        assert agent.policy_predictor_hidden is None
         assert agent.fd_encoder_hidden is None
-        assert agent.fd_predictor_hidden is None
 
         output = agent.step(observation)
         observation_from_lower, action, reward = (
@@ -137,24 +138,8 @@ class TestLayerCuriosityAgent:
             )
         )
         assert (
-            agent.policy_predictor_hidden is not None
-            and agent.policy_predictor_hidden.shape
-            == (
-                DEPTH,
-                HIDDEN_DIM,
-            )
-        )
-        assert (
             agent.fd_encoder_hidden is not None
             and agent.fd_encoder_hidden.shape
-            == (
-                DEPTH,
-                HIDDEN_DIM,
-            )
-        )
-        assert (
-            agent.fd_predictor_hidden is not None
-            and agent.fd_predictor_hidden.shape
             == (
                 DEPTH,
                 HIDDEN_DIM,
@@ -184,24 +169,8 @@ class TestLayerCuriosityAgent:
             )
         )
         assert (
-            agent.policy_predictor_hidden is not None
-            and agent.policy_predictor_hidden.shape
-            == (
-                DEPTH,
-                HIDDEN_DIM,
-            )
-        )
-        assert (
             agent.fd_encoder_hidden is not None
             and agent.fd_encoder_hidden.shape
-            == (
-                DEPTH,
-                HIDDEN_DIM,
-            )
-        )
-        assert (
-            agent.fd_predictor_hidden is not None
-            and agent.fd_predictor_hidden.shape
             == (
                 DEPTH,
                 HIDDEN_DIM,
@@ -229,24 +198,8 @@ class TestLayerCuriosityAgent:
             )
         )
         assert (
-            agent.policy_predictor_hidden is not None
-            and agent.policy_predictor_hidden.shape
-            == (
-                DEPTH,
-                HIDDEN_DIM,
-            )
-        )
-        assert (
             agent.fd_encoder_hidden is not None
             and agent.fd_encoder_hidden.shape
-            == (
-                DEPTH,
-                HIDDEN_DIM,
-            )
-        )
-        assert (
-            agent.fd_predictor_hidden is not None
-            and agent.fd_predictor_hidden.shape
             == (
                 DEPTH,
                 HIDDEN_DIM,
@@ -255,13 +208,39 @@ class TestLayerCuriosityAgent:
         assert spy_fd_collect.call_count == 2
         assert spy_policy_collect.call_count == 1
 
+    def test_top_layer_agent(self, models, buffers):
+        """Test LayerCuriosityAgent configured as top layer."""
+        agent = LayerCuriosityAgent(
+            model_buffer_suffix=MODEL_BUFFER_SUFFIX,
+            reward_coef=1.0,
+            reward_lerp_ratio=0.5,
+            is_top=True,
+            device=torch.device("cpu"),
+        )
+        connect_components(agent, models=models, buffers=buffers)
+        agent.setup()
+
+        # Top layer should not require upper_action in step_data_policy_required_keys
+        assert DataKey.UPPER_ACTION not in agent.step_data_policy_required_keys
+
+        observation = LayerInput(
+            observation=torch.zeros(OBSERVATION_DIM),
+            upper_action=None,  # Top layer doesn't use this
+            upper_reward=None,
+        )
+
+        output = agent.step(observation)
+        assert output.lower_observation.shape == (LATENT_OBSERVATION_DIM,)
+        assert output.action.shape == (ACTION_DIM,)
+        assert output.reward is None
+
     def test_save_and_load(self, agent: LayerCuriosityAgent, tmp_path):
         """Test saving and loading agent state."""
         agent.setup()
         observation = LayerInput(
             observation=torch.zeros(OBSERVATION_DIM),
-            upper_action=None,
-            upper_reward=None,
+            upper_action=torch.zeros(ACTION_DIM),
+            upper_reward=torch.tensor(0.0),
         )
         agent.step(observation)
 
@@ -274,6 +253,7 @@ class TestLayerCuriosityAgent:
             model_buffer_suffix=MODEL_BUFFER_SUFFIX,
             reward_coef=1.0,
             reward_lerp_ratio=0.5,
+            is_top=False,
             device=torch.device("cpu"),
         )
         new_agent.load_state(save_path)
@@ -291,21 +271,9 @@ class TestLayerCuriosityAgent:
             )
         )
         assert (
-            new_agent.policy_predictor_hidden is not None
-            and agent.policy_predictor_hidden is not None
-            and torch.equal(
-                new_agent.policy_predictor_hidden, agent.policy_predictor_hidden
-            )
-        )
-        assert (
             new_agent.fd_encoder_hidden is not None
             and agent.fd_encoder_hidden is not None
             and torch.equal(new_agent.fd_encoder_hidden, agent.fd_encoder_hidden)
-        )
-        assert (
-            new_agent.fd_predictor_hidden is not None
-            and agent.fd_predictor_hidden is not None
-            and torch.equal(new_agent.fd_predictor_hidden, agent.fd_predictor_hidden)
         )
 
 
@@ -313,36 +281,41 @@ class TestHierarchicalCuriosityAgent:
     """Test suite for HierarchicalCuriosityAgent."""
 
     @pytest.fixture
-    def forward_dynamics(self):
-        model, _ = create_mock_models()
-        obs_hat = torch.zeros(OBSERVATION_DIM)
+    def forward_dynamics(self, mocker: MockerFixture):
+        # Create a mock framework that will be returned by unwrap
+        mock_framework = mocker.MagicMock(spec=LatentFDFramework)
+
+        # Mock encoder method
         latent_obs = torch.zeros(OBSERVATION_DIM)
         encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        model.inference_model.return_value = (
-            obs_hat,
-            latent_obs,
-            encoder_hidden,
-            predictor_hidden,
+        mock_framework.encoder = mocker.MagicMock(
+            return_value=(latent_obs, encoder_hidden)
         )
-        return model
+
+        # Mock predictor method
+        obs_hat = torch.zeros(OBSERVATION_DIM)
+        mock_framework.predictor = mocker.MagicMock(return_value=obs_hat)
+
+        return TorchTrainingModel(mock_framework)
 
     @pytest.fixture
-    def policy_value(self):
-        model, _ = create_mock_models()
+    def policy_value(self, mocker: MockerFixture):
+        # Create a mock framework that will be returned by unwrap
+        mock_framework = mocker.MagicMock(spec=LatentPiVFramework)
+
+        # Mock encoder method
+        latent_action = torch.zeros(OBSERVATION_DIM)
+        encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
+        mock_framework.encoder = mocker.MagicMock(
+            return_value=(latent_action, encoder_hidden)
+        )
+
+        # Mock generator method
         action_dist = Normal(torch.zeros(OBSERVATION_DIM), torch.ones(OBSERVATION_DIM))
         value = torch.tensor(0.5)
-        policy_encoder_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        policy_predictor_hidden = torch.zeros(DEPTH, HIDDEN_DIM)
-        latent = torch.zeros(OBSERVATION_DIM)
-        model.inference_model.return_value = (
-            action_dist,
-            value,
-            latent,
-            policy_encoder_hidden,
-            policy_predictor_hidden,
-        )
-        return model
+        mock_framework.generator = mocker.MagicMock(return_value=(action_dist, value))
+
+        return TorchTrainingModel(mock_framework)
 
     @pytest.fixture
     def models(self, forward_dynamics, policy_value):
@@ -391,17 +364,11 @@ class TestHierarchicalCuriosityAgent:
         )
 
         hierarchical_agent.setup()
-        assert (
-            hierarchical_agent.action_to_lower_list
-            == [None] * hierarchical_agent.num_layers
+        assert hierarchical_agent.action_to_lower_list == [None] * (
+            hierarchical_agent.num_layers + 1
         )
-        assert (
-            hierarchical_agent.reward_to_lower_list
-            == [None] * hierarchical_agent.num_layers
-        )
-        assert (
-            hierarchical_agent.observation_to_upper_list
-            == [None] * hierarchical_agent.num_layers
+        assert hierarchical_agent.reward_to_lower_list == [None] * (
+            hierarchical_agent.num_layers + 1
         )
 
         observation = torch.zeros(OBSERVATION_DIM)

@@ -1,6 +1,7 @@
 """Defines forward dynamics models."""
 
 import copy
+from abc import ABC, abstractmethod
 from typing import Any, override
 
 import torch
@@ -14,7 +15,59 @@ from .components.stacked_hidden_state import StackedHiddenState
 from .utils import ActionInfo, ObsInfo
 
 
-class StackedHiddenFD(nn.Module):
+class HiddenStateFD(ABC, nn.Module):
+    """Abstract base class for forward dynamics models with hidden state
+    support.
+
+    This class defines the interface for forward dynamics models that
+    maintain hidden state across time steps. Implementations should
+    predict next observations from current observations and actions
+    while updating their internal hidden state.
+    """
+
+    @override
+    @abstractmethod
+    def forward(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, Tensor]:
+        """Forward pass to predict next observation and update hidden state.
+
+        Args:
+            obs: Current observation tensor.
+            action: Action tensor.
+            hidden: Optional hidden state from previous timestep. If None,
+                implementations should initialize appropriate hidden state.
+            no_len: If True, processes inputs without sequence length dimension.
+
+        Returns:
+            A tuple containing:
+                - Predicted next observation tensor.
+                - Updated hidden state tensor for next timestep.
+        """
+        pass
+
+    @override
+    def __call__(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, Tensor]:
+        """Call method with proper type annotations.
+
+        See forward() method for full documentation.
+        """
+        return super().__call__(obs, action, hidden, no_len=no_len)
+
+
+class StackedHiddenFD(HiddenStateFD):
     """Forward dynamics using StackedHiddenState model variants for core
     model."""
 
@@ -63,12 +116,14 @@ class StackedHiddenFD(nn.Module):
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
+        *,
+        no_len: bool = False,
     ) -> tuple[Tensor, Tensor]:
         """Forward pass to predict next observation distribution.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, len, num_token, action_chocies)
+            action: Action tensor. shape is (*batch, len, num_token, action_choices)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -78,22 +133,9 @@ class StackedHiddenFD(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
         """
         x = self._flatten_obs_action(obs, action)
-        x, next_hidden = self.core_model(x, hidden)
+        x, next_hidden = self.core_model(x, hidden, no_len=no_len)
         obs_hat = self.obs_hat_head(x)
         return obs_hat, next_hidden
-
-    @override
-    def __call__(
-        self,
-        obs: Tensor,
-        action: Tensor,
-        hidden: Tensor | None = None,
-    ) -> tuple[Tensor, Tensor]:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(obs, action, hidden)
 
     def forward_with_no_len(
         self,
@@ -105,7 +147,7 @@ class StackedHiddenFD(nn.Module):
 
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            action: Action tensor. shape is (*batch, num_token, action_choices)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -115,7 +157,7 @@ class StackedHiddenFD(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
         """
         x = self._flatten_obs_action(obs, action)  # (*batch, dim)
-        x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
+        x, next_hidden = self.core_model(x, hidden, no_len=True)
         return self.obs_hat_head(x), next_hidden
 
 

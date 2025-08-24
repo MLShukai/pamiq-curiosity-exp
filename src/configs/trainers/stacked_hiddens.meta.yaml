@@ -1,5 +1,5 @@
 forward_dynamics:
-  _target_: exp.trainers.forward_dynamics.StackedHiddenFDTrainerExplicitTarget.create_multiple
+  _target_: exp.trainers.forward_dynamics.HiddenStateFDTrainerExplicitTarget.create_multiple
   num_trainers: ${shared.num_meta_levels}
   partial_optimizer:
     _target_: torch.optim.SGD
@@ -13,7 +13,7 @@ forward_dynamics:
   min_new_data_count: 128
 
 policy:
-  _target_: exp.trainers.ppo_policy.PPOStackedHiddenPiVTrainer
+  _target_: exp.trainers.ppo_policy.PPOHiddenStatePiVTrainer
   partial_optimizer:
     _target_: torch.optim.SGD
     _partial_: true

@@ -146,3 +146,4 @@ exclude_lines = [
 
 [tool.uv.sources]
 inputtino-python = { git = "https://github.com/games-on-whales/inputtino.git", subdirectory = "bindings/python" }
+pamiq-core = { git = "https://github.com/MLShukai/pamiq-core" }

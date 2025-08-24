@@ -1,236 +1,341 @@
 import pytest
 import torch
 import torch.nn as nn
-from torch.distributions import Normal
 
-from exp.models.components.stacked_hidden_state import StackedHiddenState
-from exp.models.latent_policy import (
-    FCDeterministicNormalHead,
-    LatentPolicy,
-    ObsUpperActionFlattenHead,
-)
+from exp.models.components.multi_discretes import MultiCategoricals
+from exp.models.components.qlstm import QLSTM
+from exp.models.latent_policy import Encoder, Generator, LatentPiVFramework
 from exp.models.utils import ActionInfo, ObsInfo
+from tests.helpers import parametrize_device
 
 
-class TestLatentPolicy:
-    """Test suite for the LatentPolicy model components."""
-
-    # Test hyperparameters
-    BATCH_SIZE = 2
-    SEQ_LEN = 3
-    DEPTH = 2
-    DIM_CORE_MODEL = 16
-    DIM_EMBED = 12
-    OBS_DIM = 8
-    OBS_DIM_HIDDEN = 10
-    OBS_NUM_TOKENS = 4
-    UPPER_ACTION_DIM = 12
-    ACTION_DIM = 6
-    ACTION_CHOICES = [2, 3, 4]
+class TestEncoder:
+    """Test suite for the Encoder module."""
 
     @pytest.fixture
     def obs_info(self):
-        return ObsInfo(
-            dim=self.OBS_DIM,
-            dim_hidden=self.OBS_DIM_HIDDEN,
-            num_tokens=self.OBS_NUM_TOKENS,
+        return ObsInfo(dim=8, dim_hidden=10, num_tokens=4)
+
+    @pytest.fixture
+    def core_model(self):
+        return QLSTM(depth=2, dim=16, dim_ff_hidden=32, dropout=0.1)
+
+    @parametrize_device
+    def test_encoder_with_obs_info(self, obs_info, core_model, device):
+        """Test encoder with ObsInfo configuration."""
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+            out_dim=12,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
         )
+
+        output, hidden = encoder(obs)
+
+        assert output.shape == (batch_size, seq_len, 12)
+        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+
+    @parametrize_device
+    def test_encoder_with_int_dimension(self, core_model, device):
+        """Test encoder with direct integer dimension."""
+        encoder = Encoder(
+            obs_info=10,
+            core_model_dim=16,
+            core_model=core_model,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(batch_size, seq_len, 10, device=device)
+
+        output, hidden = encoder(obs)
+
+        assert output.shape == (batch_size, seq_len, 16)
+        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+
+    @parametrize_device
+    def test_encoder_without_out_dim(self, obs_info, core_model, device):
+        """Test encoder without explicit output dimension."""
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+
+        output, hidden = encoder(obs)
+
+        assert output.shape == (batch_size, seq_len, 16)  # Uses core_model_dim
+        assert hidden.shape == (batch_size, 2, seq_len, 16)
+
+    @parametrize_device
+    def test_encoder_with_hidden_state(self, obs_info, core_model, device):
+        """Test encoder with provided hidden state."""
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+        hidden = torch.randn(batch_size, 2, 16, device=device)  # Initial hidden state
+
+        output, next_hidden = encoder(obs, hidden)
+
+        assert output.shape == (batch_size, seq_len, 16)
+        assert next_hidden.shape == (batch_size, 2, seq_len, 16)
+
+    @parametrize_device
+    def test_encoder_with_upper_action(self, obs_info, core_model, device):
+        """Test encoder with upper_action_dim parameter requires
+        upper_action."""
+        upper_action_dim = 5
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+            out_dim=12,
+            upper_action_dim=upper_action_dim,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+        # When upper_action_dim is specified, upper_action must be provided
+        upper_action = torch.randn(batch_size, seq_len, upper_action_dim, device=device)
+
+        output, hidden = encoder(obs, upper_action=upper_action)
+
+        assert output.shape == (batch_size, seq_len, 12)
+        assert hidden.shape == (batch_size, 2, seq_len, 16)
+
+    @parametrize_device
+    def test_encoder_without_upper_action_dim(self, obs_info, core_model, device):
+        """Test encoder without upper_action_dim works without upper_action."""
+        encoder = Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=core_model,
+            out_dim=12,
+            # No upper_action_dim specified
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+
+        # Should work without upper_action when upper_action_dim is not specified
+        output, hidden = encoder(obs)
+
+        assert output.shape == (batch_size, seq_len, 12)
+        assert hidden.shape == (batch_size, 2, seq_len, 16)
+
+
+class TestGenerator:
+    """Test suite for the Generator module."""
 
     @pytest.fixture
     def action_info(self):
-        return ActionInfo(
-            choices=self.ACTION_CHOICES,
-            dim=self.ACTION_DIM,
-        )
+        return ActionInfo(choices=[2, 3, 4], dim=8)  # Multi-discrete action space
 
-    @pytest.fixture
-    def mock_encoder(self, mocker):
-        """Mock StackedHiddenState for isolated testing."""
-        mock = mocker.Mock(spec=StackedHiddenState)
-        # Set up the mock to return predictable outputs
-        output_tensor = torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.DIM_CORE_MODEL)
-        hidden_tensor = torch.randn(
-            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
-        )
-        output_tensor_no_len = torch.randn(self.BATCH_SIZE, self.DIM_CORE_MODEL)
-        hidden_tensor_no_len = torch.randn(
-            self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL
-        )
+    @parametrize_device
+    def test_generator_basic(self, action_info, device):
+        """Test basic generator functionality."""
+        generator = Generator(
+            latent_dim=12,
+            action_info=action_info,
+        ).to(device)
 
-        # Configure return values based on no_len parameter
-        def side_effect(x, hidden=None, *, no_len=False):
-            if no_len:
-                return output_tensor_no_len, hidden_tensor_no_len
-            else:
-                return output_tensor, hidden_tensor
+        batch_size, seq_len = 2, 3
+        latent = torch.randn(batch_size, seq_len, 12, device=device)
 
-        mock.side_effect = side_effect
-        mock.forward_with_no_len.return_value = (
-            output_tensor_no_len,
-            hidden_tensor_no_len,
-        )
-        return mock
+        policy_dist, value = generator(latent)
 
-    @pytest.fixture
-    def mock_predictor(self, mocker):
-        """Mock StackedHiddenState for isolated testing."""
-        mock = mocker.Mock(spec=StackedHiddenState)
-        # Set up the mock to return predictable outputs
-        output_tensor = torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.DIM_CORE_MODEL)
-        hidden_tensor = torch.randn(
-            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
-        )
-        output_tensor_no_len = torch.randn(self.BATCH_SIZE, self.DIM_CORE_MODEL)
-        hidden_tensor_no_len = torch.randn(
-            self.BATCH_SIZE, self.DEPTH, self.DIM_CORE_MODEL
-        )
-
-        # Configure return values based on no_len parameter
-        def side_effect(x, hidden=None, *, no_len=False):
-            if no_len:
-                return output_tensor_no_len, hidden_tensor_no_len
-            else:
-                return output_tensor, hidden_tensor
-
-        mock.side_effect = side_effect
-        mock.forward_with_no_len.return_value = (
-            output_tensor_no_len,
-            hidden_tensor_no_len,
-        )
-        return mock
-
-    @pytest.fixture
-    def obs_upper_action_flatten_head(self, obs_info):
-        return ObsUpperActionFlattenHead(
-            obs_info=obs_info,
-            action_dim=self.UPPER_ACTION_DIM,
-            output_dim=self.DIM_CORE_MODEL,
-        )
-
-    @pytest.fixture
-    def action_dist_head(self):
-        return FCDeterministicNormalHead(
-            dim_in=self.DIM_CORE_MODEL,
-            dim_out=self.ACTION_DIM,
-        )
-
-    @pytest.fixture
-    def value_head(self):
-        return nn.Linear(
-            in_features=self.DIM_CORE_MODEL,
-            out_features=1,  # Single value output
-        )
-
-    @pytest.fixture
-    def latent_policy(
-        self,
-        obs_upper_action_flatten_head,
-        mock_encoder,
-        mock_predictor,
-        action_dist_head,
-        value_head,
-    ):
-        """Fixture for LatentPolicy model."""
-        return LatentPolicy(
-            obs_upper_action_flatten_head=obs_upper_action_flatten_head,
-            encoder=mock_encoder,
-            predictor=mock_predictor,
-            action_dist_head=action_dist_head,
-            value_head=value_head,
-        )
-
-    @pytest.fixture
-    def obs_tensor(self):
-        """Observation tensor for testing."""
-        return torch.randn(
-            self.BATCH_SIZE, self.SEQ_LEN, self.OBS_NUM_TOKENS, self.OBS_DIM
-        )
-
-    @pytest.fixture
-    def upper_action_tensor(self):
-        """Action tensor for testing."""
-        return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.UPPER_ACTION_DIM)
-
-    @pytest.fixture
-    def hidden_encoder_tensor(self):
-        """Hidden state tensor for testing."""
-        return torch.randn(
-            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
-        )
-
-    @pytest.fixture
-    def hidden_predictor_tensor(self):
-        """Hidden state tensor for testing."""
-        return torch.randn(
-            self.BATCH_SIZE, self.DEPTH, self.SEQ_LEN, self.DIM_CORE_MODEL
-        )
-
-    def test_forward(
-        self,
-        latent_policy,
-        obs_tensor,
-        upper_action_tensor,
-        hidden_encoder_tensor,
-        hidden_predictor_tensor,
-    ):
-        """Test the forward pass of LatentPolicy."""
-        action_dist, value, latent, hidden_predictor, hidden_encoder = latent_policy(
-            obs=obs_tensor,
-            upper_action=upper_action_tensor,
-            hidden_encoder=hidden_encoder_tensor,
-            hidden_predictor=hidden_predictor_tensor,
-        )
-        assert isinstance(
-            action_dist, Normal
-        )  # Check if action_dist is a Normal distribution
-        assert action_dist.mean.shape == (
-            self.BATCH_SIZE,
-            self.SEQ_LEN,
-            self.ACTION_DIM,
-        )
-        assert value.shape == (self.BATCH_SIZE, self.SEQ_LEN, 1)
-        assert latent.shape == (self.BATCH_SIZE, self.SEQ_LEN, self.DIM_CORE_MODEL)
-        assert hidden_predictor.shape == (
-            self.BATCH_SIZE,
-            self.DEPTH,
-            self.SEQ_LEN,
-            self.DIM_CORE_MODEL,
-        )
-        assert hidden_encoder.shape == (
-            self.BATCH_SIZE,
-            self.DEPTH,
-            self.SEQ_LEN,
-            self.DIM_CORE_MODEL,
-        )
-
-    def test_forward_with_no_len(
-        self,
-        latent_policy,
-        obs_tensor,
-        upper_action_tensor,
-        hidden_encoder_tensor,
-        hidden_predictor_tensor,
-    ):
-        """Test the forward pass of LatentPolicy with no_len."""
-        action_dist, value, latent, hidden_predictor, hidden_encoder = (
-            latent_policy.forward_with_no_len(
-                obs=obs_tensor[:, 0],  # Use only the first time step for no_len
-                upper_action=upper_action_tensor[:, 0],
-                hidden_encoder=hidden_encoder_tensor[:, 0],
-                hidden_predictor=hidden_predictor_tensor[:, 0],
+        # Check policy distribution
+        assert isinstance(policy_dist, MultiCategoricals)
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
+            assert policy_dist.dists[i].logits.shape == (
+                batch_size,
+                seq_len,
+                num_choices,
             )
+
+        # Check value output
+        assert value.shape == (batch_size, seq_len)
+
+    @parametrize_device
+    def test_generator_with_core_model(self, action_info, device):
+        """Test generator with core model."""
+        generator = Generator(
+            latent_dim=12,
+            action_info=action_info,
+            core_model=nn.Linear(16, 16),
+            core_model_dim=16,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        latent = torch.randn(batch_size, seq_len, 12, device=device)
+
+        policy_dist, value = generator(latent)
+
+        # Check policy distribution
+        assert isinstance(policy_dist, MultiCategoricals)
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
+            assert policy_dist.dists[i].logits.shape == (
+                batch_size,
+                seq_len,
+                num_choices,
+            )
+
+        # Check value output
+        assert value.shape == (batch_size, seq_len)
+
+    @parametrize_device
+    def test_generator_single_step(self, action_info, device):
+        """Test generator with single-step input."""
+        generator = Generator(
+            latent_dim=12,
+            action_info=action_info,
+        ).to(device)
+
+        batch_size = 2
+        latent = torch.randn(batch_size, 12, device=device)
+
+        policy_dist, value = generator(latent)
+
+        # Check policy distribution
+        assert isinstance(policy_dist, MultiCategoricals)
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
+            assert policy_dist.dists[i].logits.shape == (batch_size, num_choices)
+
+        # Check value output
+        assert value.shape == (batch_size,)
+
+    @parametrize_device
+    def test_generator_action_sampling(self, action_info, device):
+        """Test that generator can sample valid actions."""
+        generator = Generator(
+            latent_dim=12,
+            action_info=action_info,
+        ).to(device)
+
+        batch_size, seq_len = 2, 3
+        latent = torch.randn(batch_size, seq_len, 12, device=device)
+
+        policy_dist, _ = generator(latent)
+
+        # Check policy distribution type
+        assert isinstance(policy_dist, MultiCategoricals)
+
+        # Sample actions
+        actions = policy_dist.sample()
+        assert actions.shape == (batch_size, seq_len, len(action_info.choices))
+
+        # Check that sampled actions are within valid range
+        for i, num_choices in enumerate(action_info.choices):
+            assert (actions[:, :, i] >= 0).all()
+            assert (actions[:, :, i] < num_choices).all()
+
+
+class TestLatentPiVFramework:
+    """Test suite for the LatentPiVFramework."""
+
+    @pytest.fixture
+    def obs_info(self):
+        return ObsInfo(dim=8, dim_hidden=10, num_tokens=4)
+
+    @pytest.fixture
+    def action_info(self):
+        return ActionInfo(choices=[2, 3], dim=8)
+
+    @pytest.fixture
+    def encoder(self, obs_info):
+        return Encoder(
+            obs_info=obs_info,
+            core_model_dim=16,
+            core_model=QLSTM(depth=2, dim=16, dim_ff_hidden=32, dropout=0.1),
+            out_dim=12,
         )
-        assert isinstance(action_dist, Normal)
-        assert action_dist.mean.shape == (self.BATCH_SIZE, self.ACTION_DIM)
-        assert value.shape == (self.BATCH_SIZE, 1)
-        assert latent.shape == (self.BATCH_SIZE, self.DIM_CORE_MODEL)
-        assert hidden_predictor.shape == (
-            self.BATCH_SIZE,
-            self.DEPTH,
-            self.DIM_CORE_MODEL,
+
+    @pytest.fixture
+    def generator(self, action_info):
+        return Generator(
+            latent_dim=12,
+            action_info=action_info,
         )
-        assert hidden_encoder.shape == (
-            self.BATCH_SIZE,
-            self.DEPTH,
-            self.DIM_CORE_MODEL,
+
+    @parametrize_device
+    def test_framework_forward(self, encoder, generator, obs_info, action_info, device):
+        """Test forward pass through the complete framework."""
+        framework = LatentPiVFramework(
+            encoder=encoder.to(device),
+            generator=generator.to(device),
         )
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+
+        policy_dist, value, hidden = framework(obs)
+
+        # Check policy distribution
+        assert isinstance(policy_dist, MultiCategoricals)
+        assert len(policy_dist.dists) == len(action_info.choices)
+        for i, num_choices in enumerate(action_info.choices):
+            assert policy_dist.dists[i].logits.shape == (
+                batch_size,
+                seq_len,
+                num_choices,
+            )
+
+        # Check value output
+        assert value.shape == (batch_size, seq_len)
+
+        # Check hidden state
+        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+
+    @parametrize_device
+    def test_framework_with_hidden_state(
+        self, encoder, generator, obs_info, action_info, device
+    ):
+        """Test framework with provided hidden state."""
+        framework = LatentPiVFramework(
+            encoder=encoder.to(device),
+            generator=generator.to(device),
+        )
+
+        batch_size, seq_len = 2, 3
+        obs = torch.randn(
+            batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
+        )
+        hidden = torch.randn(
+            batch_size,
+            2,
+            16,
+            device=device,  # Initial hidden state
+        )
+
+        policy_dist, value, next_hidden = framework(obs, hidden)
+
+        # Check outputs
+        assert isinstance(policy_dist, MultiCategoricals)
+        assert len(policy_dist.dists) == len(action_info.choices)
+        assert value.shape == (batch_size, seq_len)
+        assert next_hidden.shape == (batch_size, 2, seq_len, 16)
