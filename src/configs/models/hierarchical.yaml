@@ -10,8 +10,9 @@ policy_value:
     dim: 8
 
   action_dims:
-    _target_: exp.int_seq.same
-    value: 1024
+    _target_: exp.int_seq.arithmetic
+    start: 1024
+    diff: 2
     num: ${shared.num_hierarchical_layers}
 
   latent_obs_dims: ${models.forward_dynamics.latent_obs_dims}
@@ -19,8 +20,9 @@ policy_value:
   latent_action_dims: ${.core_model_dims}
 
   core_model_dims:
-    _target_: exp.int_seq.same
-    value: 1024
+    _target_: exp.int_seq.arithmetic
+    start: 1024
+    diff: 2
     num: ${shared.num_hierarchical_layers}
 
   core_models:
@@ -53,8 +55,9 @@ forward_dynamics:
   latent_obs_dims: ${.core_model_dims}
 
   core_model_dims:
-    _target_: exp.int_seq.same
-    value: 1024
+    _target_: exp.int_seq.arithmetic
+    start: 1024
+    diff: 2
     num: ${shared.num_hierarchical_layers}
 
   core_models:
