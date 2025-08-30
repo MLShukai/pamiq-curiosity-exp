@@ -254,7 +254,6 @@ def create_multiple(
         dim_list: A list of dimensions for each QLSTM block.
         dim_ff_hidden_scale: The scaling factor for the hidden layer dimensions.
         dropout: The dropout rate.
-        num: The number of QLSTM blocks.
 
     Returns:
         A ModuleList containing the QLSTM blocks.
