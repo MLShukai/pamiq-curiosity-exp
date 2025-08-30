@@ -10,8 +10,9 @@ policy_value:
     dim: 8
 
   action_dims:
-    _target_: exp.int_seq.same
-    value: 1024
+    _target_: exp.int_seq.arithmetic
+    start: 1024
+    diff: 2
     num: ${shared.num_hierarchical_layers}
 
   latent_obs_dims: ${models.forward_dynamics.latent_obs_dims}
@@ -19,19 +20,17 @@ policy_value:
   latent_action_dims: ${.core_model_dims}
 
   core_model_dims:
-    _target_: exp.int_seq.same
-    value: ${..core_models.obj.dim}
+    _target_: exp.int_seq.arithmetic
+    start: 1024
+    diff: 2
     num: ${shared.num_hierarchical_layers}
 
   core_models:
-    _target_: exp.utils.replicate
-    obj:
-      _target_: exp.models.components.QLSTM
-      dim: 1024
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
-      dropout: 0.1
-    num: ${shared.num_hierarchical_layers}
+    _target_: exp.models.components.qlstm.create_multiple
+    depth: 8
+    dim_list: ${..core_model_dims}
+    dim_ff_hidden_scale: 4
+    dropout: 0.1
 
   device: ${shared.device}
   dtype: ${shared.dtype}
@@ -56,19 +55,17 @@ forward_dynamics:
   latent_obs_dims: ${.core_model_dims}
 
   core_model_dims:
-    _target_: exp.int_seq.same
-    value: ${..core_models.obj.dim}
+    _target_: exp.int_seq.arithmetic
+    start: 1024
+    diff: 2
     num: ${shared.num_hierarchical_layers}
 
   core_models:
-    _target_: exp.utils.replicate
-    obj:
-      _target_: exp.models.components.QLSTM
-      dim: 1024
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 8
-      dropout: 0.1
-    num: ${shared.num_hierarchical_layers}
+    _target_: exp.models.components.qlstm.create_multiple
+    depth: 8
+    dim_list: ${..core_model_dims}
+    dim_ff_hidden_scale: 4
+    dropout: 0.1
 
   device: ${shared.device}
   dtype: ${shared.dtype}
