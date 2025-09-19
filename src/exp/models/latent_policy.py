@@ -10,8 +10,8 @@ from torch import Tensor
 from torch.distributions import Distribution
 
 from .components import (
-    FCDeterministicNormalHead,
     FCMultiCategoricalHead,
+    FCNormalHead,
     FCScalarHead,
     LerpStackedFeatures,
     StackedHiddenState,
@@ -206,7 +206,7 @@ class Generator(nn.Module):
         if isinstance(action_info, ActionInfo):
             self.policy_head = FCMultiCategoricalHead(head_dim_in, action_info.choices)
         else:
-            self.policy_head = FCDeterministicNormalHead(head_dim_in, action_info)
+            self.policy_head = FCNormalHead(head_dim_in, action_info)
         self.value_head = FCScalarHead(head_dim_in, squeeze_scalar_dim=True)
 
     @override

@@ -10,4 +10,5 @@ timescales:
   _target_: exp.agents.curiosity.hierarchical.create_layer_timescale
   method: "exponential_growth"
   num_layers: ${shared.num_hierarchical_layers}
+  timescale_multiplier: 8
 device_list: ${shared.device}
