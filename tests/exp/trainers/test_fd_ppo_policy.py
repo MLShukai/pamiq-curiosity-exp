@@ -304,4 +304,4 @@ class TestPPOHiddenStateFDPiVTrainer:
             # Check unique names
             assert trainer.model_name == ModelName.FD_POLICY_VALUE + str(i)
             assert trainer.data_user_name == BufferName.FD_POLICY_VALUE + str(i)
-            assert trainer.log_prefix == "ppo-policy" + str(i)
+            assert trainer.log_prefix == "fd-ppo-policy" + str(i)

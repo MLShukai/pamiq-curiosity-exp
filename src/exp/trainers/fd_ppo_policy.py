@@ -56,7 +56,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         model_name: str = ModelName.FD_POLICY_VALUE,
         data_user_name: str = BufferName.FD_POLICY_VALUE,
-        log_prefix: str = "ppo-policy",
+        log_prefix: str = "fd-ppo-policy",
         include_upper_action: bool = False,
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
@@ -432,7 +432,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
                     **trainer_params,
                     model_name=ModelName.FD_POLICY_VALUE + str(i),
                     data_user_name=BufferName.FD_POLICY_VALUE + str(i),
-                    log_prefix="ppo-policy" + str(i),
+                    log_prefix="fd-ppo-policy" + str(i),
                     include_upper_action=include_upper_action(i),
                 )
             )
