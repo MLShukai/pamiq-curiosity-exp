@@ -106,18 +106,24 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
         self.policy_head = FCMultiCategoricalHead(dim, action_info.choices)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
+        self.dim = dim
 
-    def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
+    def _flatten_obs_action(self, obs: Tensor, action: Tensor | None) -> Tensor:
         """Flatten and concat observation and action."""
         obs_flat = self.obs_flatten(obs)
-        action_flat = self.action_flatten(action)
-        return self.obs_action_projection(torch.cat((obs_flat, action_flat), dim=-1))
+        if action is None:
+            return obs_flat.new_zeros((*obs_flat.shape[:-1], self.dim))
+        else:
+            action_flat = self.action_flatten(action)
+            return self.obs_action_projection(
+                torch.cat((obs_flat, action_flat), dim=-1)
+            )
 
     @override
     def forward(
         self,
         obs: Tensor,
-        action: Tensor,
+        action: Tensor | None,
         upper_action: Tensor | None = None,
         hidden: Tensor | None = None,
         *,
@@ -150,7 +156,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
     def forward_with_no_len(
         self,
         obs: Tensor,
-        action: Tensor,
+        action: Tensor | None,
         hidden: Tensor | None = None,
     ) -> tuple[Tensor, Distribution, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
