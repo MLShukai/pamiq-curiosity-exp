@@ -26,7 +26,7 @@ policy_value:
     num: ${shared.num_hierarchical_layers}
 
   core_models:
-    _target_: exp.models.components.qlstm.create_multiple
+    _target_: exp.models.components.qgru.create_multiple
     depth: 8
     dim_list: ${..core_model_dims}
     dim_ff_hidden_scale: 4
@@ -61,7 +61,7 @@ forward_dynamics:
     num: ${shared.num_hierarchical_layers}
 
   core_models:
-    _target_: exp.models.components.qlstm.create_multiple
+    _target_: exp.models.components.qgru.create_multiple
     depth: 8
     dim_list: ${..core_model_dims}
     dim_ff_hidden_scale: 4
