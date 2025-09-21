@@ -18,6 +18,8 @@ from exp.models.fd_policy import HiddenStateFDPiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
 from exp.utils import average_exponentially
 
+from .ppo_policy import compute_advantage
+
 OPTIMIZER_NAME = "optimizer"
 
 type BatchType = tuple[
@@ -435,38 +437,3 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
                 )
             )
         return trainers
-
-
-def compute_advantage(
-    rewards: Tensor,
-    values: Tensor,
-    final_next_value: Tensor,
-    gamma: float,
-    gae_lambda: float,
-) -> Tensor:
-    """Compute advantages from values.
-
-    Args:
-        rewards: shape (step length, )
-        values: shape (step length, )
-        final_next_value: shape (1,)
-        gamma: Discount factor.
-        gae_lambda: The lambda of generalized advantage estimation.
-
-    Returns:
-        advantages: shape
-    """
-    advantages = torch.empty_like(values)
-
-    lastgaelam = torch.tensor([0.0], device=values.device, dtype=values.dtype)
-
-    for t in reversed(range(values.size(0))):
-        if t == values.size(0) - 1:
-            nextvalues = final_next_value
-        else:
-            nextvalues = values[t + 1]
-
-        delta = rewards[t] + gamma * nextvalues - values[t]
-        advantages[t] = lastgaelam = delta + gamma * gae_lambda * lastgaelam
-
-    return advantages

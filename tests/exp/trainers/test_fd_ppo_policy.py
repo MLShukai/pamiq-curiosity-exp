@@ -14,10 +14,8 @@ from exp.models import ModelName
 from exp.models.components.qlstm import QLSTM
 from exp.models.fd_policy import StackedHiddenFDPiV
 from exp.models.utils import ActionInfo, ObsInfo
-from exp.trainers.fd_ppo_policy import (
-    PPOHiddenStateFDPiVTrainer,
-    compute_advantage,
-)
+from exp.trainers.fd_ppo_policy import PPOHiddenStateFDPiVTrainer
+from exp.trainers.ppo_policy import compute_advantage
 from tests.helpers import parametrize_device
 
 
@@ -307,28 +305,3 @@ class TestPPOHiddenStateFDPiVTrainer:
             assert trainer.model_name == ModelName.FD_POLICY_VALUE + str(i)
             assert trainer.data_user_name == BufferName.FD_POLICY_VALUE + str(i)
             assert trainer.log_prefix == "ppo-policy" + str(i)
-
-
-class TestComputeAdvantage:
-    """Test compute_advantage function."""
-
-    @pytest.mark.parametrize("shape", [(3,), (5,), (10,)])
-    @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-    @parametrize_device
-    def test_compute_advantage(self, shape, dtype, device):
-        """Test advantage computation maintains shape, dtype, and device."""
-        # Create test tensors with specified properties
-        rewards = torch.randn(shape, dtype=dtype, device=device)
-        values = torch.randn(shape, dtype=dtype, device=device)
-        final_next_value = torch.randn((), dtype=dtype, device=device)
-        gamma = 0.99
-        gae_lambda = 0.95
-
-        advantages = compute_advantage(
-            rewards, values, final_next_value, gamma, gae_lambda
-        )
-
-        # Verify shape, dtype, and device are preserved
-        assert advantages.shape == values.shape
-        assert advantages.dtype == dtype
-        assert advantages.device == device
