@@ -7,6 +7,7 @@ class BufferName(StrEnum):
     IMAGE = auto()
     FORWARD_DYNAMICS = auto()
     POLICY = auto()
+    FD_POLICY_VALUE = auto()
 
 
 class DataKey(StrEnum):
