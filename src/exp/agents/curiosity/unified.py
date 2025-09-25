@@ -110,18 +110,6 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     @override
     def step(self, observation: Tensor) -> Tensor:
-        """Process observation and return action for environment interaction.
-
-        Args:
-            observation: Current observation from the environment
-
-        Returns:
-            Selected action to be executed in the environment
-        """
-        action = self._common_step(observation)
-        return action
-
-    def _common_step(self, observation: Tensor) -> Tensor:
         """Execute the common step procedure for the curiosity-driven agent.
 
         Calculates intrinsic rewards from prediction errors, selects actions
