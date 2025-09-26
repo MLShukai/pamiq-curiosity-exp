@@ -1,0 +1,16 @@
+fd_policy_value:
+  _target_: exp.trainers.fd_ppo_policy.PPOHiddenStateFDPiVTrainer
+  partial_optimizer:
+    _target_: torch.optim.SGD
+    _partial_: true
+    lr: 1e-4
+    momentum: 0.9
+    nesterov: true
+    weight_decay: 1e-4
+  gamma: ${python.eval:"1 - 1 / 100"} # n ステップ先の報酬まで考慮する
+  gae_lambda: 0.95
+  norm_advantage: true
+  entropy_coef: 0.01
+  seq_len: 256
+  max_samples: 32
+  min_new_data_count: 128

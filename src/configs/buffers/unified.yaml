@@ -1,0 +1,3 @@
+fd_policy_value:
+  _target_: exp.trainers.fd_ppo_policy.PPOHiddenStateFDPiVTrainer.create_buffer
+  max_size: 1000 #  10 fps 100 secs
