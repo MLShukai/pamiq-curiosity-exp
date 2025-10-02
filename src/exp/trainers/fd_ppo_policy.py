@@ -180,6 +180,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         if advantages.ndim < ratio.ndim:
             for _ in range(ratio.ndim - advantages.ndim):
                 advantages = advantages.unsqueeze(-1)
+        advantages = advantages.detach()  # Stop Gradient
 
         # Policy loss
         pg_loss1 = -advantages * ratio
