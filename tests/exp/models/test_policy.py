@@ -85,14 +85,12 @@ class TestStackedHiddenPiV:
         assert log_prob.shape == (
             self.BATCH_SIZE,
             self.SEQ_LEN,
-            len(self.ACTION_CHOICES),
         )
 
         entropy = policy_dist.entropy()
         assert entropy.shape == (
             self.BATCH_SIZE,
             self.SEQ_LEN,
-            len(self.ACTION_CHOICES),
         )
 
     def test_single_batch(self, policy_value_model, observation, hidden):
@@ -130,7 +128,7 @@ class TestStackedHiddenPiV:
 
         # Check distribution properties
         log_prob = policy_dist.log_prob(sample_action)
-        assert log_prob.shape == (self.BATCH_SIZE, len(self.ACTION_CHOICES))
+        assert log_prob.shape == (self.BATCH_SIZE,)
 
     def test_forward_no_hidden(self, policy_value_model, observation):
         """Test forward pass without providing hidden state."""
