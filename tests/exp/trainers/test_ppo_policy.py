@@ -139,7 +139,7 @@ class TestPPOHiddenStatePiVTrainer:
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
-            action_log_probs = torch.randn(len(self.ACTION_CHOICES))
+            action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
 
@@ -211,7 +211,7 @@ class TestPPOHiddenStatePiVTrainer:
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
-            action_log_probs = torch.randn(len(self.ACTION_CHOICES))
+            action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
             upper_action = torch.randn(2)  # Example upper action dimension

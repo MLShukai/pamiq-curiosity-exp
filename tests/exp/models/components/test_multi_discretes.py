@@ -24,7 +24,7 @@ class TestMultiCategoricals:
         return MultiCategoricals(distributions)
 
     def test_init(self, multi_categoricals: MultiCategoricals):
-        assert multi_categoricals.batch_shape == (8, 3)
+        assert multi_categoricals.batch_shape == (8,)
 
     def test_sample(self, multi_categoricals: MultiCategoricals):
         assert multi_categoricals.sample().shape == (8, 3)
@@ -32,10 +32,10 @@ class TestMultiCategoricals:
 
     def test_log_prob(self, multi_categoricals: MultiCategoricals):
         sampled = multi_categoricals.sample()
-        assert multi_categoricals.log_prob(sampled).shape == sampled.shape
+        assert multi_categoricals.log_prob(sampled).shape == (8,)
 
     def test_entropy(self, multi_categoricals: MultiCategoricals):
-        assert multi_categoricals.entropy().shape == (8, 3)
+        assert multi_categoricals.entropy().shape == (8,)
 
 
 class TestFCMultiCategoricalHead:
@@ -56,8 +56,8 @@ class TestFCMultiCategoricalHead:
         dist = policy(input)
         assert isinstance(dist, Distribution)
         assert dist.sample().shape == (batch, len(choices_per_category))
-        assert dist.log_prob(dist.sample()).shape == (batch, len(choices_per_category))
-        assert dist.entropy().shape == (batch, len(choices_per_category))
+        assert dist.log_prob(dist.sample()).shape == (batch,)
+        assert dist.entropy().shape == (batch,)
 
 
 class TestMultiEmbeddings:
