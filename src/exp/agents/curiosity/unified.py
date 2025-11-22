@@ -66,6 +66,7 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
         self.hidden_state = None
         self.action = None
+        self.action_internal = None
         self.obs_hat = None
         self.max_imagination_steps = max_imagination_steps
         self.reward_average_method = reward_average_method
@@ -156,7 +157,7 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         action_dist: MultiDistributions
         value: Tensor
         self.obs_hat, action_dist, value, self.hidden_state = self.fd_piv(
-            observation, self.action, hidden=self.hidden_state
+            observation, self.action, self.action_internal, hidden=self.hidden_state
         )
         self.action, self.action_internal = action_dist.sample()
         action_log_prob = action_dist.log_prob((self.action, self.action_internal))
