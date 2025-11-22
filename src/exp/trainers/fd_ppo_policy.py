@@ -220,12 +220,18 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             action_imaginations = actions[
                 :, i : -self.imagination_length + i
             ]  # a_i:i+T-H, (B, T-H, *)
+            action_internal_imaginations = action_internal[
+                :, i : -self.imagination_length + i
+            ]  # a_int_i:i+T-H, (B, T-H, *)
             obs_targets = observations[
                 :,
                 i + 1 : observations.size(1) - self.imagination_length + i + 1,
             ]  # o_i+1:T-H+i+1, (B, T-H, *)
             if i > 0:
                 action_imaginations = action_imaginations.flatten(0, 1)  # (B', *)
+                action_internal_imaginations = action_internal_imaginations.flatten(
+                    0, 1
+                )  # (B', *)
                 obs_targets = obs_targets.flatten(0, 1)  # (B', *)
 
             if i == 0:
@@ -234,7 +240,10 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
                 forward_method = partial(self.fd_piv.model, no_len=True)
 
             obses_next_hat, _, _, next_hiddens = forward_method(
-                obs_imaginations, action_imaginations, hidden=hiddens
+                obs_imaginations,
+                action_imaginations,
+                action_internal_imaginations,
+                hidden=hiddens,
             )
 
             loss = torch.nn.functional.mse_loss(obses_next_hat, obs_targets)
