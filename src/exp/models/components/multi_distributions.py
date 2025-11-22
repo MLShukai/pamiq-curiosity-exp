@@ -4,7 +4,7 @@ import torch
 from torch.distributions import Distribution
 
 
-class MultiDistribusions:
+class MultiDistributions:
     """Collection of multiple independent distributions."""
 
     def __init__(self, distributions: Iterable[Distribution]):
@@ -33,7 +33,9 @@ class MultiDistribusions:
         """
         return self.dists[0].batch_shape
 
-    def sample(self, sample_shapes: Iterable[torch.Size]) -> Iterable[torch.Tensor]:
+    def sample(
+        self, sample_shapes: Iterable[torch.Size] | None = None
+    ) -> Iterable[torch.Tensor]:
         """Sample from each distribution.
 
         Args:
@@ -41,6 +43,8 @@ class MultiDistribusions:
         Returns:
             List of tensors of sampled actions for each distribution.
         """
+        if sample_shapes is None:
+            sample_shapes = [torch.Size() for _ in self.dists]
         return [
             d.sample(sample_shape) for d, sample_shape in zip(self.dists, sample_shapes)
         ]

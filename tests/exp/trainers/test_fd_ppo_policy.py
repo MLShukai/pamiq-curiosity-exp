@@ -29,6 +29,7 @@ class TestPPOHiddenStateFDPiVTrainer:
     DIM_ACTION = 8
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
+    ACTION_INTERNAL_DIM = 16
 
     @pytest.fixture
     def fd_policy_value_model(self):
@@ -47,6 +48,7 @@ class TestPPOHiddenStateFDPiVTrainer:
         return StackedHiddenFDPiV(
             obs_info=obs_info,
             action_info=action_info,
+            action_internal_dim=self.ACTION_INTERNAL_DIM,
             dim=self.DIM,
             core_model=core_model,
         )
@@ -63,6 +65,7 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION,
                     DataKey.HIDDEN,
                     DataKey.ACTION,
+                    DataKey.ACTION_INTERNAL,
                     DataKey.ACTION_LOG_PROB,
                     DataKey.REWARD,
                     DataKey.VALUE,
@@ -141,6 +144,7 @@ class TestPPOHiddenStateFDPiVTrainer:
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
+            action_internal = torch.randn(self.ACTION_INTERNAL_DIM)
             action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
@@ -150,6 +154,7 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION: observations,
                     DataKey.HIDDEN: hidden,
                     DataKey.ACTION: actions,
+                    DataKey.ACTION_INTERNAL: action_internal,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
@@ -187,6 +192,7 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION,
                     DataKey.HIDDEN,
                     DataKey.ACTION,
+                    DataKey.ACTION_INTERNAL,
                     DataKey.ACTION_LOG_PROB,
                     DataKey.REWARD,
                     DataKey.VALUE,
@@ -213,6 +219,7 @@ class TestPPOHiddenStateFDPiVTrainer:
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
+            action_internal = torch.randn(self.ACTION_INTERNAL_DIM)
             action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
@@ -223,6 +230,7 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION: observations,
                     DataKey.HIDDEN: hidden,
                     DataKey.ACTION: actions,
+                    DataKey.ACTION_INTERNAL: action_internal,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
@@ -269,6 +277,7 @@ class TestPPOHiddenStateFDPiVTrainer:
                 DataKey.OBSERVATION,
                 DataKey.HIDDEN,
                 DataKey.ACTION,
+                DataKey.ACTION_INTERNAL,
                 DataKey.ACTION_LOG_PROB,
                 DataKey.REWARD,
                 DataKey.VALUE,

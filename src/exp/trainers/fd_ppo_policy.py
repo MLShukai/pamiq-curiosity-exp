@@ -30,6 +30,7 @@ type BatchType = tuple[
     Tensor,
     Tensor,
     Tensor,
+    Tensor,
     Tensor | None,
 ]
 
@@ -146,6 +147,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             observations,
             hiddens,
             actions,
+            action_internal,
             action_log_probs,
             values,
             advantages,
@@ -157,10 +159,11 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         _, new_dist, new_values, _ = self.fd_piv.model(
             observations,
             actions,
+            action_internal,
             upper_action,
             hiddens[:, 0],
         )
-        new_log_probs = new_dist.log_prob(actions)
+        new_log_probs = new_dist.log_prob([actions, action_internal])
         entropy = new_dist.entropy()
 
         # Calculate ratio for PPO
@@ -277,6 +280,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.OBSERVATION,
             DataKey.HIDDEN,
             DataKey.ACTION,
+            DataKey.ACTION_INTERNAL,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
@@ -300,6 +304,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             tensors[DataKey.OBSERVATION],
             tensors[DataKey.HIDDEN],
             tensors[DataKey.ACTION],
+            tensors[DataKey.ACTION_INTERNAL],
             tensors[DataKey.ACTION_LOG_PROB],
             tensors[DataKey.VALUE],
             advantages,
@@ -381,6 +386,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.OBSERVATION,
             DataKey.HIDDEN,
             DataKey.ACTION,
+            DataKey.ACTION_INTERNAL,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,

@@ -11,6 +11,7 @@ from torch.distributions import Normal
 from exp.agents.curiosity.unified import UnifiedAdversarialCuriosityAgent
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
+from exp.models.components.multi_distributions import MultiDistributions
 
 # Constants
 OBSERVATION_DIM = 16
@@ -28,7 +29,12 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         # Mock FDPiV model behavior
         obs_hat = torch.zeros(3, OBSERVATION_DIM)
-        action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
+        action_dist = MultiDistributions(
+            (
+                Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
+                Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
+            )
+        )
         value = torch.tensor(0.5)
         hidden = torch.zeros(3, DEPTH, HIDDEN_DIM)
 
@@ -153,6 +159,7 @@ class TestUnifiedAdversarialCuriosityAgent:
         agent.global_step = 42
         agent.hidden_state = torch.randn(DEPTH, HIDDEN_DIM)
         agent.action = torch.randn(ACTION_DIM)
+        agent.action_internal = torch.randn(ACTION_DIM)
         agent.obs_hat = torch.randn(OBSERVATION_DIM)
 
         # Save state
@@ -161,6 +168,7 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         assert (save_path / "hidden_state.pt").exists()
         assert (save_path / "action.pt").exists()
+        assert (save_path / "action_internal.pt").exists()
         assert (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -185,13 +193,14 @@ class TestUnifiedAdversarialCuriosityAgent:
         agent.global_step = 100
         agent.hidden_state = None
         agent.action = None
-
+        agent.action_internal = None
         # Save state
         save_path = tmp_path / "agent_state_none"
         agent.save_state(save_path)
 
         assert not (save_path / "hidden_state.pt").exists()
         assert not (save_path / "action.pt").exists()
+        assert not (save_path / "action_internal.pt").exists()
         assert not (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -201,5 +210,6 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         assert new_agent.hidden_state is None
         assert new_agent.action is None
+        assert new_agent.action_internal is None
         assert new_agent.obs_hat is None
         assert new_agent.global_step == 100
