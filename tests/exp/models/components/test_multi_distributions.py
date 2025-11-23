@@ -19,7 +19,7 @@ class TestMultiDistributions:
 
     @pytest.fixture
     def multi_distributions(self, distributions) -> MultiDistributions:
-        return MultiDistributions(distributions)
+        return MultiDistributions(*distributions)
 
     def test_sample(self, multi_distributions: MultiDistributions):
         samples = multi_distributions.sample(torch.Size(()), torch.Size(()))

@@ -165,7 +165,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         obs_hat = self.obs_hat_head(x)
         action_dist = self.action_head(x)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
-        policy = MultiDistributions([action_dist, internal_action_dist])
+        policy = MultiDistributions(action_dist, internal_action_dist)
         value = self.value_head(x)
         return obs_hat, policy, value, next_hidden
 
@@ -198,7 +198,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         return (
             self.obs_hat_head(x),
-            MultiDistributions([action_dist, internal_action_dist]),
+            MultiDistributions(action_dist, internal_action_dist),
             self.value_head(x),
             next_hidden,
         )

@@ -7,7 +7,7 @@ from torch.distributions import Distribution
 class MultiDistributions:
     """Collection of multiple independent distributions."""
 
-    def __init__(self, distributions: Iterable[Distribution]):
+    def __init__(self, *distributions: Distribution):
         """Constructs Multi Distributions from a collection of distributions.
 
         Args:
@@ -16,7 +16,6 @@ class MultiDistributions:
         Raises:
             ValueError: If the collection is empty or if the batch shapes don't match.
         """
-        distributions = list(distributions)
         if len(distributions) == 0:
             raise ValueError("Input distributions collection is empty.")
         first_dist = distributions[0]

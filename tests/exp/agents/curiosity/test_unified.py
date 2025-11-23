@@ -30,10 +30,8 @@ class TestUnifiedAdversarialCuriosityAgent:
         # Mock FDPiV model behavior
         obs_hat = torch.zeros(3, OBSERVATION_DIM)
         action_dist = MultiDistributions(
-            (
-                Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
-                Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
-            )
+            Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
+            Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
         )
         value = torch.tensor(0.5)
         hidden = torch.zeros(3, DEPTH, HIDDEN_DIM)
