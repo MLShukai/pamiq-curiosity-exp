@@ -119,7 +119,8 @@ class QGRU(StackedHiddenState):
         super().__init__(
             nn.ModuleList(
                 [QGRUBlock(dim, dim_ff_hidden, dropout) for _ in range(depth)]
-            )
+            ),
+            last_norm=RMSNorm(dim),
         )
 
 

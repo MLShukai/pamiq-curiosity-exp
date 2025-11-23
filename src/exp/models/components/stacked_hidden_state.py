@@ -14,7 +14,9 @@ class StackedHiddenState(nn.Module):
     stacked hidden state tensor.
     """
 
-    def __init__(self, module_list: nn.ModuleList):
+    def __init__(
+        self, module_list: nn.ModuleList, last_norm: nn.Module | None = None
+    ) -> None:
         """Initialize the StackedHiddenState module.
 
         Args:
@@ -22,6 +24,7 @@ class StackedHiddenState(nn.Module):
         """
         super().__init__()
         self.module_list = module_list
+        self.last_norm = last_norm
 
     @override
     def forward(
@@ -83,5 +86,8 @@ class StackedHiddenState(nn.Module):
         if no_len:
             x = x.squeeze(-2)
             hidden_out_stack = hidden_out_stack.squeeze(-2)
+
+        if self.last_norm is not None:
+            x = self.last_norm(x)
 
         return x, hidden_out_stack
