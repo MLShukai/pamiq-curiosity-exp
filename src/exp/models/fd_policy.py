@@ -9,6 +9,8 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.distributions.independent import Independent
 
+from exp.models.components.qlstm import RMSNorm
+
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
 from .components.multi_distributions import MultiDistributions
@@ -112,6 +114,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
             dim,
         )
         self.core_model = core_model
+        self.last_norm = RMSNorm(dim)
         self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
         self.action_head = FCMultiCategoricalHead(dim, action_info.choices)
         self.internal_action_head = FCNormalHead(dim, internal_action_dim)
@@ -162,6 +165,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         """
         x = self._flatten_obs_action(obs, action, internal_action)  # (*batch, len, dim)
         x, next_hidden = self.core_model(x, hidden, no_len=no_len)
+        x = self.last_norm(x)
         obs_hat = self.obs_hat_head(x)
         action_dist = self.action_head(x)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
