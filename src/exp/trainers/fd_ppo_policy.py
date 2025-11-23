@@ -54,6 +54,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         entropy_coef: float = 0.0,
         vfunc_coef: float = 0.5,
         imagination_length: int = 1,
+        grad_clip_norm: float = 10.0,
         imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         model_name: str = ModelName.FD_POLICY_VALUE,
         data_user_name: str = BufferName.FD_POLICY_VALUE,
@@ -97,6 +98,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
 
         self.gamma = gamma
         self.gae_lambda = gae_lambda
+        self.grad_clip_norm = grad_clip_norm
 
         self.model_name = model_name
         self.data_user_name = data_user_name
@@ -353,11 +355,24 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
                     ]
                 ).norm()
 
+                param_norm = torch.cat(
+                    [
+                        p.flatten()
+                        for p in self.fd_piv.model.parameters()
+                        if p.grad is not None
+                    ]
+                ).norm()
+
+                torch.nn.utils.clip_grad_norm_(
+                    self.fd_piv.model.parameters(), max_norm=self.grad_clip_norm
+                )
+
                 self.optimizers[OPTIMIZER_NAME].step()
 
                 # Logging
                 metrics = {k: v.item() for k, v in outputs.items()}
                 metrics["grad_norm"] = grad_norm.item()
+                metrics["param_norm"] = param_norm.item()
 
                 if run := get_global_run():
                     for tag, v in metrics.items():
