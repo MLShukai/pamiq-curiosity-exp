@@ -198,6 +198,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         """
         x = self._flatten_obs_action(obs, action, internal_action)  # (*batch, dim)
         x, next_hidden = self.core_model(x, hidden, no_len=True)
+        x = self.last_norm(x)
         action_dist = self.action_head(x)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         return (
