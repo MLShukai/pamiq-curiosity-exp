@@ -22,15 +22,15 @@ class TestMultiDistributions:
         return MultiDistributions(distributions)
 
     def test_sample(self, multi_distributions: MultiDistributions):
-        samples = multi_distributions.sample([torch.Size(()), torch.Size(())])
+        samples = multi_distributions.sample(torch.Size(()), torch.Size(()))
         samples = list(samples)
         assert len(samples) == 2
         assert samples[0].shape == (8,)
         assert samples[1].shape == (8,)
 
     def test_log_prob(self, multi_distributions: MultiDistributions):
-        samples = multi_distributions.sample([torch.Size(()), torch.Size(())])
-        log_prob = multi_distributions.log_prob(samples)
+        samples = multi_distributions.sample(torch.Size(()), torch.Size(()))
+        log_prob = multi_distributions.log_prob(*samples)
         assert log_prob.shape == (8,)
 
     def test_entropy(self, multi_distributions: MultiDistributions):

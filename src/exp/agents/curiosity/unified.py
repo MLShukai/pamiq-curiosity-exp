@@ -160,7 +160,7 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             observation, self.action, self.internal_action, hidden=self.hidden_state
         )
         self.action, self.internal_action = action_dist.sample()
-        action_log_prob = action_dist.log_prob((self.action, self.internal_action))
+        action_log_prob = action_dist.log_prob(self.action, self.internal_action)
 
         # ==============================================================================
         #                               Data Collection

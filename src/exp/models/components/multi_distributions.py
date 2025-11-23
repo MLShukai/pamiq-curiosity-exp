@@ -33,9 +33,7 @@ class MultiDistributions:
         """
         return self.dists[0].batch_shape
 
-    def sample(
-        self, sample_shapes: Iterable[torch.Size] | None = None
-    ) -> Iterable[torch.Tensor]:
+    def sample(self, *sample_shapes: torch.Size) -> Iterable[torch.Tensor]:
         """Sample from each distribution.
 
         Args:
@@ -43,13 +41,17 @@ class MultiDistributions:
         Returns:
             List of tensors of sampled actions for each distribution.
         """
-        if sample_shapes is None:
-            sample_shapes = [torch.Size() for _ in self.dists]
+        if not sample_shapes:
+            sample_shapes = tuple(torch.Size() for _ in self.dists)
+        elif len(sample_shapes) != len(self.dists):
+            raise ValueError(
+                f"Expected {len(self.dists)} sample shapes, but got {len(sample_shapes)}."
+            )
         return [
             d.sample(sample_shape) for d, sample_shape in zip(self.dists, sample_shapes)
         ]
 
-    def log_prob(self, value: Iterable[torch.Tensor]) -> torch.Tensor:
+    def log_prob(self, *values: torch.Tensor) -> torch.Tensor:
         """Compute log probability of actions for each distribution.
 
         Args:
@@ -57,8 +59,12 @@ class MultiDistributions:
         Returns:
             Tensor of log probabilities with shape (*,).
         """
+        if len(values) != len(self.dists):
+            raise ValueError(
+                f"Expected {len(self.dists)} values, but got {len(values)}."
+            )
         return torch.stack(
-            [d.log_prob(v) for d, v in zip(self.dists, value)], dim=-1
+            [d.log_prob(v) for d, v in zip(self.dists, values)], dim=-1
         ).sum(dim=-1)
 
     def entropy(self) -> torch.Tensor:

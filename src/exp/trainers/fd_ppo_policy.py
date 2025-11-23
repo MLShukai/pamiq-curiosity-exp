@@ -165,7 +165,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             upper_action,
             hiddens[:, 0],
         )
-        new_log_probs = new_dist.log_prob([actions, internal_actions])
+        new_log_probs = new_dist.log_prob(actions, internal_actions)
         entropy = new_dist.entropy()
 
         # Calculate ratio for PPO
