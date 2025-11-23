@@ -33,7 +33,7 @@ class HiddenStateFDPiV(ABC, nn.Module):
         self,
         obs: Tensor,
         action: Tensor,
-        action_internal: Tensor | None = None,
+        internal_action: Tensor | None = None,
         upper_action: Tensor | None = None,
         hidden: Tensor | None = None,
         *,
@@ -58,7 +58,7 @@ class HiddenStateFDPiV(ABC, nn.Module):
         self,
         observation: Tensor,
         action: Tensor,
-        action_internal: Tensor | None = None,
+        internal_action: Tensor | None = None,
         upper_action: Tensor | None = None,
         hidden: Tensor | None = None,
         *,
@@ -69,7 +69,7 @@ class HiddenStateFDPiV(ABC, nn.Module):
         See forward() for documentation.
         """
         return super().__call__(
-            observation, action, action_internal, upper_action, hidden, no_len=no_len
+            observation, action, internal_action, upper_action, hidden, no_len=no_len
         )
 
 
@@ -82,7 +82,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         self,
         obs_info: ObsInfo,
         action_info: ActionInfo,
-        action_internal_dim: int,
+        internal_action_dim: int,
         dim: int,
         core_model: StackedHiddenState,
     ) -> None:
@@ -108,27 +108,27 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         self.obs_action_projection = nn.Linear(
             obs_info.dim_hidden
             + action_info.dim * len(action_info.choices)
-            + action_internal_dim,
+            + internal_action_dim,
             dim,
         )
         self.core_model = core_model
         self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
         self.action_head = FCMultiCategoricalHead(dim, action_info.choices)
-        self.action_internal_head = FCNormalHead(dim, action_internal_dim)
+        self.internal_action_head = FCNormalHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
 
     def _flatten_obs_action(
-        self, obs: Tensor, action: Tensor | None, action_internal: Tensor | None
+        self, obs: Tensor, action: Tensor | None, internal_action: Tensor | None
     ) -> Tensor:
         """Flatten and concat observation and action."""
         obs_flat = self.obs_flatten(obs)
-        if action is None or action_internal is None:
+        if action is None or internal_action is None:
             return obs_flat.new_zeros((*obs_flat.shape[:-1], self.dim))
         else:
             action_flat = self.action_flatten(action)
             return self.obs_action_projection(
-                torch.cat((obs_flat, action_flat, action_internal), dim=-1)
+                torch.cat((obs_flat, action_flat, internal_action), dim=-1)
             )
 
     @override
@@ -136,7 +136,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         self,
         obs: Tensor,
         action: Tensor | None,
-        action_internal: Tensor | None = None,
+        internal_action: Tensor | None = None,
         upper_action: Tensor | None = None,
         hidden: Tensor | None = None,
         *,
@@ -148,7 +148,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
             action: Action tensor. shape is (*batch, len, num_token, action_choices)
-            action_internal: Internal action tensor. shape is (*batch, len, num_token, action_internal_dim)
+            internal_action: Internal action tensor. shape is (*batch, len, num_token, internal_action_dim)
             upper_action: Not used in this implementation.
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
@@ -160,12 +160,12 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
         """
-        x = self._flatten_obs_action(obs, action, action_internal)  # (*batch, len, dim)
+        x = self._flatten_obs_action(obs, action, internal_action)  # (*batch, len, dim)
         x, next_hidden = self.core_model(x, hidden, no_len=no_len)
         obs_hat = self.obs_hat_head(x)
         action_dist = self.action_head(x)
-        action_internal_dist = Independent(self.action_internal_head(x), 1)
-        policy = MultiDistributions([action_dist, action_internal_dist])
+        internal_action_dist = Independent(self.internal_action_head(x), 1)
+        policy = MultiDistributions([action_dist, internal_action_dist])
         value = self.value_head(x)
         return obs_hat, policy, value, next_hidden
 
@@ -173,7 +173,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         self,
         obs: Tensor,
         action: Tensor | None,
-        action_internal: Tensor | None = None,
+        internal_action: Tensor | None = None,
         hidden: Tensor | None = None,
     ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
@@ -181,7 +181,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
             action: Action tensor. shape is (*batch, num_token, action_choices)
-            action_internal: Internal action tensor. shape is (*batch, num_token, action_internal_dim)
+            internal_action: Internal action tensor. shape is (*batch, num_token, internal_action_dim)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -192,13 +192,13 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
         """
-        x = self._flatten_obs_action(obs, action, action_internal)  # (*batch, dim)
+        x = self._flatten_obs_action(obs, action, internal_action)  # (*batch, dim)
         x, next_hidden = self.core_model(x, hidden, no_len=True)
         action_dist = self.action_head(x)
-        action_internal_dist = Independent(self.action_internal_head(x), 1)
+        internal_action_dist = Independent(self.internal_action_head(x), 1)
         return (
             self.obs_hat_head(x),
-            MultiDistributions([action_dist, action_internal_dist]),
+            MultiDistributions([action_dist, internal_action_dist]),
             self.value_head(x),
             next_hidden,
         )

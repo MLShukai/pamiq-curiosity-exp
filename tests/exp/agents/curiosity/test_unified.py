@@ -159,7 +159,7 @@ class TestUnifiedAdversarialCuriosityAgent:
         agent.global_step = 42
         agent.hidden_state = torch.randn(DEPTH, HIDDEN_DIM)
         agent.action = torch.randn(ACTION_DIM)
-        agent.action_internal = torch.randn(ACTION_DIM)
+        agent.internal_action = torch.randn(ACTION_DIM)
         agent.obs_hat = torch.randn(OBSERVATION_DIM)
 
         # Save state
@@ -168,7 +168,7 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         assert (save_path / "hidden_state.pt").exists()
         assert (save_path / "action.pt").exists()
-        assert (save_path / "action_internal.pt").exists()
+        assert (save_path / "internal_action.pt").exists()
         assert (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -193,14 +193,14 @@ class TestUnifiedAdversarialCuriosityAgent:
         agent.global_step = 100
         agent.hidden_state = None
         agent.action = None
-        agent.action_internal = None
+        agent.internal_action = None
         # Save state
         save_path = tmp_path / "agent_state_none"
         agent.save_state(save_path)
 
         assert not (save_path / "hidden_state.pt").exists()
         assert not (save_path / "action.pt").exists()
-        assert not (save_path / "action_internal.pt").exists()
+        assert not (save_path / "internal_action.pt").exists()
         assert not (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -210,6 +210,6 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         assert new_agent.hidden_state is None
         assert new_agent.action is None
-        assert new_agent.action_internal is None
+        assert new_agent.internal_action is None
         assert new_agent.obs_hat is None
         assert new_agent.global_step == 100

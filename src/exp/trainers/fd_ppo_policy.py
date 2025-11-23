@@ -149,7 +149,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             observations,
             hiddens,
             actions,
-            action_internal,
+            internal_actions,
             action_log_probs,
             values,
             advantages,
@@ -161,11 +161,11 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         _, new_dist, new_values, _ = self.fd_piv.model(
             observations,
             actions,
-            action_internal,
+            internal_actions,
             upper_action,
             hiddens[:, 0],
         )
-        new_log_probs = new_dist.log_prob([actions, action_internal])
+        new_log_probs = new_dist.log_prob([actions, internal_actions])
         entropy = new_dist.entropy()
 
         # Calculate ratio for PPO
@@ -222,7 +222,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             action_imaginations = actions[
                 :, i : -self.imagination_length + i
             ]  # a_i:i+T-H, (B, T-H, *)
-            action_internal_imaginations = action_internal[
+            internal_action_imaginations = internal_actions[
                 :, i : -self.imagination_length + i
             ]  # a_int_i:i+T-H, (B, T-H, *)
             obs_targets = observations[
@@ -231,7 +231,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             ]  # o_i+1:T-H+i+1, (B, T-H, *)
             if i > 0:
                 action_imaginations = action_imaginations.flatten(0, 1)  # (B', *)
-                action_internal_imaginations = action_internal_imaginations.flatten(
+                internal_action_imaginations = internal_action_imaginations.flatten(
                     0, 1
                 )  # (B', *)
                 obs_targets = obs_targets.flatten(0, 1)  # (B', *)
@@ -244,7 +244,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             obses_next_hat, _, _, next_hiddens = forward_method(
                 obs_imaginations,
                 action_imaginations,
-                action_internal_imaginations,
+                internal_action_imaginations,
                 hidden=hiddens,
             )
 
@@ -291,7 +291,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.OBSERVATION,
             DataKey.HIDDEN,
             DataKey.ACTION,
-            DataKey.ACTION_INTERNAL,
+            DataKey.INTERNAL_ACTION,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
@@ -315,7 +315,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             tensors[DataKey.OBSERVATION],
             tensors[DataKey.HIDDEN],
             tensors[DataKey.ACTION],
-            tensors[DataKey.ACTION_INTERNAL],
+            tensors[DataKey.INTERNAL_ACTION],
             tensors[DataKey.ACTION_LOG_PROB],
             tensors[DataKey.VALUE],
             advantages,
@@ -410,7 +410,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.OBSERVATION,
             DataKey.HIDDEN,
             DataKey.ACTION,
-            DataKey.ACTION_INTERNAL,
+            DataKey.INTERNAL_ACTION,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
