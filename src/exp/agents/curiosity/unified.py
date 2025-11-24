@@ -40,8 +40,6 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     def __init__(
         self,
-        max_imagination_steps: int = 1,
-        reward_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -61,17 +59,10 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         """
         super().__init__()
 
-        if max_imagination_steps < 1:
-            raise ValueError(
-                f"`max_imagination_steps` must be >= 1! Your input: {max_imagination_steps}"
-            )
-
         self.hidden_state = None
         self.action = None
         self.internal_action = None
         self.obs_hat = None
-        self.max_imagination_steps = max_imagination_steps
-        self.reward_average_method = reward_average_method
         self.device = device
         self.dtype = dtype
 
@@ -136,13 +127,8 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         #                             Reward Computation
         # ==============================================================================
         if self.obs_hat is not None:
-            reward_imaginations = (
-                F.mse_loss(self.obs_hat, observation, reduction="none")
-                .flatten(1)
-                .mean(-1)
-            )
+            reward = F.mse_loss(self.obs_hat, observation)
 
-            reward = self.reward_average_method(reward_imaginations)
             self.metrics["reward"] = reward.item()
 
             self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
