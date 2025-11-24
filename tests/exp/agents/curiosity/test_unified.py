@@ -60,7 +60,6 @@ class TestUnifiedAdversarialCuriosityAgent:
     @pytest.fixture
     def agent(self, models, buffers, mock_aim_run):
         agent = UnifiedAdversarialCuriosityAgent(
-            max_imagination_steps=3,
             log_every_n_steps=5,
         )
 
@@ -70,21 +69,12 @@ class TestUnifiedAdversarialCuriosityAgent:
     def test_initialization(self):
         """Test agent initialization."""
         agent = UnifiedAdversarialCuriosityAgent(
-            max_imagination_steps=2,
             log_every_n_steps=10,
         )
 
         assert agent.hidden_state is None
         assert agent.action is None
-        assert agent.max_imagination_steps == 2
         assert agent.global_step == 0
-
-    def test_invalid_imagination_steps(self):
-        """Test that agent raises error for invalid max_imagination_steps."""
-        with pytest.raises(ValueError, match="`max_imagination_steps` must be >= 1"):
-            UnifiedAdversarialCuriosityAgent(
-                max_imagination_steps=0,
-            )
 
     def test_setup_step_teardown(
         self, agent: UnifiedAdversarialCuriosityAgent, mocker: MockerFixture
