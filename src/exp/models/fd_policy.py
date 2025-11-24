@@ -11,10 +11,10 @@ from torch.distributions.independent import Independent
 
 from exp.models.components.qlstm import RMSNorm
 
+from .components.deterministic_normal import FCDeterministicNormalHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
 from .components.multi_distributions import MultiDistributions
-from .components.normal import FCNormalHead
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
 from .components.stacked_hidden_state import StackedHiddenState
 from .utils import ActionInfo, ObsInfo
@@ -40,7 +40,7 @@ class HiddenStateFDPiV(ABC, nn.Module):
         hidden: Tensor | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor]:
         """Compute observation prediction, policy distribution and value from
         observation.
 
@@ -65,7 +65,7 @@ class HiddenStateFDPiV(ABC, nn.Module):
         hidden: Tensor | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor]:
         """Call method with proper type annotations.
 
         See forward() for documentation.
@@ -116,8 +116,9 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         self.core_model = core_model
         self.last_norm = RMSNorm(dim)
         self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
+        self.internal_action_hat_head = nn.Linear(dim, internal_action_dim)
         self.action_head = FCMultiCategoricalHead(dim, action_info.choices)
-        self.internal_action_head = FCNormalHead(dim, internal_action_dim)
+        self.internal_action_head = FCDeterministicNormalHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
 
@@ -144,7 +145,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         hidden: Tensor | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor]:
         """Forward pass to predict next observation prediction, policy
         distribution, and value estimate.
 
@@ -166,12 +167,15 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         x = self._flatten_obs_action(obs, action, internal_action)  # (*batch, len, dim)
         x, next_hidden = self.core_model(x, hidden, no_len=no_len)
         x = self.last_norm(x)
-        obs_hat = self.obs_hat_head(x)
         action_dist = self.action_head(x)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
-        policy = MultiDistributions(action_dist, internal_action_dist)
-        value = self.value_head(x)
-        return obs_hat, policy, value, next_hidden
+        return (
+            self.obs_hat_head(x),
+            self.internal_action_hat_head(x),
+            MultiDistributions(action_dist, internal_action_dist),
+            self.value_head(x),
+            next_hidden,
+        )
 
     def forward_with_no_len(
         self,
@@ -179,7 +183,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         action: Tensor | None,
         internal_action: Tensor | None = None,
         hidden: Tensor | None = None,
-    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
@@ -203,6 +207,7 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         return (
             self.obs_hat_head(x),
+            self.internal_action_hat_head(x),
             MultiDistributions(action_dist, internal_action_dist),
             self.value_head(x),
             next_hidden,

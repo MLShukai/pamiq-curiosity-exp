@@ -160,7 +160,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         ) = batch
 
         # Get new distributions and values
-        obs_hat, new_dist, new_values, _ = self.fd_piv.model(
+        obs_hat, internal_action_hat, new_dist, new_values, _ = self.fd_piv.model(
             observations,
             previous_actions,
             previous_internal_actions,
@@ -217,7 +217,11 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         )
 
         # Forward dynamics loss
-        fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
+        fd_obs_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
+        fd_internal_action_loss = torch.nn.functional.mse_loss(
+            internal_action_hat, internal_actions
+        )
+        fd_loss = fd_obs_loss + fd_internal_action_loss
 
         # Total loss
         loss = (
@@ -232,6 +236,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             "loss": loss,
             "policy_loss": pg_loss,
             "value_loss": v_loss,
+            "fd_obs_loss": fd_obs_loss,
+            "fd_internal_action_loss": fd_internal_action_loss,
             "fd_loss": fd_loss,
             "entropy": entropy.mean(),
             "action_entropy": action_entropy.mean(),

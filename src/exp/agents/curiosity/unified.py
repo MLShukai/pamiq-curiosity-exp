@@ -63,6 +63,7 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.action = None
         self.internal_action = None
         self.obs_hat = None
+        self.internal_action_hat = None
         self.device = device
         self.dtype = dtype
 
@@ -91,6 +92,7 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
     action: Tensor | None  # (action_choices,) or None
     internal_action: Tensor | None  # (dim,) or None
     obs_hat: Tensor | None
+    internal_action_hat: Tensor | None  # (dim,) or None
     step_data_fd_piv: dict[str, Tensor]
 
     @override
@@ -126,11 +128,20 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
-        if self.obs_hat is not None:
-            reward = F.mse_loss(self.obs_hat, observation)
+        if (
+            self.obs_hat is not None
+            and self.internal_action_hat is not None
+            and self.internal_action is not None
+        ):
+            reward_obs = F.mse_loss(self.obs_hat, observation)
+            self.metrics["reward_obs"] = reward_obs.item()
+            reward_internal_action = F.mse_loss(
+                self.internal_action_hat, self.internal_action
+            )
+            self.metrics["reward_internal_action"] = reward_internal_action.item()
 
+            reward = reward_obs + reward_internal_action
             self.metrics["reward"] = reward.item()
-
             self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
         if set(self.step_data_fd_piv.keys()) >= self.step_data_policy_required_keys:
@@ -147,7 +158,13 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
         action_dist: MultiDistributions
         value: Tensor
-        self.obs_hat, action_dist, value, self.hidden_state = self.fd_piv(
+        (
+            self.obs_hat,
+            self.internal_action_hat,
+            action_dist,
+            value,
+            self.hidden_state,
+        ) = self.fd_piv(
             observation, self.action, self.internal_action, hidden=self.hidden_state
         )
         if self.action is not None:
