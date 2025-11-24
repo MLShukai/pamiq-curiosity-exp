@@ -67,6 +67,8 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.ACTION,
                     DataKey.INTERNAL_ACTION,
                     DataKey.ACTION_LOG_PROB,
+                    DataKey.PREVIOUS_ACTION,
+                    DataKey.PREVIOUS_INTERNAL_ACTION,
                     DataKey.REWARD,
                     DataKey.VALUE,
                 ],
@@ -145,6 +147,8 @@ class TestPPOHiddenStateFDPiVTrainer:
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
             internal_action = torch.randn(self.INTERNAL_ACTION_DIM)
+            previous_actions = actions.clone()
+            previous_internal_actions = internal_action.clone()
             action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
@@ -156,6 +160,8 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.ACTION: actions,
                     DataKey.INTERNAL_ACTION: internal_action,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
+                    DataKey.PREVIOUS_ACTION: previous_actions,
+                    DataKey.PREVIOUS_INTERNAL_ACTION: previous_internal_actions,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
                 }
@@ -194,6 +200,8 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.ACTION,
                     DataKey.INTERNAL_ACTION,
                     DataKey.ACTION_LOG_PROB,
+                    DataKey.PREVIOUS_ACTION,
+                    DataKey.PREVIOUS_INTERNAL_ACTION,
                     DataKey.REWARD,
                     DataKey.VALUE,
                     DataKey.UPPER_ACTION,
@@ -224,6 +232,8 @@ class TestPPOHiddenStateFDPiVTrainer:
             rewards = torch.randn(())
             values = torch.randn(())
             upper_action = torch.randn(2)  # Example upper action dimension
+            previous_actions = actions.clone()
+            previous_internal_actions = internal_action.clone()
 
             collector.collect(
                 {
@@ -232,6 +242,8 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.ACTION: actions,
                     DataKey.INTERNAL_ACTION: internal_action,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
+                    DataKey.PREVIOUS_ACTION: previous_actions,
+                    DataKey.PREVIOUS_INTERNAL_ACTION: previous_internal_actions,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
                     DataKey.UPPER_ACTION: upper_action,
@@ -281,6 +293,8 @@ class TestPPOHiddenStateFDPiVTrainer:
                 DataKey.ACTION_LOG_PROB,
                 DataKey.REWARD,
                 DataKey.VALUE,
+                DataKey.PREVIOUS_ACTION,
+                DataKey.PREVIOUS_INTERNAL_ACTION,
             ]
 
             # Only the last buffer should have UPPER_ACTION

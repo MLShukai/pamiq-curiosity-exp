@@ -23,6 +23,8 @@ STEP_DATA_REQUIRED_KEYS = {
     DataKey.HIDDEN,
     DataKey.VALUE,
     DataKey.REWARD,
+    DataKey.PREVIOUS_ACTION,
+    DataKey.PREVIOUS_INTERNAL_ACTION,
 }
 
 
@@ -159,6 +161,12 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.obs_hat, action_dist, value, self.hidden_state = self.fd_piv(
             observation, self.action, self.internal_action, hidden=self.hidden_state
         )
+        if self.action is not None:
+            self.step_data_fd_piv[DataKey.PREVIOUS_ACTION] = self.action.cpu()
+        if self.internal_action is not None:
+            self.step_data_fd_piv[DataKey.PREVIOUS_INTERNAL_ACTION] = (
+                self.internal_action.cpu()
+            )
         self.action, self.internal_action = action_dist.sample()
         action_log_prob = action_dist.log_prob(self.action, self.internal_action)
 

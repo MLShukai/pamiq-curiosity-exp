@@ -31,6 +31,8 @@ type BatchType = tuple[
     Tensor,
     Tensor,
     Tensor,
+    Tensor,
+    Tensor,
     Tensor | None,
 ]
 
@@ -154,6 +156,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             internal_actions,
             action_log_probs,
             values,
+            previous_actions,
+            previous_internal_actions,
             advantages,
             returns,
             upper_action,
@@ -162,8 +166,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         # Get new distributions and values
         _, new_dist, new_values, _ = self.fd_piv.model(
             observations,
-            actions,
-            internal_actions,
+            previous_actions,
+            previous_internal_actions,
             upper_action,
             hiddens[:, 0],
         )
@@ -310,6 +314,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
+            DataKey.PREVIOUS_ACTION,
+            DataKey.PREVIOUS_INTERNAL_ACTION,
         ]
         if self.include_upper_action:
             keys.append(DataKey.UPPER_ACTION)
@@ -333,6 +339,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             tensors[DataKey.INTERNAL_ACTION],
             tensors[DataKey.ACTION_LOG_PROB],
             tensors[DataKey.VALUE],
+            tensors[DataKey.PREVIOUS_ACTION],
+            tensors[DataKey.PREVIOUS_INTERNAL_ACTION],
             advantages,
             returns,
         ]
@@ -429,6 +437,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
+            DataKey.PREVIOUS_ACTION,
+            DataKey.PREVIOUS_INTERNAL_ACTION,
         ]
         if include_upper_action:
             keys.append(DataKey.UPPER_ACTION)

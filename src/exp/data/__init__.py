@@ -22,3 +22,5 @@ class DataKey(StrEnum):
     TARGET = auto()
     UPPER_ACTION = auto()
     INTERNAL_ACTION = auto()
+    PREVIOUS_ACTION = auto()
+    PREVIOUS_INTERNAL_ACTION = auto()
