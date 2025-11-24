@@ -14,7 +14,7 @@ class StackedHiddenState(nn.Module):
     stacked hidden state tensor.
     """
 
-    def __init__(self, module_list: nn.ModuleList):
+    def __init__(self, module_list: nn.ModuleList) -> None:
         """Initialize the StackedHiddenState module.
 
         Args:

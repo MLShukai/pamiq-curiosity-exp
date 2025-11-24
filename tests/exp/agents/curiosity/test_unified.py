@@ -11,6 +11,7 @@ from torch.distributions import Normal
 from exp.agents.curiosity.unified import UnifiedAdversarialCuriosityAgent
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
+from exp.models.components.multi_distributions import MultiDistributions
 
 # Constants
 OBSERVATION_DIM = 16
@@ -28,7 +29,10 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         # Mock FDPiV model behavior
         obs_hat = torch.zeros(3, OBSERVATION_DIM)
-        action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
+        action_dist = MultiDistributions(
+            Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
+            Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
+        )
         value = torch.tensor(0.5)
         hidden = torch.zeros(3, DEPTH, HIDDEN_DIM)
 
@@ -56,7 +60,6 @@ class TestUnifiedAdversarialCuriosityAgent:
     @pytest.fixture
     def agent(self, models, buffers, mock_aim_run):
         agent = UnifiedAdversarialCuriosityAgent(
-            max_imagination_steps=3,
             log_every_n_steps=5,
         )
 
@@ -66,21 +69,12 @@ class TestUnifiedAdversarialCuriosityAgent:
     def test_initialization(self):
         """Test agent initialization."""
         agent = UnifiedAdversarialCuriosityAgent(
-            max_imagination_steps=2,
             log_every_n_steps=10,
         )
 
         assert agent.hidden_state is None
         assert agent.action is None
-        assert agent.max_imagination_steps == 2
         assert agent.global_step == 0
-
-    def test_invalid_imagination_steps(self):
-        """Test that agent raises error for invalid max_imagination_steps."""
-        with pytest.raises(ValueError, match="`max_imagination_steps` must be >= 1"):
-            UnifiedAdversarialCuriosityAgent(
-                max_imagination_steps=0,
-            )
 
     def test_setup_step_teardown(
         self, agent: UnifiedAdversarialCuriosityAgent, mocker: MockerFixture
@@ -101,12 +95,12 @@ class TestUnifiedAdversarialCuriosityAgent:
         action = agent.step(observation)
         assert agent.global_step == 2
         # Verify data collection
-        assert spy_fd_piv_collect.call_count == 1
+        assert spy_fd_piv_collect.call_count == 0
 
         # Third step
         action = agent.step(observation)
         assert agent.global_step == 3
-        assert spy_fd_piv_collect.call_count == 2
+        assert spy_fd_piv_collect.call_count == 1
         fd_data_prev = spy_fd_piv_collect.call_args_list[-1][0][0]
 
         action = agent.step(observation)
@@ -153,6 +147,7 @@ class TestUnifiedAdversarialCuriosityAgent:
         agent.global_step = 42
         agent.hidden_state = torch.randn(DEPTH, HIDDEN_DIM)
         agent.action = torch.randn(ACTION_DIM)
+        agent.internal_action = torch.randn(ACTION_DIM)
         agent.obs_hat = torch.randn(OBSERVATION_DIM)
 
         # Save state
@@ -161,6 +156,7 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         assert (save_path / "hidden_state.pt").exists()
         assert (save_path / "action.pt").exists()
+        assert (save_path / "internal_action.pt").exists()
         assert (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -185,13 +181,14 @@ class TestUnifiedAdversarialCuriosityAgent:
         agent.global_step = 100
         agent.hidden_state = None
         agent.action = None
-
+        agent.internal_action = None
         # Save state
         save_path = tmp_path / "agent_state_none"
         agent.save_state(save_path)
 
         assert not (save_path / "hidden_state.pt").exists()
         assert not (save_path / "action.pt").exists()
+        assert not (save_path / "internal_action.pt").exists()
         assert not (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -201,5 +198,6 @@ class TestUnifiedAdversarialCuriosityAgent:
 
         assert new_agent.hidden_state is None
         assert new_agent.action is None
+        assert new_agent.internal_action is None
         assert new_agent.obs_hat is None
         assert new_agent.global_step == 100

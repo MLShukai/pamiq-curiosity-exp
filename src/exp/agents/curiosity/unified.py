@@ -12,15 +12,19 @@ from torch.distributions import Distribution
 from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
+from exp.models.components.multi_distributions import MultiDistributions
 from exp.utils import average_exponentially
 
 STEP_DATA_REQUIRED_KEYS = {
     DataKey.ACTION,
+    DataKey.INTERNAL_ACTION,
     DataKey.ACTION_LOG_PROB,
     DataKey.OBSERVATION,
     DataKey.HIDDEN,
     DataKey.VALUE,
     DataKey.REWARD,
+    DataKey.PREVIOUS_ACTION,
+    DataKey.PREVIOUS_INTERNAL_ACTION,
 }
 
 
@@ -36,8 +40,6 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     def __init__(
         self,
-        max_imagination_steps: int = 1,
-        reward_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         log_every_n_steps: int = 1,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -57,16 +59,10 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         """
         super().__init__()
 
-        if max_imagination_steps < 1:
-            raise ValueError(
-                f"`max_imagination_steps` must be >= 1! Your input: {max_imagination_steps}"
-            )
-
         self.hidden_state = None
         self.action = None
+        self.internal_action = None
         self.obs_hat = None
-        self.max_imagination_steps = max_imagination_steps
-        self.reward_average_method = reward_average_method
         self.device = device
         self.dtype = dtype
 
@@ -93,6 +89,7 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     hidden_state: Tensor | None  # (depth, dim) or None
     action: Tensor | None  # (action_choices,) or None
+    internal_action: Tensor | None  # (dim,) or None
     obs_hat: Tensor | None
     step_data_fd_piv: dict[str, Tensor]
 
@@ -130,16 +127,14 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         #                             Reward Computation
         # ==============================================================================
         if self.obs_hat is not None:
-            reward_imaginations = (
-                F.mse_loss(self.obs_hat, observation, reduction="none")
-                .flatten(1)
-                .mean(-1)
-            )
+            reward = F.mse_loss(self.obs_hat, observation)
 
-            reward = self.reward_average_method(reward_imaginations)
             self.metrics["reward"] = reward.item()
 
             self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
+
+        if set(self.step_data_fd_piv.keys()) >= self.step_data_policy_required_keys:
+            self.collector_fd_piv.collect(self.step_data_fd_piv.copy())
 
         # ==============================================================================
         #                               Forward Dynamics and Policy Process
@@ -150,27 +145,27 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
                 self.hidden_state.cpu()
             )  # Store before update
 
-        action_dist: Distribution
+        action_dist: MultiDistributions
         value: Tensor
         self.obs_hat, action_dist, value, self.hidden_state = self.fd_piv(
-            observation, self.action, hidden=self.hidden_state
+            observation, self.action, self.internal_action, hidden=self.hidden_state
         )
-        self.action = action_dist.sample()
-        action_log_prob = action_dist.log_prob(self.action)
+        if self.action is not None:
+            self.step_data_fd_piv[DataKey.PREVIOUS_ACTION] = self.action.cpu()
+        if self.internal_action is not None:
+            self.step_data_fd_piv[DataKey.PREVIOUS_INTERNAL_ACTION] = (
+                self.internal_action.cpu()
+            )
+        self.action, self.internal_action = action_dist.sample()
+        action_log_prob = action_dist.log_prob(self.action, self.internal_action)
 
         # ==============================================================================
         #                               Data Collection
         # ==============================================================================
 
-        self.step_data_fd_piv[DataKey.OBSERVATION] = self.step_data_fd_piv[
-            DataKey.OBSERVATION
-        ] = observation.cpu()
-        self.step_data_fd_piv[DataKey.ACTION] = self.step_data_fd_piv[
-            DataKey.ACTION
-        ] = self.action.cpu()
-
-        if set(self.step_data_fd_piv.keys()) >= self.step_data_policy_required_keys:
-            self.collector_fd_piv.collect(self.step_data_fd_piv.copy())
+        self.step_data_fd_piv[DataKey.OBSERVATION] = observation.cpu()
+        self.step_data_fd_piv[DataKey.ACTION] = self.action.cpu()
+        self.step_data_fd_piv[DataKey.INTERNAL_ACTION] = self.internal_action.cpu()
 
         # Store for next loop
         self.step_data_fd_piv[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()
@@ -215,6 +210,8 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             torch.save(self.hidden_state, path / "hidden_state.pt")
         if self.action is not None:
             torch.save(self.action, path / "action.pt")
+        if self.internal_action is not None:
+            torch.save(self.internal_action, path / "internal_action.pt")
         if self.obs_hat is not None:
             torch.save(self.obs_hat, path / "obs_hat.pt")
         (path / "global_step").write_text(str(self.global_step), "utf-8")
@@ -241,6 +238,12 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.action = (
             torch.load(action_path, map_location=self.device)
             if action_path.exists()
+            else None
+        )
+        internal_action_path = path / "internal_action.pt"
+        self.internal_action = (
+            torch.load(internal_action_path, map_location=self.device)
+            if internal_action_path.exists()
             else None
         )
         obs_hat_path = path / "obs_hat.pt"

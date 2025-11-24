@@ -29,6 +29,7 @@ class TestPPOHiddenStateFDPiVTrainer:
     DIM_ACTION = 8
     SEQ_LEN = 10
     DIM_FF_HIDDEN = 16
+    INTERNAL_ACTION_DIM = 16
 
     @pytest.fixture
     def fd_policy_value_model(self):
@@ -47,6 +48,7 @@ class TestPPOHiddenStateFDPiVTrainer:
         return StackedHiddenFDPiV(
             obs_info=obs_info,
             action_info=action_info,
+            internal_action_dim=self.INTERNAL_ACTION_DIM,
             dim=self.DIM,
             core_model=core_model,
         )
@@ -63,7 +65,10 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION,
                     DataKey.HIDDEN,
                     DataKey.ACTION,
+                    DataKey.INTERNAL_ACTION,
                     DataKey.ACTION_LOG_PROB,
+                    DataKey.PREVIOUS_ACTION,
+                    DataKey.PREVIOUS_INTERNAL_ACTION,
                     DataKey.REWARD,
                     DataKey.VALUE,
                 ],
@@ -141,6 +146,9 @@ class TestPPOHiddenStateFDPiVTrainer:
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
+            internal_action = torch.randn(self.INTERNAL_ACTION_DIM)
+            previous_actions = actions.clone()
+            previous_internal_actions = internal_action.clone()
             action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
@@ -150,7 +158,10 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION: observations,
                     DataKey.HIDDEN: hidden,
                     DataKey.ACTION: actions,
+                    DataKey.INTERNAL_ACTION: internal_action,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
+                    DataKey.PREVIOUS_ACTION: previous_actions,
+                    DataKey.PREVIOUS_INTERNAL_ACTION: previous_internal_actions,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
                 }
@@ -187,7 +198,10 @@ class TestPPOHiddenStateFDPiVTrainer:
                     DataKey.OBSERVATION,
                     DataKey.HIDDEN,
                     DataKey.ACTION,
+                    DataKey.INTERNAL_ACTION,
                     DataKey.ACTION_LOG_PROB,
+                    DataKey.PREVIOUS_ACTION,
+                    DataKey.PREVIOUS_INTERNAL_ACTION,
                     DataKey.REWARD,
                     DataKey.VALUE,
                     DataKey.UPPER_ACTION,
@@ -213,17 +227,23 @@ class TestPPOHiddenStateFDPiVTrainer:
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
+            internal_action = torch.randn(self.INTERNAL_ACTION_DIM)
             action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
             upper_action = torch.randn(2)  # Example upper action dimension
+            previous_actions = actions.clone()
+            previous_internal_actions = internal_action.clone()
 
             collector.collect(
                 {
                     DataKey.OBSERVATION: observations,
                     DataKey.HIDDEN: hidden,
                     DataKey.ACTION: actions,
+                    DataKey.INTERNAL_ACTION: internal_action,
                     DataKey.ACTION_LOG_PROB: action_log_probs,
+                    DataKey.PREVIOUS_ACTION: previous_actions,
+                    DataKey.PREVIOUS_INTERNAL_ACTION: previous_internal_actions,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
                     DataKey.UPPER_ACTION: upper_action,
@@ -269,9 +289,12 @@ class TestPPOHiddenStateFDPiVTrainer:
                 DataKey.OBSERVATION,
                 DataKey.HIDDEN,
                 DataKey.ACTION,
+                DataKey.INTERNAL_ACTION,
                 DataKey.ACTION_LOG_PROB,
                 DataKey.REWARD,
                 DataKey.VALUE,
+                DataKey.PREVIOUS_ACTION,
+                DataKey.PREVIOUS_INTERNAL_ACTION,
             ]
 
             # Only the last buffer should have UPPER_ACTION

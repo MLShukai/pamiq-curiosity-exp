@@ -30,6 +30,9 @@ type BatchType = tuple[
     Tensor,
     Tensor,
     Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
     Tensor | None,
 ]
 
@@ -50,10 +53,10 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         max_epochs: int = 1,
         norm_advantage: bool = True,
         clip_coef: float = 0.1,
-        entropy_coef: float = 0.0,
+        action_entropy_coef: float = -0.01,
+        internal_action_entropy_coef: float = 0.01,
         vfunc_coef: float = 0.5,
-        imagination_length: int = 1,
-        imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
+        grad_clip_norm: float = 10.0,
         model_name: str = ModelName.FD_POLICY_VALUE,
         data_user_name: str = BufferName.FD_POLICY_VALUE,
         log_prefix: str = "fd-ppo-policy",
@@ -96,6 +99,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
 
         self.gamma = gamma
         self.gae_lambda = gae_lambda
+        self.grad_clip_norm = grad_clip_norm
 
         self.model_name = model_name
         self.data_user_name = data_user_name
@@ -108,10 +112,9 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         self.max_epochs = max_epochs
         self.norm_advantage = norm_advantage
         self.clip_coef = clip_coef
-        self.entropy_coef = entropy_coef
+        self.action_entropy_coef = action_entropy_coef
+        self.internal_action_entropy_coef = internal_action_entropy_coef
         self.vfunc_coef = vfunc_coef
-        self.imagination_length = imagination_length
-        self.imagination_average_method = imagination_average_method
         self.global_step = 0
 
         self.include_upper_action = include_upper_action
@@ -146,22 +149,28 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             observations,
             hiddens,
             actions,
+            internal_actions,
             action_log_probs,
             values,
+            previous_actions,
+            previous_internal_actions,
             advantages,
             returns,
             upper_action,
         ) = batch
 
         # Get new distributions and values
-        _, new_dist, new_values, _ = self.fd_piv.model(
+        obs_hat, new_dist, new_values, _ = self.fd_piv.model(
             observations,
-            actions,
+            previous_actions,
+            previous_internal_actions,
             upper_action,
             hiddens[:, 0],
         )
-        new_log_probs = new_dist.log_prob(actions)
+        new_log_probs = new_dist.log_prob(actions, internal_actions)
+
         entropy = new_dist.entropy()
+        action_entropy, internal_action_entropy = new_dist.entropy_per_dist()
 
         # Calculate ratio for PPO
         log_ratio = new_log_probs - action_log_probs
@@ -202,56 +211,19 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
         v_loss = 0.5 * v_loss_max.mean()
 
-        entropy_loss = entropy.mean()
-
-        # Imagination loss
-
-        device = get_device(self.fd_piv.model)
-        obs_imaginations, hiddens = (
-            observations[:, : -self.imagination_length],
-            hiddens[:, 0].to(device),
+        action_entropy_loss = action_entropy.mean() * self.action_entropy_coef
+        internal_action_entropy_loss = (
+            internal_action_entropy.mean() * self.internal_action_entropy_coef
         )
 
-        loss_imaginations: list[Tensor] = []
-        for i in range(self.imagination_length):
-            action_imaginations = actions[
-                :, i : -self.imagination_length + i
-            ]  # a_i:i+T-H, (B, T-H, *)
-            obs_targets = observations[
-                :,
-                i + 1 : observations.size(1) - self.imagination_length + i + 1,
-            ]  # o_i+1:T-H+i+1, (B, T-H, *)
-            if i > 0:
-                action_imaginations = action_imaginations.flatten(0, 1)  # (B', *)
-                obs_targets = obs_targets.flatten(0, 1)  # (B', *)
-
-            if i == 0:
-                forward_method = self.fd_piv.model.__call__
-            else:
-                forward_method = partial(self.fd_piv.model, no_len=True)
-
-            obses_next_hat, _, _, next_hiddens = forward_method(
-                obs_imaginations, action_imaginations, hidden=hiddens
-            )
-
-            loss = torch.nn.functional.mse_loss(obses_next_hat, obs_targets)
-            loss_imaginations.append(loss)
-            obs_imaginations = obses_next_hat
-
-            if i == 0:
-                obs_imaginations = obs_imaginations.flatten(
-                    0, 1
-                )  # (B, T-H, *) -> (B', *)
-                hiddens = next_hiddens.movedim(2, 1).flatten(
-                    0, 1
-                )  # h'_i, (B, D, T-H, *) -> (B, T-H, D, *) -> (B', D, *)
-
-        fd_loss = self.imagination_average_method(torch.stack(loss_imaginations))
+        # Forward dynamics loss
+        fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
 
         # Total loss
         loss = (
             pg_loss
-            - self.entropy_coef * entropy_loss
+            + action_entropy_loss
+            + internal_action_entropy_loss
             + v_loss * self.vfunc_coef
             + fd_loss
         )
@@ -261,9 +233,16 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             "policy_loss": pg_loss,
             "value_loss": v_loss,
             "fd_loss": fd_loss,
-            "entropy": entropy_loss,
+            "entropy": entropy.mean(),
+            "action_entropy": action_entropy.mean(),
+            "internal_action_entropy": internal_action_entropy.mean(),
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
+            "advantage_mean": advantages.mean(),
+            "ratio_mean": ratio.mean(),
+            "new_log_prob_mean": new_log_probs.mean(),
+            "action_log_prob_mean": action_log_probs.mean(),
+            "log_ratio_mean": log_ratio.mean(),
         }
 
     @override
@@ -277,9 +256,12 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.OBSERVATION,
             DataKey.HIDDEN,
             DataKey.ACTION,
+            DataKey.INTERNAL_ACTION,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
+            DataKey.PREVIOUS_ACTION,
+            DataKey.PREVIOUS_INTERNAL_ACTION,
         ]
         if self.include_upper_action:
             keys.append(DataKey.UPPER_ACTION)
@@ -300,8 +282,11 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             tensors[DataKey.OBSERVATION],
             tensors[DataKey.HIDDEN],
             tensors[DataKey.ACTION],
+            tensors[DataKey.INTERNAL_ACTION],
             tensors[DataKey.ACTION_LOG_PROB],
             tensors[DataKey.VALUE],
+            tensors[DataKey.PREVIOUS_ACTION],
+            tensors[DataKey.PREVIOUS_INTERNAL_ACTION],
             advantages,
             returns,
         ]
@@ -339,11 +324,24 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
                     ]
                 ).norm()
 
+                param_norm = torch.cat(
+                    [
+                        p.flatten()
+                        for p in self.fd_piv.model.parameters()
+                        if p.grad is not None
+                    ]
+                ).norm()
+
+                torch.nn.utils.clip_grad_norm_(
+                    self.fd_piv.model.parameters(), max_norm=self.grad_clip_norm
+                )
+
                 self.optimizers[OPTIMIZER_NAME].step()
 
                 # Logging
                 metrics = {k: v.item() for k, v in outputs.items()}
                 metrics["grad_norm"] = grad_norm.item()
+                metrics["param_norm"] = param_norm.item()
 
                 if run := get_global_run():
                     for tag, v in metrics.items():
@@ -381,9 +379,12 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             DataKey.OBSERVATION,
             DataKey.HIDDEN,
             DataKey.ACTION,
+            DataKey.INTERNAL_ACTION,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
+            DataKey.PREVIOUS_ACTION,
+            DataKey.PREVIOUS_INTERNAL_ACTION,
         ]
         if include_upper_action:
             keys.append(DataKey.UPPER_ACTION)

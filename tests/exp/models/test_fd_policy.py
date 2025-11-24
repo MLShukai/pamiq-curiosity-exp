@@ -16,6 +16,7 @@ class TestStackedHiddenFDPiV:
     OBS_DIM_HIDDEN = 12
     OBS_NUM_TOKENS = 4
     ACTION_DIM = 4
+    INTERNAL_ACTION_DIM = 16
     ACTION_CHOICES = [2, 3, 4]
     DIM_FF_HIDDEN = 16
 
@@ -48,6 +49,7 @@ class TestStackedHiddenFDPiV:
         return StackedHiddenFDPiV(
             obs_info=obs_info,
             action_info=action_info,
+            internal_action_dim=self.INTERNAL_ACTION_DIM,
             dim=self.DIM,
             core_model=core_model,
         )
@@ -66,14 +68,18 @@ class TestStackedHiddenFDPiV:
         return torch.stack(actions, dim=-1)
 
     @pytest.fixture
+    def internal_action(self):
+        return torch.randn(self.BATCH_SIZE, self.SEQ_LEN, self.INTERNAL_ACTION_DIM)
+
+    @pytest.fixture
     def hidden(self):
         return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM)
 
-    def test_forward(self, dynamics_model, obs, action, hidden):
+    def test_forward(self, dynamics_model, obs, action, internal_action, hidden):
         """Test forward pass of StackedHiddenFD model."""
         # Run forward pass
         obs_hat, policy_dist, value, next_hidden = dynamics_model(
-            obs, action, hidden=hidden
+            obs, action, internal_action, hidden=hidden
         )
 
         # Check output types and shapes
@@ -84,11 +90,16 @@ class TestStackedHiddenFDPiV:
             self.OBS_DIM,
         )
 
-        sample_action = policy_dist.sample()
+        sample_action, sample_internal_action = policy_dist.sample()
         assert sample_action.shape == (
             self.BATCH_SIZE,
             self.SEQ_LEN,
             len(self.ACTION_CHOICES),
+        )
+        assert sample_internal_action.shape == (
+            self.BATCH_SIZE,
+            self.SEQ_LEN,
+            self.INTERNAL_ACTION_DIM,
         )
 
         assert value.shape == (self.BATCH_SIZE, self.SEQ_LEN)
@@ -121,8 +132,13 @@ class TestStackedHiddenFDPiV:
             self.OBS_DIM,
         )
 
-        sample_action = single_policy_dist.sample()
+        sample_action, sample_internal_action = single_policy_dist.sample()
         assert sample_action.shape == (1, self.SEQ_LEN, len(self.ACTION_CHOICES))
+        assert sample_internal_action.shape == (
+            1,
+            self.SEQ_LEN,
+            self.INTERNAL_ACTION_DIM,
+        )
 
         assert single_value.shape == (1, self.SEQ_LEN)
 
@@ -140,17 +156,22 @@ class TestStackedHiddenFDPiV:
             ],
             dim=-1,
         )
+        internal_action_no_len = torch.randn(self.BATCH_SIZE, self.INTERNAL_ACTION_DIM)
 
         # Run forward pass
         obs_hat, policy_dist, value, next_hidden = dynamics_model.forward_with_no_len(
-            obs_no_len, action_no_len, hidden
+            obs_no_len, action_no_len, internal_action_no_len, hidden
         )
 
         # Check output shapes
         assert obs_hat.shape == (self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
 
-        sample_action = policy_dist.sample()
+        sample_action, sample_internal_action = policy_dist.sample()
         assert sample_action.shape == (self.BATCH_SIZE, len(self.ACTION_CHOICES))
+        assert sample_internal_action.shape == (
+            self.BATCH_SIZE,
+            self.INTERNAL_ACTION_DIM,
+        )
 
         assert value.shape == (self.BATCH_SIZE,)
 
@@ -177,11 +198,16 @@ class TestStackedHiddenFDPiV:
             self.OBS_DIM,
         )
 
-        sample_action = action_dist.sample()
+        sample_action, sample_internal_action = action_dist.sample()
         assert sample_action.shape == (
             self.BATCH_SIZE,
             self.SEQ_LEN,
             len(self.ACTION_CHOICES),
+        )
+        assert sample_internal_action.shape == (
+            self.BATCH_SIZE,
+            self.SEQ_LEN,
+            self.INTERNAL_ACTION_DIM,
         )
 
         assert value.shape == (self.BATCH_SIZE, self.SEQ_LEN)
@@ -213,8 +239,12 @@ class TestStackedHiddenFDPiV:
         # Check output shapes
         assert obs_hat.shape == (self.BATCH_SIZE, self.OBS_NUM_TOKENS, self.OBS_DIM)
 
-        sample_action = policy_dist.sample()
+        sample_action, sample_internal_action = policy_dist.sample()
         assert sample_action.shape == (self.BATCH_SIZE, len(self.ACTION_CHOICES))
+        assert sample_internal_action.shape == (
+            self.BATCH_SIZE,
+            self.INTERNAL_ACTION_DIM,
+        )
 
         assert value.shape == (self.BATCH_SIZE,)
 
