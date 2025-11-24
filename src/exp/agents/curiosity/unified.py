@@ -133,6 +133,9 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
             self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
+        if set(self.step_data_fd_piv.keys()) >= self.step_data_policy_required_keys:
+            self.collector_fd_piv.collect(self.step_data_fd_piv.copy())
+
         # ==============================================================================
         #                               Forward Dynamics and Policy Process
         # ==============================================================================
@@ -163,9 +166,6 @@ class UnifiedAdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.step_data_fd_piv[DataKey.OBSERVATION] = observation.cpu()
         self.step_data_fd_piv[DataKey.ACTION] = self.action.cpu()
         self.step_data_fd_piv[DataKey.INTERNAL_ACTION] = self.internal_action.cpu()
-
-        if set(self.step_data_fd_piv.keys()) >= self.step_data_policy_required_keys:
-            self.collector_fd_piv.collect(self.step_data_fd_piv.copy())
 
         # Store for next loop
         self.step_data_fd_piv[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()

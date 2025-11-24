@@ -95,12 +95,12 @@ class TestUnifiedAdversarialCuriosityAgent:
         action = agent.step(observation)
         assert agent.global_step == 2
         # Verify data collection
-        assert spy_fd_piv_collect.call_count == 1
+        assert spy_fd_piv_collect.call_count == 0
 
         # Third step
         action = agent.step(observation)
         assert agent.global_step == 3
-        assert spy_fd_piv_collect.call_count == 2
+        assert spy_fd_piv_collect.call_count == 1
         fd_data_prev = spy_fd_piv_collect.call_args_list[-1][0][0]
 
         action = agent.step(observation)
