@@ -51,7 +51,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         max_epochs: int = 1,
         norm_advantage: bool = True,
         clip_coef: float = 0.1,
-        entropy_coef: float = 0.0,
+        action_entropy_coef: float = -0.01,
+        internal_action_entropy_coef: float = 0.01,
         vfunc_coef: float = 0.5,
         imagination_length: int = 1,
         grad_clip_norm: float = 10.0,
@@ -111,7 +112,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         self.max_epochs = max_epochs
         self.norm_advantage = norm_advantage
         self.clip_coef = clip_coef
-        self.entropy_coef = entropy_coef
+        self.action_entropy_coef = action_entropy_coef
+        self.internal_action_entropy_coef = internal_action_entropy_coef
         self.vfunc_coef = vfunc_coef
         self.imagination_length = imagination_length
         self.imagination_average_method = imagination_average_method
@@ -166,7 +168,9 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             hiddens[:, 0],
         )
         new_log_probs = new_dist.log_prob(actions, internal_actions)
+
         entropy = new_dist.entropy()
+        action_entropy, internal_action_entropy = new_dist.entropy_per_dist()
 
         # Calculate ratio for PPO
         log_ratio = new_log_probs - action_log_probs
@@ -207,7 +211,10 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
         v_loss = 0.5 * v_loss_max.mean()
 
-        entropy_loss = entropy.mean()
+        action_entropy_loss = action_entropy.mean() * self.action_entropy_coef
+        internal_action_entropy_loss = (
+            internal_action_entropy.mean() * self.internal_action_entropy_coef
+        )
 
         # Imagination loss
 
@@ -265,7 +272,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         # Total loss
         loss = (
             pg_loss
-            - self.entropy_coef * entropy_loss
+            + action_entropy_loss
+            + internal_action_entropy_loss
             + v_loss * self.vfunc_coef
             + fd_loss
         )
@@ -275,9 +283,16 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             "policy_loss": pg_loss,
             "value_loss": v_loss,
             "fd_loss": fd_loss,
-            "entropy": entropy_loss,
+            "entropy": entropy.mean(),
+            "action_entropy": action_entropy.mean(),
+            "internal_action_entropy": internal_action_entropy.mean(),
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
+            "advantage_mean": advantages.mean(),
+            "ratio_mean": ratio.mean(),
+            "new_log_prob_mean": new_log_probs.mean(),
+            "action_log_prob_mean": action_log_probs.mean(),
+            "log_ratio_mean": log_ratio.mean(),
         }
 
     @override

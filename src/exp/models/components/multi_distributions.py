@@ -73,3 +73,11 @@ class MultiDistributions:
             Tensor of entropies with batch shape
         """
         return torch.stack([d.entropy() for d in self.dists], dim=-1).sum(dim=-1)
+
+    def entropy_per_dist(self) -> Iterable[torch.Tensor]:
+        """Compute entropy for each distribution separately.
+
+        Returns:
+            List of tensors of entropies for each distribution.
+        """
+        return [d.entropy() for d in self.dists]
