@@ -56,9 +56,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         action_entropy_coef: float = -0.01,
         internal_action_entropy_coef: float = 0.01,
         vfunc_coef: float = 0.5,
-        imagination_length: int = 1,
         grad_clip_norm: float = 10.0,
-        imagination_average_method: Callable[[Tensor], Tensor] = average_exponentially,
         model_name: str = ModelName.FD_POLICY_VALUE,
         data_user_name: str = BufferName.FD_POLICY_VALUE,
         log_prefix: str = "fd-ppo-policy",
@@ -117,8 +115,6 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         self.action_entropy_coef = action_entropy_coef
         self.internal_action_entropy_coef = internal_action_entropy_coef
         self.vfunc_coef = vfunc_coef
-        self.imagination_length = imagination_length
-        self.imagination_average_method = imagination_average_method
         self.global_step = 0
 
         self.include_upper_action = include_upper_action
@@ -164,7 +160,7 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
         ) = batch
 
         # Get new distributions and values
-        _, new_dist, new_values, _ = self.fd_piv.model(
+        obs_hat, new_dist, new_values, _ = self.fd_piv.model(
             observations,
             previous_actions,
             previous_internal_actions,
@@ -220,58 +216,8 @@ class PPOHiddenStateFDPiVTrainer(TorchTrainer):
             internal_action_entropy.mean() * self.internal_action_entropy_coef
         )
 
-        # Imagination loss
-
-        device = get_device(self.fd_piv.model)
-        obs_imaginations, hiddens = (
-            observations[:, : -self.imagination_length],
-            hiddens[:, 0].to(device),
-        )
-
-        loss_imaginations: list[Tensor] = []
-        for i in range(self.imagination_length):
-            action_imaginations = actions[
-                :, i : -self.imagination_length + i
-            ]  # a_i:i+T-H, (B, T-H, *)
-            internal_action_imaginations = internal_actions[
-                :, i : -self.imagination_length + i
-            ]  # a_int_i:i+T-H, (B, T-H, *)
-            obs_targets = observations[
-                :,
-                i + 1 : observations.size(1) - self.imagination_length + i + 1,
-            ]  # o_i+1:T-H+i+1, (B, T-H, *)
-            if i > 0:
-                action_imaginations = action_imaginations.flatten(0, 1)  # (B', *)
-                internal_action_imaginations = internal_action_imaginations.flatten(
-                    0, 1
-                )  # (B', *)
-                obs_targets = obs_targets.flatten(0, 1)  # (B', *)
-
-            if i == 0:
-                forward_method = self.fd_piv.model.__call__
-            else:
-                forward_method = partial(self.fd_piv.model, no_len=True)
-
-            obses_next_hat, _, _, next_hiddens = forward_method(
-                obs_imaginations,
-                action_imaginations,
-                internal_action_imaginations,
-                hidden=hiddens,
-            )
-
-            loss = torch.nn.functional.mse_loss(obses_next_hat, obs_targets)
-            loss_imaginations.append(loss)
-            obs_imaginations = obses_next_hat
-
-            if i == 0:
-                obs_imaginations = obs_imaginations.flatten(
-                    0, 1
-                )  # (B, T-H, *) -> (B', *)
-                hiddens = next_hiddens.movedim(2, 1).flatten(
-                    0, 1
-                )  # h'_i, (B, D, T-H, *) -> (B, T-H, D, *) -> (B', D, *)
-
-        fd_loss = self.imagination_average_method(torch.stack(loss_imaginations))
+        # Forward dynamics loss
+        fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
 
         # Total loss
         loss = (
