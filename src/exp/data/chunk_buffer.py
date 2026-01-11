@@ -7,7 +7,7 @@ from pamiq_core.data import DataBuffer
 
 
 class ChunkBuffer[T](DataBuffer[T, list[list[T]]]):
-    """Implementation of DataBuffer that maintains data in intermittent order.
+    """Implementation of DataBuffer that maintains data as chunks.
 
     This buffer stores collected data points in an ordered queue,
     preserving the insertion order with a maximum size limit.
@@ -21,12 +21,12 @@ class ChunkBuffer[T](DataBuffer[T, list[list[T]]]):
         first_add_steps: int,
         first_store_steps: int,
     ):
-        """Initialize a new IntermittentBuffer.
+        """Initialize a new ChunkBuffer.
 
         Args:
             max_size: Maximum number of data points to store.
             get_interval: Interval at which data is retrieved.
-            first_get_steps: Number of steps to retrieve data initially.
+            first_add_steps: Number of steps to add data initially.
             first_store_steps: Number of steps to store data initially.
         """
         super().__init__(max_size)
