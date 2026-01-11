@@ -31,9 +31,14 @@ class IntermittentBuffer[T](DataBuffer[T, list[T]]):
         """
         super().__init__(max_size)
 
-        assert first_add_steps <= first_store_steps
+        if get_interval <= 0:
+            raise ValueError("get_interval must be greater than 0")
         self._get_interval = get_interval
+        if first_add_steps < 0:
+            raise ValueError("first_add_steps must be non-negative")
         self._first_add_steps = first_add_steps
+        if first_store_steps < first_add_steps:
+            raise ValueError("first_store_steps must be >= first_add_steps")
         self._first_store_steps = first_store_steps
         self._temporary_queue: deque[T] = deque(
             maxlen=(first_store_steps - first_add_steps) // get_interval + 1
