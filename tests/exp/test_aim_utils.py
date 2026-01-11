@@ -2,7 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from exp.mlflow import flatten_config
+from exp.aim_utils import (
+    convert_value_for_aim,
+    flatten_config,
+)
 
 
 class TestFlattenConfig:
@@ -43,10 +46,38 @@ class TestFlattenConfig:
         result = flatten_config(config, parent_key, separator)
         assert result == expected
 
-    def test_flatten_with_mlflow_conversion(self):
-        """Test that values are converted using convert_value_for_mlflow."""
+    def test_flatten_with_aim_conversion(self):
+        """Test that values are converted using convert_value_for_aim."""
         config = {"path": Path("/tmp")}
         result = flatten_config(config)
 
         assert isinstance(result["path"], str)
         assert "/tmp" in result["path"]
+
+
+class TestConvertValueForAim:
+    """Tests for the convert_value_for_aim function."""
+
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            # Basic types
+            ("string", "string"),
+            (123, 123),
+            (3.14, 3.14),
+            (True, True),
+            (False, False),
+            # Types that need conversion
+            (Path("/tmp"), "/tmp"),
+            ([1, 2, 3], "[1, 2, 3]"),
+            ({"a": 1}, "{'a': 1}"),
+            (None, "None"),
+        ],
+    )
+    def test_convert_value_for_aim(self, value, expected):
+        """Test value conversion for Aim compatibility."""
+        result = convert_value_for_aim(value)
+        if isinstance(expected, str) and expected != value:
+            assert str(value) == result
+        else:
+            assert result == expected

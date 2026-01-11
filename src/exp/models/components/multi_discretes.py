@@ -44,9 +44,10 @@ class MultiCategoricals(Distribution):
         if not all(first_dist.batch_shape == d.batch_shape for d in categoricals):
             raise ValueError("All batch shapes must be same.")
 
-        batch_shape = torch.Size((*first_dist.batch_shape, len(categoricals)))
         super().__init__(
-            batch_shape=batch_shape, event_shape=torch.Size(), validate_args=False
+            batch_shape=first_dist.batch_shape,
+            event_shape=torch.Size((len(categoricals),)),
+            validate_args=False,
         )
 
         self.dists = categoricals
@@ -71,20 +72,20 @@ class MultiCategoricals(Distribution):
             value: Tensor of actions with shape (*, num_dists).
 
         Returns:
-            Tensor of log probabilities with shape (*, num_dists).
+            Tensor of log probabilities with shape (*,).
         """
         return torch.stack(
             [d.log_prob(v) for d, v in zip(self.dists, value.movedim(-1, 0))], dim=-1
-        )
+        ).sum(dim=-1)
 
     @override
     def entropy(self) -> torch.Tensor:
         """Compute entropy for each distribution.
 
         Returns:
-            Tensor of entropies with shape (*, num_dists), where * is the batch shape.
+            Tensor of entropies with batch shape
         """
-        return torch.stack([d.entropy() for d in self.dists], dim=-1)
+        return torch.stack([d.entropy() for d in self.dists], dim=-1).sum(dim=-1)
 
 
 class FCMultiCategoricalHead(nn.Module):

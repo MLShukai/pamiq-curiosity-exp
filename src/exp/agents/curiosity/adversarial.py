@@ -2,15 +2,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import override
 
-import mlflow
 import torch
+import torch.nn.functional as F
 from pamiq_core import Agent
 from pamiq_core.utils.schedulers import StepIntervalScheduler
 from torch import Tensor
 from torch.distributions import Distribution
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
-from exp.mlflow import get_global_run_id
 from exp.models import ModelName
 from exp.utils import average_exponentially
 
@@ -39,7 +39,7 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
             max_imagination_steps: Maximum number of steps to imagine into the future. Must be >= 1. Defaults to 1.
             reward_average_method: Function to average rewards across imagination steps.
                 Takes a tensor of rewards (imagination_steps,) and returns a scalar reward. Defaults to average_exponentially.
-            log_every_n_steps: Frequency of logging metrics to MLflow. Defaults to 1.
+            log_every_n_steps: Frequency of logging metrics to Aim. Defaults to 1.
             device: Device to run computations on. Defaults to None.
             dtype: Data type for tensors. Defaults to None.
 
@@ -86,7 +86,6 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
 
     head_forward_dynamics_hidden_state: Tensor | None  # (depth, dim) or None
     policy_hidden_state: Tensor | None  # (depth, dim) or None
-    obs_dist_imaginations: Distribution  # (imaginations, dim)
     obs_imaginations: Tensor  # (imaginations, dim)
     forward_dynamics_hidden_imaginations: (
         Tensor | None
@@ -147,7 +146,9 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         if not initial_step:
             target_obses = observation.expand_as(self.obs_imaginations)
             reward_imaginations = (
-                -self.obs_dist_imaginations.log_prob(target_obses).flatten(1).mean(-1)
+                F.mse_loss(self.obs_imaginations, target_obses, reduction="none")
+                .flatten(1)
+                .mean(-1)
             )
 
             reward = self.reward_average_method(reward_imaginations)
@@ -190,12 +191,11 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
                 : self.max_imagination_steps
             ]  # (imaginations, depth, dim)
 
-        obs_dist_imaginations, hidden_imaginations = self.forward_dynamics(
+        obs_imaginations, hidden_imaginations = self.forward_dynamics(
             obs_imaginations,
             action.expand((len(obs_imaginations), *action.shape)),
             hidden_imaginations,
         )
-        obs_imaginations = obs_dist_imaginations.sample()
 
         # ==============================================================================
         #                               Data Collection
@@ -218,7 +218,6 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         self.step_data_policy[DataKey.VALUE] = value.cpu()
         self.metrics["value"] = value.cpu().item()
 
-        self.obs_dist_imaginations = obs_dist_imaginations
         self.obs_imaginations = obs_imaginations
         self.forward_dynamics_hidden_imaginations = hidden_imaginations
         self.head_forward_dynamics_hidden_state = (
@@ -230,16 +229,19 @@ class AdversarialCuriosityAgent(Agent[Tensor, Tensor]):
         return action
 
     def log_metrics(self) -> None:
-        """Log collected metrics to MLflow.
+        """Log collected metrics to Aim.
 
-        Writes all metrics in the metrics dictionary to MLflow with the
+        Writes all metrics in the metrics dictionary to Aim with the
         current global step.
         """
-        mlflow.log_metrics(
-            {f"curiosity-agent/{k}": v for k, v in self.metrics.items()},
-            self.global_step,
-            run_id=get_global_run_id(),
-        )
+        if run := get_global_run():
+            for k, v in self.metrics.items():
+                run.track(
+                    v,
+                    name=k,
+                    step=self.global_step,
+                    context={"namespace": "agent", "curiosity_type": "adversarial"},
+                )
 
     # ------ State Persistence ------
 

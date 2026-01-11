@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /interaction/agent: unified
+  - override /trainers: unified
+  - override /models: unified
+  - override /buffers: unified
+
+shared:
+  max_imagination_steps: 3
+  dtype: float32
+
+experiment_name: "unified"
+
+tags:
+  - "unified"
+  - "adversarial"

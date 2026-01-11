@@ -1,20 +1,73 @@
 """Defines forward dynamics models."""
 
-from typing import override
+import copy
+from abc import ABC, abstractmethod
+from typing import Any, override
 
 import torch
 import torch.nn as nn
+from pamiq_core.torch import TorchTrainingModel
 from torch import Tensor
-from torch.distributions import Distribution
 
-from .components.deterministic_normal import FCDeterministicNormalHead
 from .components.multi_discretes import MultiEmbeddings
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
 from .components.stacked_hidden_state import StackedHiddenState
 from .utils import ActionInfo, ObsInfo
 
 
-class StackedHiddenFD(nn.Module):
+class HiddenStateFD(ABC, nn.Module):
+    """Abstract base class for forward dynamics models with hidden state
+    support.
+
+    This class defines the interface for forward dynamics models that
+    maintain hidden state across time steps. Implementations should
+    predict next observations from current observations and actions
+    while updating their internal hidden state.
+    """
+
+    @override
+    @abstractmethod
+    def forward(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, Tensor]:
+        """Forward pass to predict next observation and update hidden state.
+
+        Args:
+            obs: Current observation tensor.
+            action: Action tensor.
+            hidden: Optional hidden state from previous timestep. If None,
+                implementations should initialize appropriate hidden state.
+            no_len: If True, processes inputs without sequence length dimension.
+
+        Returns:
+            A tuple containing:
+                - Predicted next observation tensor.
+                - Updated hidden state tensor for next timestep.
+        """
+        pass
+
+    @override
+    def __call__(
+        self,
+        obs: Tensor,
+        action: Tensor,
+        hidden: Tensor | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, Tensor]:
+        """Call method with proper type annotations.
+
+        See forward() method for full documentation.
+        """
+        return super().__call__(obs, action, hidden, no_len=no_len)
+
+
+class StackedHiddenFD(HiddenStateFD):
     """Forward dynamics using StackedHiddenState model variants for core
     model."""
 
@@ -49,10 +102,7 @@ class StackedHiddenFD(nn.Module):
             obs_info.dim_hidden + action_info.dim * len(action_info.choices), dim
         )
         self.core_model = core_model
-        self.obs_hat_dist_head = nn.Sequential(
-            ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens),
-            FCDeterministicNormalHead(obs_info.dim, obs_info.dim),
-        )
+        self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
 
     def _flatten_obs_action(self, obs: Tensor, action: Tensor) -> Tensor:
         """Flatten and concat observation and action."""
@@ -66,57 +116,84 @@ class StackedHiddenFD(nn.Module):
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, Tensor]:
         """Forward pass to predict next observation distribution.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, len, num_token, action_chocies)
+            action: Action tensor. shape is (*batch, len, num_token, action_choices)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
         Returns:
             A tuple containing:
-                - Distribution representing predicted next observation.
+                - Tensor representing predicted next observation.
                 - Updated hidden state tensor for use in next prediction.
         """
         x = self._flatten_obs_action(obs, action)
-        x, next_hidden = self.core_model(x, hidden)
-        obs_hat_dist = self.obs_hat_dist_head(x)
-        return obs_hat_dist, next_hidden
-
-    @override
-    def __call__(
-        self,
-        obs: Tensor,
-        action: Tensor,
-        hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
-        """Override __call__ with proper type annotations.
-
-        See forward() method for full documentation.
-        """
-        return super().__call__(obs, action, hidden)
+        x, next_hidden = self.core_model(x, hidden, no_len=no_len)
+        obs_hat = self.obs_hat_head(x)
+        return obs_hat, next_hidden
 
     def forward_with_no_len(
         self,
         obs: Tensor,
         action: Tensor,
         hidden: Tensor | None = None,
-    ) -> tuple[Distribution, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, num_token, action_chocies)
+            action: Action tensor. shape is (*batch, num_token, action_choices)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
         Returns:
             A tuple containing:
-                - Distribution representing predicted next observation.
+                - Tensor representing predicted next observation.
                 - Updated hidden state tensor for use in next prediction.
         """
         x = self._flatten_obs_action(obs, action)  # (*batch, dim)
-        x, next_hidden = self.core_model.forward_with_no_len(x, hidden)
-        return self.obs_hat_dist_head(x), next_hidden
+        x, next_hidden = self.core_model(x, hidden, no_len=True)
+        return self.obs_hat_head(x), next_hidden
+
+
+def create_multiple(
+    obs_info: ObsInfo,
+    action_info: ActionInfo,
+    dim: int,
+    core_models: list[StackedHiddenState],
+    *,
+    device: torch.device | None = None,
+    dtype: torch.dtype | None = None,
+) -> list[TorchTrainingModel[StackedHiddenFD]]:
+    """Create multiple forward dynamics models with the same configuration.
+
+    Args:
+        num_models: Number of models to create.
+        device: Device to place models on.
+        dtype: Data type for model parameters.
+        model_hparams: Model hyperparameters passed to each model.
+
+    Returns:
+        List of initialized forward dynamics models.
+    """
+
+    return [
+        TorchTrainingModel(
+            model=StackedHiddenFD(
+                obs_info=obs_info,
+                action_info=action_info,
+                dim=dim,
+                core_model=model,
+            ),
+            has_inference_model=True,
+            inference_procedure=StackedHiddenFD.forward_with_no_len,
+            device=device,
+            dtype=dtype,
+        )
+        for model in core_models
+    ]

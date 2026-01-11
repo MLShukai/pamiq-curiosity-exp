@@ -239,3 +239,26 @@ class QLSTM(StackedHiddenState):
                 [QLSTMBlock(dim, dim_ff_hidden, dropout) for _ in range(depth)]
             )
         )
+
+
+def create_multiple(
+    depth: int,
+    dim_list: list[int],
+    dim_ff_hidden_scale: float,
+    dropout: float,
+) -> nn.ModuleList:
+    """Create multiple QLSTM blocks.
+
+    Args:
+        depth: The number of QLSTM blocks.
+        dim_list: A list of dimensions for each QLSTM block.
+        dim_ff_hidden_scale: The scaling factor for the hidden layer dimensions.
+        dropout: The dropout rate.
+
+    Returns:
+        A ModuleList containing the QLSTM blocks.
+    """
+    dim_ff_hidden = [int(dim * dim_ff_hidden_scale) for dim in dim_list]
+    return nn.ModuleList(
+        [QLSTM(depth, dim, dim_ff_hidden[i], dropout) for i, dim in enumerate(dim_list)]
+    )

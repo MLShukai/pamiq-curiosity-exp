@@ -73,11 +73,11 @@ docker-attach: ## Attach to development container
 	docker compose $(BASE_COMPOSE) exec dev bash
 
 # -----------------
-#  MLflow Server
+#  AIM Server
 # -----------------
 
-MLFLOW_HOST ?= 0.0.0.0
-MLFLOW_PORT ?= 5000
+AIM_HOST ?= 0.0.0.0
+AIM_PORT ?= 43800
 
-mlflow:
-	uv run mlflow ui --backend-store-uri logs/mlflow --host $(MLFLOW_HOST) --port $(MLFLOW_PORT)
+aim:
+	uv run aim up --repo ./logs --host $(AIM_HOST) --port $(AIM_PORT)

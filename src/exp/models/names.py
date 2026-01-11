@@ -11,3 +11,5 @@ class ModelName(StrEnum):
     FORWARD_DYNAMICS = "forward_dynamics"
 
     POLICY_VALUE = "policy_value"
+
+    FD_POLICY_VALUE = "fd_policy_value"

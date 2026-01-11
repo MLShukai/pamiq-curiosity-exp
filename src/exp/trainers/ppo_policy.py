@@ -1,8 +1,7 @@
 from functools import partial
 from pathlib import Path
-from typing import override
+from typing import Any, Self, cast, override
 
-import mlflow
 import torch
 from pamiq_core import DataUser
 from pamiq_core.data.impls import DictSequentialBuffer
@@ -11,16 +10,27 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
+from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
-from exp.mlflow import get_global_run_id
 from exp.models import ModelName
-from exp.models.policy import StackedHiddenPiV
+from exp.models.policy import HiddenStatePiV
 from exp.trainers.sampler import RandomTimeSeriesSampler
 
 OPTIMIZER_NAME = "optimizer"
 
+type BatchType = tuple[
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor | None,
+]
 
-class PPOStackedHiddenPiVTrainer(TorchTrainer):
+
+class PPOHiddenStatePiVTrainer(TorchTrainer):
     """Trainer for policy using Proximal Policy Optimization (PPO)."""
 
     @override
@@ -37,7 +47,10 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         clip_coef: float = 0.1,
         entropy_coef: float = 0.0,
         vfunc_coef: float = 0.5,
+        model_name: str = ModelName.POLICY_VALUE,
         data_user_name: str = BufferName.POLICY,
+        log_prefix: str = "ppo-policy",
+        include_upper_action: bool = False,
         min_buffer_size: int | None = None,
         min_new_data_count: int = 0,
     ) -> None:
@@ -75,7 +88,9 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         self.gamma = gamma
         self.gae_lambda = gae_lambda
 
+        self.model_name = model_name
         self.data_user_name = data_user_name
+        self.log_prefix = log_prefix
         self.partial_optimizer = partial_optimizer
         self.partial_sampler = partial(
             RandomTimeSeriesSampler, sequence_length=seq_len, max_samples=max_samples
@@ -87,6 +102,8 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         self.entropy_coef = entropy_coef
         self.vfunc_coef = vfunc_coef
         self.global_step = 0
+
+        self.include_upper_action = include_upper_action
 
     @override
     def on_data_users_attached(self) -> None:
@@ -102,7 +119,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         """Set up model references when they are attached to the trainer."""
         super().on_training_models_attached()
         self.policy_value = self.get_torch_training_model(
-            ModelName.POLICY_VALUE, StackedHiddenPiV
+            self.model_name, HiddenStatePiV
         )
 
     @override
@@ -116,21 +133,23 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
             OPTIMIZER_NAME: self.partial_optimizer(self.policy_value.model.parameters())
         }
 
-    def training_step(self, batch: list[Tensor]) -> dict[str, Tensor]:
+    def training_step(self, batch: BatchType) -> dict[str, Tensor]:
         """Perform a single training step on a batch of data."""
         (
             observations,
             hiddens,
             actions,
             action_log_probs,
-            _,
             values,
             advantages,
             returns,
+            upper_action,
         ) = batch
 
         # Get new distributions and values
-        new_dist, new_values, _ = self.policy_value.model(observations, hiddens[:, 0])
+        new_dist, new_values, _ = self.policy_value.model(
+            observations, hiddens[:, 0], upper_action
+        )
         new_log_probs = new_dist.log_prob(actions)
         entropy = new_dist.entropy()
 
@@ -152,6 +171,7 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
             for _ in range(ratio.ndim - advantages.ndim):
                 advantages = advantages.unsqueeze(-1)
 
+        advantages = advantages.detach()  # Stop Gradient
         # Policy loss
         pg_loss1 = -advantages * ratio
         pg_loss2 = -advantages * torch.clamp(
@@ -193,17 +213,18 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         # Get dataset from data user
         data = self.policy_data_user.get_data()
 
-        tensors = {
-            key: torch.stack(data[key][:-1])
-            for key in [
-                DataKey.OBSERVATION,
-                DataKey.HIDDEN,
-                DataKey.ACTION,
-                DataKey.ACTION_LOG_PROB,
-                DataKey.REWARD,
-                DataKey.VALUE,
-            ]
-        }
+        keys = [
+            DataKey.OBSERVATION,
+            DataKey.HIDDEN,
+            DataKey.ACTION,
+            DataKey.ACTION_LOG_PROB,
+            DataKey.REWARD,
+            DataKey.VALUE,
+        ]
+        if self.include_upper_action:
+            keys.append(DataKey.UPPER_ACTION)
+
+        tensors = {key: torch.stack(data[key][:-1]) for key in keys}
 
         # compute advantages and returns
         advantages = compute_advantage(
@@ -215,8 +236,20 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         )
         returns = advantages + tensors[DataKey.VALUE]
 
-        dataset = TensorDataset(*tensors.values(), advantages, returns)
+        tensor_list = [
+            tensors[DataKey.OBSERVATION],
+            tensors[DataKey.HIDDEN],
+            tensors[DataKey.ACTION],
+            tensors[DataKey.ACTION_LOG_PROB],
+            tensors[DataKey.VALUE],
+            advantages,
+            returns,
+        ]
 
+        if self.include_upper_action:
+            tensor_list.append(tensors[DataKey.UPPER_ACTION])
+
+        dataset = TensorDataset(*tensor_list)
         sampler = self.partial_sampler(dataset)
         dataloader = self.partial_dataloader(dataset=dataset, sampler=sampler)
         device = get_device(self.policy_value.model)
@@ -226,8 +259,12 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
             for batch in dataloader:
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
+                data_list: list[Tensor | None] = [d.to(device) for d in batch]
+                if not self.include_upper_action:
+                    data_list.append(None)
+
                 # Perform training step
-                outputs = self.training_step([d.to(device) for d in batch])
+                outputs = self.training_step(cast(BatchType, tuple(data_list)))
                 loss = outputs["loss"]
 
                 # Backward pass
@@ -248,17 +285,18 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
                 metrics = {k: v.item() for k, v in outputs.items()}
                 metrics["grad_norm"] = grad_norm.item()
 
-                mlflow.log_metrics(
-                    {
-                        f"ppo-policy/{tag}": v.item()
-                        if isinstance(v, torch.Tensor)
-                        else v
-                        for tag, v in metrics.items()
-                    },
-                    self.global_step,
-                    run_id=get_global_run_id(),
-                )
-
+                if run := get_global_run():
+                    for tag, v in metrics.items():
+                        value = v.item() if isinstance(v, torch.Tensor) else v
+                        run.track(
+                            value,
+                            name=tag,
+                            step=self.global_step,
+                            context={
+                                "namespace": "trainer",
+                                "trainer_type": self.log_prefix,
+                            },
+                        )
                 self.global_step += 1
 
     @override
@@ -275,19 +313,71 @@ class PPOStackedHiddenPiVTrainer(TorchTrainer):
         self.global_step = int((path / "global_step").read_text("utf-8"))
 
     @staticmethod
-    def create_buffer(max_size: int) -> DictSequentialBuffer[Tensor]:
+    def create_buffer(
+        max_size: int, include_upper_action: bool = False
+    ) -> DictSequentialBuffer[Tensor]:
         """Create data buffer for this trainer."""
+        keys = [
+            DataKey.OBSERVATION,
+            DataKey.HIDDEN,
+            DataKey.ACTION,
+            DataKey.ACTION_LOG_PROB,
+            DataKey.REWARD,
+            DataKey.VALUE,
+        ]
+        if include_upper_action:
+            keys.append(DataKey.UPPER_ACTION)
+
         return DictSequentialBuffer(
-            [
-                DataKey.OBSERVATION,
-                DataKey.HIDDEN,
-                DataKey.ACTION,
-                DataKey.ACTION_LOG_PROB,
-                DataKey.REWARD,
-                DataKey.VALUE,
-            ],
+            keys,
             max_size=max_size,
         )
+
+    @classmethod
+    def create_hierarchical_buffers(
+        cls, max_size: int, num: int
+    ) -> list[DictSequentialBuffer[Tensor]]:
+        """Create multiple buffer instances."""
+        bufs = []
+        for i in range(num):
+            bufs.append(
+                cls.create_buffer(
+                    max_size,
+                    include_upper_action=(i + 1) < num,  #  without top.
+                )
+            )
+        return bufs
+
+    @classmethod
+    def create_multiple(
+        cls, num_trainers: int, hierarchical: bool = False, **trainer_params: Any
+    ) -> list[Self]:
+        """Create multiple trainer instances.
+
+        Args:
+            num_trainers: Number of trainers to create.
+            hierarchical: If True, enable upper_action for all trainers except the last.
+            **trainer_params: Parameters to pass to each trainer constructor.
+
+        Returns:
+            List of configured trainer instances with indexed names.
+        """
+        trainers = list[Self]()
+
+        def include_upper_action(idx: int) -> bool:
+            return idx < num_trainers - 1 and hierarchical
+
+        for i in range(num_trainers):
+            trainers.append(
+                cls(
+                    **trainer_params,
+                    model_name=ModelName.POLICY_VALUE + str(i),
+                    data_user_name=BufferName.POLICY + str(i),
+                    log_prefix="ppo-policy" + str(i),
+                    include_upper_action=include_upper_action(i),
+                )
+            )
+        return trainers
 
 
 def compute_advantage(

@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass
 
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 def init_weights(m: nn.Module, init_std: float) -> None:
@@ -51,3 +53,8 @@ class ActionInfo:
 
     choices: list[int]
     dim: int
+
+
+def layer_norm(x: torch.Tensor) -> torch.Tensor:
+    """Applies layer normalization to final dim."""
+    return F.layer_norm(x, x.shape[-1:])

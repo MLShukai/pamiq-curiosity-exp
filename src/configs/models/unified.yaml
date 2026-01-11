@@ -1,0 +1,34 @@
+fd_policy_value:
+  _target_: pamiq_core.torch.TorchTrainingModel
+  has_inference_model: true
+  device: ${shared.device}
+  dtype: ${shared.dtype}
+  inference_procedure:
+    _target_: hydra.utils.get_method
+    path: exp.models.fd_policy.StackedHiddenFDPiV.forward_with_no_len
+  model:
+    _target_: exp.models.fd_policy.StackedHiddenFDPiV
+    obs_info:
+      _target_: exp.models.utils.ObsInfo
+      dim: 128 # Same as JEPA instantiattion.
+      num_tokens:
+        _target_: exp.models.jepa.compute_image_jepa_output_patch_count
+        image_size:
+          - ${shared.image.height}
+          - ${shared.image.width}
+        patch_size: 12 # Same as JEPA Instantiation
+        output_downsample: 3 # Same as JEPA Instantiation
+      dim_hidden: ${..dim}
+    action_info:
+      _target_: exp.models.utils.ActionInfo
+      choices:
+        _target_: hydra.utils.get_object
+        path: exp.envs.vrchat.OSC_ACTION_CHOICES
+      dim: 8
+    dim: ${.core_model.dim}
+    core_model:
+      _target_: exp.models.components.qgru.QGRU
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
+      depth: 8
+      dropout: 0.1

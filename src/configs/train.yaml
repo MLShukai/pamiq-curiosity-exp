@@ -26,5 +26,4 @@ log_level: INFO
 
 experiment_name: "default"
 
-tags:
-  name: ${experiment_name}
+tags: []
