@@ -23,6 +23,7 @@ class DictIntermittentChunkBuffer[T](
         get_interval: int,
         max_size: int,
     ) -> None:
+        super().__init__(max_size)
         self._max_size = max_size
         first_store_steps = (
             max(

@@ -14,10 +14,11 @@ from exp.data import BufferName, DataKey
 from exp.models import ModelName
 
 STEP_DATA_REQUIRED_KEYS = {
-    DataKey.ACTION,
-    DataKey.ACTION_LOG_PROB,
     DataKey.OBSERVATION,
     DataKey.HIDDEN,
+    DataKey.PREVIOUS_ACTION,
+    DataKey.ACTION,
+    DataKey.ACTION_LOG_PROB,
     DataKey.VALUE,
     DataKey.REWARD,
 }

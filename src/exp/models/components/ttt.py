@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import override
 
 import einops
@@ -39,6 +40,8 @@ class MultiHeadMLPTTTLayer(nn.Module):
         self.fc_key = nn.Linear(dim, dim)
         self.fc_value = nn.Linear(dim, dim)
         self.fc_out = nn.Linear(dim, dim)
+
+    __call__: Callable[[Tensor, dict[str, Tensor]], tuple[Tensor, dict[str, Tensor]]]
 
     @override
     def forward(
@@ -168,8 +171,14 @@ class ChunkwiseTTT(nn.Module):
         self.head_dim = dim // num_head
         self.head_dim_hidden = dim_hidden // num_head
 
+    __call__: Callable[
+        [Tensor, dict[str, Tensor] | None], tuple[Tensor, dict[str, Tensor]]
+    ]
+
     @override
-    def forward(self, x: Tensor, hidden):
+    def forward(
+        self, x: Tensor, hidden: dict[str, Tensor] | None
+    ) -> tuple[Tensor, dict[str, Tensor]]:
         batch, length, dim = x.shape
 
         if hidden is None:
@@ -219,7 +228,7 @@ class TTTBlock(nn.Module):
     @override
     def forward(
         self, x: Tensor, hidden: dict[str, Tensor] | None
-    ) -> tuple[Tensor, dict[str, Tensor] | None]:
+    ) -> tuple[Tensor, dict[str, Tensor]]:
         x_ = x
         x = self.norm_memory(x)
         x, hidden = self.memory(x, hidden)
