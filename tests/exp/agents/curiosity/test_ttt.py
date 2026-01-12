@@ -30,7 +30,7 @@ class TestTTTCuriosityAgent:
         obs_hat = torch.zeros(3, OBSERVATION_DIM)
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
         value = torch.tensor(0.5)
-        hidden = torch.zeros(3, DEPTH, HIDDEN_DIM)
+        hidden = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
@@ -137,7 +137,7 @@ class TestTTTCuriosityAgent:
     def test_save_and_load_state(self, agent: TTTCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
         agent.global_step = 42
-        agent.hidden_state = torch.randn(DEPTH, HIDDEN_DIM)
+        agent.hidden_state = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
         agent.action = torch.randn(ACTION_DIM)
         agent.obs_hat = torch.randn(OBSERVATION_DIM)
 
@@ -156,9 +156,10 @@ class TestTTTCuriosityAgent:
         new_agent.load_state(save_path)
 
         assert new_agent.hidden_state is not None
-        assert torch.equal(
-            new_agent.hidden_state,
-            agent.hidden_state,
+        assert all(
+            torch.equal(new_layer[key], old_layer[key])
+            for new_layer, old_layer in zip(new_agent.hidden_state, agent.hidden_state)
+            for key in new_layer
         )
         assert new_agent.action is not None
         assert torch.equal(new_agent.action, agent.action)

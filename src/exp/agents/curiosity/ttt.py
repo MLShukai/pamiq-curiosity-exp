@@ -79,10 +79,10 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
     # ------ INTERACTION PROCESS ------
 
-    hidden_state: Tensor | None  # (depth, dim) or None
+    hidden_state: list[dict[str, Tensor]] | None  # (depth, dim) or None
     action: Tensor | None  # (action_choices,) or None
     obs_hat: Tensor | None
-    step_data_fd_piv: dict[str, Tensor]
+    step_data_fd_piv: dict[str, Tensor | list[dict[str, Tensor]]]
 
     @override
     def setup(self) -> None:
@@ -133,9 +133,10 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
 
         if self.hidden_state is not None:
-            self.step_data_fd_piv[DataKey.HIDDEN] = (
-                self.hidden_state.cpu()
-            )  # Store before update
+            self.step_data_fd_piv[DataKey.HIDDEN] = [
+                {key: val.cpu() for key, val in layer.items()}
+                for layer in self.hidden_state
+            ]  # Store before update
 
         action_dist: Distribution
         value: Tensor
