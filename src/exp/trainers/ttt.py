@@ -139,7 +139,6 @@ class TTTFDPiVTrainer(TorchTrainer):
         )
         new_log_probs = new_dist.log_prob(actions)
 
-        entropy = new_dist.entropy()
         action_entropy = new_dist.entropy()
 
         # Calculate ratio for PPO
@@ -194,7 +193,6 @@ class TTTFDPiVTrainer(TorchTrainer):
             "policy_loss": pg_loss,
             "value_loss": v_loss,
             "fd_loss": fd_loss,
-            "entropy": entropy.mean(),
             "action_entropy": action_entropy.mean(),
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
