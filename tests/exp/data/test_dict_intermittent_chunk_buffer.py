@@ -14,7 +14,7 @@ class TestDictIntermittentChunkBuffer:
         return DictIntermittentChunkBuffer[int](
             intermittent_key_first_add_steps={"key1": 2, "key2": 3},
             chunk_key_first_add_steps={"key3": 4, "key4": 5},
-            get_interval=6,
+            get_interval=5,
             max_size=50,
         )
 
@@ -48,3 +48,14 @@ class TestDictIntermittentChunkBuffer:
 
         data = buffer.get_data()
         assert set(data.keys()) == {"key1", "key2", "key3", "key4"}
+
+    def test_values(self, buffer: DictIntermittentChunkBuffer[int]):
+        """Test the values stored in the buffer."""
+        for i in range(16):
+            buffer.add({"key1": i, "key2": i, "key3": i, "key4": i})
+
+        data = buffer.get_data()
+        assert data["key1"] == [2, 7]
+        assert data["key2"] == [3, 8]
+        assert data["key3"] == [[4, 5, 6, 7, 8], [9, 10, 11, 12, 13]]
+        assert data["key4"] == [[5, 6, 7, 8, 9], [10, 11, 12, 13, 14]]
