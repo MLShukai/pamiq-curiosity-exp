@@ -11,4 +11,4 @@ fd_policy_value:
   gae_lambda: 0.95
   norm_advantage: true
   action_entropy_coef: -0.01
-  min_new_data_count: 16
+  min_new_data_count: 1
