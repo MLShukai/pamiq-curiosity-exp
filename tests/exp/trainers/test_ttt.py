@@ -30,6 +30,7 @@ class TestTTTFDPiVTrainer:
     DIM_ACTION = 8
     DIM_FF_HIDDEN = 16
     NUM_HEAD = 4
+    GET_INTERVAL = 16
 
     @pytest.fixture
     def fd_policy_value_model(self):
@@ -77,7 +78,7 @@ class TestTTTFDPiVTrainer:
             BufferName.FD_POLICY_VALUE: DictIntermittentChunkBuffer(
                 intermittent_keys_first_add_steps,
                 chunk_keys_first_add_steps,
-                get_interval=4,
+                get_interval=self.GET_INTERVAL,
                 max_size=16,
             )
         }
@@ -92,7 +93,7 @@ class TestTTTFDPiVTrainer:
             partial_optimizer=partial(AdamW, lr=3e-4),
             gamma=0.99,
             gae_lambda=0.95,
-            min_new_data_count=1,
+            min_new_data_count=self.GET_INTERVAL,
         )
 
     def test_init_validation(self, mocker: MockerFixture):

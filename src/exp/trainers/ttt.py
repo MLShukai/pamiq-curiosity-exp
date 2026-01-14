@@ -1,3 +1,4 @@
+import random
 from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
@@ -299,6 +300,7 @@ class TTTFDPiVTrainer(TorchTrainer):
                 Tensor,
                 Tensor,
             ]
+            random.shuffle(dataset)
             for batch in dataset:
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
