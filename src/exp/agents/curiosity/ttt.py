@@ -54,6 +54,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         self.hidden_state = None
         self.action = None
+        self.surprisal_coef = None
         self.device = device
         self.dtype = dtype
 
@@ -80,6 +81,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
     hidden_state: list[dict[str, Tensor]] | None  # (depth, dim) or None
     action: Tensor | None  # (action_choices,) or None
+    surprisal_coef: Tensor | None
     obs_hat: Tensor | None
     step_data_fd_piv: dict[str, Tensor | list[dict[str, Tensor]]]
 
@@ -143,7 +145,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
-        reward = surprisal.mean()
+        if self.surprisal_coef is None:
+            self.surprisal_coef = torch.randn_like(surprisal)
+        reward = (self.surprisal_coef * surprisal).mean()
         self.metrics["reward"] = reward.item()
         self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
@@ -195,6 +199,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         if self.hidden_state is not None:
             torch.save(self.hidden_state, path / "hidden_state.pt")
+        if self.surprisal_coef is not None:
+            torch.save(self.surprisal_coef, path / "surprisal_coef.pt")
         if self.action is not None:
             torch.save(self.action, path / "action.pt")
         (path / "global_step").write_text(str(self.global_step), "utf-8")
@@ -215,6 +221,12 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.hidden_state = (
             torch.load(hidden_path, map_location=self.device)
             if hidden_path.exists()
+            else None
+        )
+        surprisal_coef_path = path / "surprisal_coef.pt"
+        self.surprisal_coef = (
+            torch.load(surprisal_coef_path, map_location=self.device)
+            if surprisal_coef_path.exists()
             else None
         )
         action_path = path / "action.pt"

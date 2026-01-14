@@ -141,6 +141,7 @@ class TestTTTCuriosityAgent:
         agent.global_step = 42
         agent.hidden_state = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
         agent.action = torch.randn(ACTION_DIM)
+        agent.surprisal_coef = torch.randn(ACTION_DIM)
 
         # Save state
         save_path = tmp_path / "agent_state"
@@ -148,6 +149,7 @@ class TestTTTCuriosityAgent:
 
         assert (save_path / "hidden_state.pt").exists()
         assert (save_path / "action.pt").exists()
+        assert (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
@@ -164,6 +166,8 @@ class TestTTTCuriosityAgent:
         assert new_agent.action is not None
         assert torch.equal(new_agent.action, agent.action)
         assert new_agent.global_step == 42
+        assert new_agent.surprisal_coef is not None
+        assert torch.equal(new_agent.surprisal_coef, agent.surprisal_coef)
 
     def test_save_and_load_state_with_none_hidden(
         self, agent: TTTCuriosityAgent, tmp_path
@@ -172,6 +176,7 @@ class TestTTTCuriosityAgent:
         agent.global_step = 100
         agent.hidden_state = None
         agent.action = None
+        agent.surprisal_coef = None
 
         # Save state
         save_path = tmp_path / "agent_state_none"
@@ -179,6 +184,7 @@ class TestTTTCuriosityAgent:
 
         assert not (save_path / "hidden_state.pt").exists()
         assert not (save_path / "action.pt").exists()
+        assert not (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
@@ -187,4 +193,5 @@ class TestTTTCuriosityAgent:
 
         assert new_agent.hidden_state is None
         assert new_agent.action is None
+        assert new_agent.surprisal_coef is None
         assert new_agent.global_step == 100
