@@ -31,12 +31,14 @@ class TestTTTCuriosityAgent:
         action_dist = Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM))
         value = torch.tensor(0.5)
         hidden = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
+        surprisal = torch.randn(DEPTH, 4)
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
             action_dist,
             value,
             hidden,
+            surprisal,
         )
 
         return {
@@ -139,7 +141,6 @@ class TestTTTCuriosityAgent:
         agent.global_step = 42
         agent.hidden_state = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
         agent.action = torch.randn(ACTION_DIM)
-        agent.obs_hat = torch.randn(OBSERVATION_DIM)
 
         # Save state
         save_path = tmp_path / "agent_state"
@@ -147,7 +148,6 @@ class TestTTTCuriosityAgent:
 
         assert (save_path / "hidden_state.pt").exists()
         assert (save_path / "action.pt").exists()
-        assert (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
@@ -179,7 +179,6 @@ class TestTTTCuriosityAgent:
 
         assert not (save_path / "hidden_state.pt").exists()
         assert not (save_path / "action.pt").exists()
-        assert not (save_path / "obs_hat.pt").exists()
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
@@ -188,5 +187,4 @@ class TestTTTCuriosityAgent:
 
         assert new_agent.hidden_state is None
         assert new_agent.action is None
-        assert new_agent.obs_hat is None
         assert new_agent.global_step == 100

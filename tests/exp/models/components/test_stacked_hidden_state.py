@@ -78,7 +78,7 @@ class TestStackedHiddenState:
             qlstm(x, hidden)
 
 
-class TestStackedHiddenStateSingleHidden:
+class TestStackedTTT:
     @pytest.fixture
     def ttt(self):
         return TTT(
@@ -107,7 +107,7 @@ class TestStackedHiddenStateSingleHidden:
             for _ in range(DEPTH)
         ]
 
-        x_out, hidden_out = ttt(x, hidden)
+        x_out, hidden_out, surprisal = ttt(x, hidden)
         assert x_out.shape == x.shape
         assert len(hidden_out) == DEPTH
         assert all(
@@ -115,12 +115,13 @@ class TestStackedHiddenStateSingleHidden:
             and hidden_out[i]["W2"].shape == hidden[i]["W2"].shape
             for i in range(DEPTH)
         )
+        assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD)
 
     def test_forward_with_no_hidden(self, ttt):
         """Test forward pass without hidden state, but with batch."""
         x = torch.randn(BATCH, LEN, DIM)
 
-        x_out, hidden_out = ttt(x)
+        x_out, hidden_out, surprisal = ttt(x)
         assert x_out.shape == x.shape
         assert len(hidden_out) == DEPTH
         assert all(
@@ -130,6 +131,7 @@ class TestStackedHiddenStateSingleHidden:
             == (BATCH, NUM_HEAD, DIM // NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD)
             for i in range(DEPTH)
         )
+        assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD)
 
     def test_forward_with_hidden_no_batch(self, ttt):
         """Test forward pass with provided hidden state without batch."""
@@ -142,7 +144,7 @@ class TestStackedHiddenStateSingleHidden:
             for _ in range(DEPTH)
         ]
 
-        x_out, hidden_out = ttt(x, hidden)
+        x_out, hidden_out, surprisal = ttt(x, hidden)
         assert x_out.shape == x.shape
         assert len(hidden_out) == DEPTH
         assert all(
@@ -150,12 +152,13 @@ class TestStackedHiddenStateSingleHidden:
             and hidden_out[i]["W2"].shape == hidden[i]["W2"].shape
             for i in range(DEPTH)
         )
+        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD)
 
     def test_forward_with_no_hidden_no_batch(self, ttt):
         """Test forward pass without hidden state and without batch."""
         x = torch.randn(LEN, DIM)
 
-        x_out, hidden_out = ttt(x)
+        x_out, hidden_out, surprisal = ttt(x)
         assert x_out.shape == x.shape
         assert len(hidden_out) == DEPTH
         assert all(
@@ -165,3 +168,4 @@ class TestStackedHiddenStateSingleHidden:
             == (NUM_HEAD, DIM // NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD)
             for i in range(DEPTH)
         )
+        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD)

@@ -13,7 +13,7 @@ from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
 from .components.stacked_hidden_state import (
     StackedHiddenState,
-    StackedHiddenStateSingleHidden,
+    StackedTTT,
 )
 from .utils import ActionInfo, ObsInfo
 
@@ -197,7 +197,7 @@ class TTTFDPiV(nn.Module):
         obs_info: ObsInfo,
         action_info: ActionInfo,
         dim: int,
-        core_model: StackedHiddenStateSingleHidden,
+        core_model: StackedTTT,
     ) -> None:
         """Initialize the forward-dynamics policy-value model.
 
@@ -246,9 +246,9 @@ class TTTFDPiV(nn.Module):
         hidden: list[dict[str, Tensor]] | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, Distribution, Tensor, Tensor]:
+    ) -> tuple[Tensor, Distribution, Tensor, Tensor, Tensor]:
         """Forward pass to predict next observation prediction, policy
-        distribution, and value estimate.
+        distribution, value estimate, and surprisal.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
@@ -263,20 +263,21 @@ class TTTFDPiV(nn.Module):
                 - Distribution representing the policy over actions.
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
+                - Tensor representing the surprisal.
         """
         x = self._flatten_obs_action(obs, action)
-        x, next_hidden = self.core_model(x, hidden, no_len=no_len)
+        x, next_hidden, surprisal = self.core_model(x, hidden, no_len=no_len)
         obs_hat = self.obs_hat_head(x)
         action_dist = self.policy_head(x)
         value = self.value_head(x)
-        return obs_hat, action_dist, value, next_hidden
+        return obs_hat, action_dist, value, next_hidden, surprisal
 
     def forward_with_no_len(
         self,
         obs: Tensor,
         action: Tensor | None,
         hidden: list[dict[str, Tensor]] | None = None,
-    ) -> tuple[Tensor, Distribution, Tensor, Tensor]:
+    ) -> tuple[Tensor, Distribution, Tensor, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
@@ -291,12 +292,14 @@ class TTTFDPiV(nn.Module):
                 - Distribution representing the policy over actions.
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
+                - Tensor representing the surprisal.
         """
         x = self._flatten_obs_action(obs, action)  # (*batch, dim)
-        x, next_hidden = self.core_model(x, hidden, no_len=True)
+        x, next_hidden, surprisal = self.core_model(x, hidden, no_len=True)
         return (
             self.obs_hat_head(x),
             self.policy_head(x),
             self.value_head(x),
             next_hidden,
+            surprisal,
         )

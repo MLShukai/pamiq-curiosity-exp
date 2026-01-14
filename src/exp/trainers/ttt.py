@@ -133,7 +133,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         ) = batch
 
         # Get new distributions and values
-        obs_hat, new_dist, new_values, _ = self.fd_piv.model(
+        obs_hat, new_dist, new_values, _, _ = self.fd_piv.model(
             observations,
             previous_actions,
             hiddens,

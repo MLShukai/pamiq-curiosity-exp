@@ -54,7 +54,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         self.hidden_state = None
         self.action = None
-        self.obs_hat = None
         self.device = device
         self.dtype = dtype
 
@@ -114,17 +113,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             device=self.device, dtype=self.dtype
         )  # convert type and send to device
 
-        # ==============================================================================
-        #                             Reward Computation
-        # ==============================================================================
-        if self.obs_hat is not None:
-            reward_obs = F.mse_loss(self.obs_hat, observation)
-            self.metrics["reward_obs"] = reward_obs.item()
-
-            reward = reward_obs
-            self.metrics["reward"] = reward.item()
-            self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
-
         if set(self.step_data_fd_piv.keys()) >= self.step_data_policy_required_keys:
             self.collector_fd_piv.collect(self.step_data_fd_piv.copy())
 
@@ -141,15 +129,23 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         action_dist: Distribution
         value: Tensor
         (
-            self.obs_hat,
+            _,
             action_dist,
             value,
             self.hidden_state,
+            surprisal,
         ) = self.fd_piv(observation, self.action, hidden=self.hidden_state)
         if self.action is not None:
             self.step_data_fd_piv[DataKey.PREVIOUS_ACTION] = self.action.cpu()
         self.action = action_dist.sample()
         action_log_prob = action_dist.log_prob(self.action)
+
+        # ==============================================================================
+        #                             Reward Computation
+        # ==============================================================================
+        reward = surprisal.mean()
+        self.metrics["reward"] = reward.item()
+        self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
         # ==============================================================================
         #                               Data Collection
@@ -179,7 +175,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
                     v,
                     name=k,
                     step=self.global_step,
-                    context={"namespace": "agent", "curiosity_type": "adversarial"},
+                    context={"namespace": "agent", "curiosity_type": "deep-surprise"},
                 )
 
     # ------ State Persistence ------
@@ -201,8 +197,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             torch.save(self.hidden_state, path / "hidden_state.pt")
         if self.action is not None:
             torch.save(self.action, path / "action.pt")
-        if self.obs_hat is not None:
-            torch.save(self.obs_hat, path / "obs_hat.pt")
         (path / "global_step").write_text(str(self.global_step), "utf-8")
 
     @override
@@ -229,11 +223,4 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             if action_path.exists()
             else None
         )
-        obs_hat_path = path / "obs_hat.pt"
-        self.obs_hat = (
-            torch.load(obs_hat_path, map_location=self.device)
-            if obs_hat_path.exists()
-            else None
-        )
-
         self.global_step = int((path / "global_step").read_text("utf-8"))

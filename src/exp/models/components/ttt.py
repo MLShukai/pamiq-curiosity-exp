@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from .qlstm import FFNSwiGLU, RMSNorm
-from .stacked_hidden_state import StackedHiddenStateSingleHidden
+from .stacked_hidden_state import StackedTTT
 
 
 def silu_backward(x):
@@ -41,12 +41,14 @@ class MultiHeadMLPTTTLayer(nn.Module):
         self.fc_value = nn.Linear(dim, dim)
         self.fc_out = nn.Linear(dim, dim)
 
-    __call__: Callable[[Tensor, dict[str, Tensor]], tuple[Tensor, dict[str, Tensor]]]
+    __call__: Callable[
+        [Tensor, dict[str, Tensor]], tuple[Tensor, dict[str, Tensor], Tensor]
+    ]
 
     @override
     def forward(
         self, x: Tensor, hidden: dict[str, Tensor]
-    ) -> tuple[Tensor, dict[str, Tensor]]:
+    ) -> tuple[Tensor, dict[str, Tensor], Tensor]:
         batch, length, dim = x.shape
         num_head = self.num_head
         head_dim = dim // num_head
@@ -149,7 +151,14 @@ class MultiHeadMLPTTTLayer(nn.Module):
             W2_next_inner_chunk + W2_next_cross_chunk
         )  # (batch, num_head, head_dim, head_dim_hidden)
         hidden_next = {"W1": W1_next, "W2": W2_next}
-        return self.fc_out(Z2_.transpose(2, 1).reshape(batch, length, dim)), hidden_next
+        surprisal = (
+            -torch.einsum("b n l d, b n l d -> b l n", Z2, value) * head_dim**-0.5
+        )
+        return (
+            self.fc_out(Z2_.transpose(2, 1).reshape(batch, length, dim)),
+            hidden_next,
+            surprisal,
+        )
 
 
 class ChunkwiseTTT(nn.Module):
@@ -172,25 +181,31 @@ class ChunkwiseTTT(nn.Module):
         self.head_dim_hidden = dim_hidden // num_head
 
     __call__: Callable[
-        [Tensor, dict[str, Tensor] | None], tuple[Tensor, dict[str, Tensor]]
+        [Tensor, dict[str, Tensor] | None], tuple[Tensor, dict[str, Tensor], Tensor]
     ]
 
     @override
     def forward(
         self, x: Tensor, hidden: dict[str, Tensor] | None
-    ) -> tuple[Tensor, dict[str, Tensor]]:
+    ) -> tuple[Tensor, dict[str, Tensor], Tensor]:
         batch, length, dim = x.shape
 
         if hidden is None:
-            W1 = torch.zeros(
-                (batch, self.num_head, self.head_dim_hidden, self.head_dim),
-                device=x.device,
-                dtype=x.dtype,
+            W1 = (
+                torch.randn(
+                    (batch, self.num_head, self.head_dim_hidden, self.head_dim),
+                    device=x.device,
+                    dtype=x.dtype,
+                )
+                * self.head_dim**-0.5
             )
-            W2 = torch.zeros(
-                (batch, self.num_head, self.head_dim, self.head_dim_hidden),
-                device=x.device,
-                dtype=x.dtype,
+            W2 = (
+                torch.randn(
+                    (batch, self.num_head, self.head_dim, self.head_dim_hidden),
+                    device=x.device,
+                    dtype=x.dtype,
+                )
+                * self.head_dim_hidden**-0.5
             )
             hidden = {"W1": W1, "W2": W2}
         else:
@@ -198,11 +213,16 @@ class ChunkwiseTTT(nn.Module):
 
         input_chunks = x.split(self.chunk_size, dim=1)
         output_chunks = []
+        surprisal_chunks = []
         for input_chunk in input_chunks:
-            output_chunk, hidden = self.memory(input_chunk, hidden)
+            output_chunk, hidden, surprisal = self.memory(input_chunk, hidden)
             output_chunks.append(output_chunk)
-
-        return torch.cat(output_chunks, dim=1), hidden
+            surprisal_chunks.append(surprisal)
+        return (
+            torch.cat(output_chunks, dim=1),
+            hidden,
+            torch.cat(surprisal_chunks, dim=1),
+        )
 
 
 class TTTBlock(nn.Module):
@@ -228,10 +248,10 @@ class TTTBlock(nn.Module):
     @override
     def forward(
         self, x: Tensor, hidden: dict[str, Tensor] | None
-    ) -> tuple[Tensor, dict[str, Tensor]]:
+    ) -> tuple[Tensor, dict[str, Tensor], Tensor]:
         x_ = x
         x = self.norm_memory(x)
-        x, hidden = self.memory(x, hidden)
+        x, hidden, surprisal = self.memory(x, hidden)
         x = self.dropout(x)
         x = x + x_
 
@@ -241,10 +261,10 @@ class TTTBlock(nn.Module):
         x = self.dropout(x)
         x = x + x_
 
-        return x, hidden
+        return x, hidden, surprisal
 
 
-class TTT(StackedHiddenStateSingleHidden):
+class TTT(StackedTTT):
     """TTT model using Multi-Head MLP TTT layers."""
 
     def __init__(
