@@ -1,0 +1,4 @@
+fd_policy_value:
+  _target_: exp.trainers.ttt.TTTFDPiVTrainer.create_buffer
+  max_size: 4
+  get_interval: 256
