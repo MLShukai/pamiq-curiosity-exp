@@ -34,5 +34,5 @@ fd_policy_value:
       num_head: 16
       base_lr: 0.001
       base_weight_decay: 0.001
-      chunk_size: 128
+      chunk_size: 32
       dropout: 0.1
