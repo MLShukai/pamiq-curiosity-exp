@@ -94,9 +94,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         super().setup()
         self.step_data_fd_piv = {}
 
-        self.forward_dynamics_hidden_imaginations = None
-        self.obs_imaginations = torch.empty(0, device=self.device, dtype=self.dtype)
-
     @override
     def step(self, observation: Tensor) -> Tensor:
         """Execute the common step procedure for the curiosity-driven agent.
@@ -146,7 +143,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         #                             Reward Computation
         # ==============================================================================
         if self.surprisal_coef is None:
-            self.surprisal_coef = torch.randn_like(surprisal)
+            self.surprisal_coef = torch.randn_like(
+                surprisal, dtype=self.dtype, device=self.device
+            )
         reward = (self.surprisal_coef * surprisal).mean()
         self.metrics["reward"] = reward.item()
         self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
