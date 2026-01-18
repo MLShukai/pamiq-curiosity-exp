@@ -1,4 +1,3 @@
-import random
 from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
@@ -10,7 +9,7 @@ from pamiq_core.data.impls import DictSequentialBuffer
 from pamiq_core.torch import OptimizersSetup, TorchTrainer, get_device
 from torch import Tensor
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Dataset
 
 from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
@@ -47,6 +46,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         gamma: float,
         gae_lambda: float = 0.95,
         max_epochs: int = 1,
+        batch_size: int = 1,
         norm_advantage: bool = True,
         clip_coef: float = 0.1,
         action_entropy_coef: float = -0.01,
@@ -88,6 +88,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         self.data_user_name = data_user_name
         self.log_prefix = log_prefix
         self.partial_optimizer = partial_optimizer
+        self.partial_dataloader = partial(DataLoader, batch_size=batch_size)
         self.max_epochs = max_epochs
         self.norm_advantage = norm_advantage
         self.clip_coef = clip_coef
@@ -250,7 +251,7 @@ class TTTFDPiVTrainer(TorchTrainer):
 
         hidden_list = data[DataKey.HIDDEN]
 
-        dataset: list[
+        dataset_raw: list[
             tuple[
                 Tensor,
                 list[dict[str, Tensor]],
@@ -284,9 +285,45 @@ class TTTFDPiVTrainer(TorchTrainer):
             )
         ]
 
-        # dataset = TensorDataset(*tensor_list)
+        class TTTDataset(Dataset):
+            def __init__(
+                self,
+                data: list[
+                    tuple[
+                        Tensor,
+                        list[dict[str, Tensor]],
+                        Tensor,
+                        Tensor,
+                        Tensor,
+                        Tensor,
+                        Tensor,
+                        Tensor,
+                    ]
+                ],
+            ) -> None:
+                self.data = data
+
+            def __len__(self) -> int:
+                return len(self.data)
+
+            @override
+            def __getitem__(
+                self, index: int
+            ) -> tuple[
+                Tensor,
+                list[dict[str, Tensor]],
+                Tensor,
+                Tensor,
+                Tensor,
+                Tensor,
+                Tensor,
+                Tensor,
+            ]:
+                return self.data[index]
+
+        dataset = TTTDataset(dataset_raw)
         # sampler = self.partial_sampler(dataset)
-        # dataloader = self.partial_dataloader(dataset=dataset, sampler=sampler)
+        dataloader = self.partial_dataloader(dataset=dataset, shuffle=True)
         device = get_device(self.fd_piv.model)
 
         for _ in range(self.max_epochs):
@@ -300,17 +337,13 @@ class TTTFDPiVTrainer(TorchTrainer):
                 Tensor,
                 Tensor,
             ]
-            random.shuffle(dataset)
-            for batch in dataset:
+            for batch in dataloader:
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
                 data_list: list[Tensor | list[dict[str, Tensor]] | None] = [
-                    d.unsqueeze(0).to(device)
+                    d.to(device)
                     if isinstance(d, Tensor)
-                    else [
-                        {key: v.unsqueeze(0).to(device) for key, v in dd.items()}
-                        for dd in d
-                    ]
+                    else [{key: v.to(device) for key, v in dd.items()} for dd in d]
                     if isinstance(d, list)
                     else None
                     for d in batch
