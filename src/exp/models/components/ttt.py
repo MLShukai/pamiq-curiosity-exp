@@ -151,9 +151,9 @@ class MultiHeadMLPTTTLayer(nn.Module):
             W2_next_inner_chunk + W2_next_cross_chunk
         )  # (batch, num_head, head_dim, head_dim_hidden)
         hidden_next = {"W1": W1_next, "W2": W2_next}
-        surprisal = (
-            -torch.einsum("b n l d, b n l d -> b l n", Z2, value) * head_dim**-0.5
-        )
+        surprisal = 0.5 * ((Z2 - value) ** 2).mean(dim=-1).transpose(
+            -2, -1
+        )  # (batch, length, num_head)
         return (
             self.fc_out(Z2_.transpose(2, 1).reshape(batch, length, dim)),
             hidden_next,
