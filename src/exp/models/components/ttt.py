@@ -22,20 +22,23 @@ class MultiHeadMLPTTTLayer(nn.Module):
         dim: int,
         dim_hidden: int,
         num_head: int,
-        base_lr: float,
-        base_weight_decay: float,
+        base_lr: tuple[float, float],
     ):
         super().__init__()
         assert dim % num_head == 0, "dim must be divisible by num_head"
         assert dim_hidden % num_head == 0, "dim_hidden must be divisible by num_head"
         self.dim_hidden = dim_hidden
         self.num_head = num_head
-        self.log_base_lr = nn.Parameter(torch.ones(num_head) * np.log(base_lr))
-        self.fc_lr = nn.Linear(dim, num_head)
-        self.log_base_weight_decay = nn.Parameter(
-            torch.ones(num_head) * np.log(base_weight_decay)
+        self.log_base_lr_1 = nn.Parameter(
+            torch.linspace(np.log(base_lr[0]), np.log(base_lr[1]), num_head)
         )
-        self.fc_weight_decay = nn.Linear(dim, num_head)
+        self.log_base_lr_2 = nn.Parameter(
+            torch.linspace(np.log(base_lr[0]), np.log(base_lr[1]), num_head)
+        )
+        self.fc_lr_1 = nn.Linear(dim, num_head)
+        self.fc_weight_decay_1 = nn.Linear(dim, num_head)
+        self.fc_lr_2 = nn.Linear(dim, num_head)
+        self.fc_weight_decay_2 = nn.Linear(dim, num_head)
         self.fc_query = nn.Linear(dim, dim)
         self.fc_key = nn.Linear(dim, dim)
         self.fc_value = nn.Linear(dim, dim)
@@ -63,23 +66,43 @@ class MultiHeadMLPTTTLayer(nn.Module):
         value = (
             self.fc_value(x).view(batch, length, num_head, head_dim).transpose(2, 1)
         )  # (batch, num_head, length, head_dim)
-        lr = torch.exp(self.log_base_lr)[None, :, None] * F.sigmoid(
-            self.fc_lr(x)
+
+        lr_1 = torch.exp(self.log_base_lr_1)[None, :, None] * F.sigmoid(
+            self.fc_lr_1(x)
         ).transpose(2, 1)  # (batch, num_head, length)
-        log_weight_decay = torch.log(
+        log_weight_decay_1 = torch.log(
             1
-            - torch.exp(self.log_base_weight_decay)[None, :, None]
-            * F.sigmoid(self.fc_weight_decay(x)).transpose(2, 1)
+            - torch.exp(self.log_base_lr_1)[None, :, None]
+            * F.sigmoid(self.fc_weight_decay_1(x)).transpose(2, 1)
         )  # (batch, num_head, length)
-        weight_decay_cross_chunk = torch.exp(
-            torch.cumsum(log_weight_decay, dim=2)
+        weight_decay_cross_chunk_1 = torch.exp(
+            torch.cumsum(log_weight_decay_1, dim=2)
         )  # (batch, num_head, length)
-        weight_decay_inner_chunk = torch.exp(
+        weight_decay_inner_chunk_1 = torch.exp(
             torch.cumsum(
-                einops.repeat(log_weight_decay, "b n l -> b n m l", m=length).triu(1),
+                einops.repeat(log_weight_decay_1, "b n l -> b n m l", m=length).triu(1),
                 dim=3,
             )
         ).triu()  # (batch, num_head, length, length)
+
+        lr_2 = torch.exp(self.log_base_lr_2)[None, :, None] * F.sigmoid(
+            self.fc_lr_2(x)
+        ).transpose(2, 1)  # (batch, num_head, length)
+        log_weight_decay_2 = torch.log(
+            1
+            - torch.exp(self.log_base_lr_2)[None, :, None]
+            * F.sigmoid(self.fc_weight_decay_2(x)).transpose(2, 1)
+        )  # (batch, num_head, length)
+        weight_decay_cross_chunk_2 = torch.exp(
+            torch.cumsum(log_weight_decay_2, dim=2)
+        )  # (batch, num_head, length)
+        weight_decay_inner_chunk_2 = torch.exp(
+            torch.cumsum(
+                einops.repeat(log_weight_decay_2, "b n l -> b n m l", m=length).triu(1),
+                dim=3,
+            )
+        ).triu()  # (batch, num_head, length, length)
+
         X1 = key  # (batch, num_head, length, head_dim)
         Z1 = torch.einsum(
             "b n h d, b n l d -> b n l h", W1_prev, X1
@@ -105,13 +128,16 @@ class MultiHeadMLPTTTLayer(nn.Module):
             "b n l d, b n m d -> b n l m", X1, X1_
         )  # (batch, num_head, length, length)
         mask_X1X1_ = (
-            X1X1_ * weight_decay_inner_chunk
+            X1X1_ * weight_decay_inner_chunk_1
         )  # (batch, num_head, length, length)
         Z1__inner_chunk = -torch.einsum(
-            "b n l h, b n l, b n l m -> b n m h", grad_Z1, lr, mask_X1X1_
+            "b n l h, b n l, b n l m -> b n m h", grad_Z1, lr_1, mask_X1X1_
         )  # (batch, num_head, length, head_dim_hidden)
         Z1__cross_chunk = torch.einsum(
-            "b n h d, b n l d, b n l -> b n l h", W1_prev, X1_, weight_decay_cross_chunk
+            "b n h d, b n l d, b n l -> b n l h",
+            W1_prev,
+            X1_,
+            weight_decay_cross_chunk_1,
         )  # (batch, num_head, length, head_dim_hidden)
         Z1_ = (
             Z1__inner_chunk + Z1__cross_chunk
@@ -119,11 +145,11 @@ class MultiHeadMLPTTTLayer(nn.Module):
         W1_next_inner_chunk = -torch.einsum(
             "b n l h, b n l, b n l d -> b n h d",
             grad_Z1,
-            lr * weight_decay_inner_chunk[:, :, :, -1],
+            lr_1 * weight_decay_inner_chunk_1[:, :, :, -1],
             X1,
         )  # (batch, num_head, head_dim_hidden, head_dim)
         W1_next_cross_chunk = (
-            W1_prev * weight_decay_cross_chunk[:, :, -1][:, :, None, None]
+            W1_prev * weight_decay_cross_chunk_1[:, :, -1][:, :, None, None]
         )  # (batch, num_head, head_dim_hidden, head_dim)
         W1_next = (
             W1_next_inner_chunk + W1_next_cross_chunk
@@ -133,23 +159,26 @@ class MultiHeadMLPTTTLayer(nn.Module):
             "b n l h, b n m h -> b n l m", X2, X2_
         )  # (batch, num_head, length, length)
         mask_X2X2_ = (
-            X2X2_ * weight_decay_inner_chunk
+            X2X2_ * weight_decay_inner_chunk_2
         )  # (batch, num_head, length, length)
         Z2__inner_chunk = -torch.einsum(
-            "b n l d, b n l, b n l m -> b n m d", grad_Z2, lr, mask_X2X2_
+            "b n l d, b n l, b n l m -> b n m d", grad_Z2, lr_2, mask_X2X2_
         )  # (batch, num_head, length, head_dim_hidden)
         Z2__cross_chunk = torch.einsum(
-            "b n d h, b n l h, b n l -> b n l d", W2_prev, X2_, weight_decay_cross_chunk
+            "b n d h, b n l h, b n l -> b n l d",
+            W2_prev,
+            X2_,
+            weight_decay_cross_chunk_2,
         )  # (batch, num_head, length, head_dim)
         Z2_ = Z2__inner_chunk + Z2__cross_chunk  # (batch, num_head, length, head_dim)
         W2_next_inner_chunk = -torch.einsum(
             "b n l d, b n l, b n l h -> b n d h",
             grad_Z2,
-            lr * weight_decay_inner_chunk[:, :, :, -1],
+            lr_2 * weight_decay_inner_chunk_2[:, :, :, -1],
             X2,
         )  # (batch, num_head, head_dim, head_dim_hidden)
         W2_next_cross_chunk = (
-            W2_prev * weight_decay_cross_chunk[:, :, -1][:, :, None, None]
+            W2_prev * weight_decay_cross_chunk_2[:, :, -1][:, :, None, None]
         )  # (batch, num_head, head_dim, head_dim_hidden)
         W2_next = (
             W2_next_inner_chunk + W2_next_cross_chunk
@@ -168,15 +197,12 @@ class ChunkwiseTTT(nn.Module):
         dim: int,
         dim_hidden: int,
         num_head: int,
-        base_lr: float,
-        base_weight_decay: float,
+        base_lr: tuple[float, float],
         chunk_size: int,
     ):
         super().__init__()
         self.chunk_size = chunk_size
-        self.memory = MultiHeadMLPTTTLayer(
-            dim, dim_hidden, num_head, base_lr, base_weight_decay
-        )
+        self.memory = MultiHeadMLPTTTLayer(dim, dim_hidden, num_head, base_lr)
         self.num_head = num_head
         self.head_dim = dim // num_head
         self.head_dim_hidden = dim_hidden // num_head
@@ -232,15 +258,12 @@ class TTTBlock(nn.Module):
         dim: int,
         dim_ff_hidden: int,
         num_head: int,
-        base_lr: float,
-        base_weight_decay: float,
+        base_lr: tuple[float, float],
         chunk_size: int,
         dropout: float,
     ):
         super().__init__()
-        self.memory = ChunkwiseTTT(
-            dim, dim_ff_hidden, num_head, base_lr, base_weight_decay, chunk_size
-        )
+        self.memory = ChunkwiseTTT(dim, dim_ff_hidden, num_head, base_lr, chunk_size)
         self.ffn = FFNSwiGLU(dim, dim_ff_hidden)
         self.norm_memory = RMSNorm(dim)
         self.norm_ffn = RMSNorm(dim)
@@ -274,8 +297,7 @@ class TTT(StackedTTT):
         dim: int,
         dim_ff_hidden: int,
         num_head: int,
-        base_lr: float,
-        base_weight_decay: float,
+        base_lr: tuple[float, float],
         chunk_size: int,
         dropout: float,
     ):
@@ -287,7 +309,6 @@ class TTT(StackedTTT):
                         dim_ff_hidden,
                         num_head,
                         base_lr,
-                        base_weight_decay,
                         chunk_size,
                         dropout,
                     )

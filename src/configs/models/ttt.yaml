@@ -32,7 +32,6 @@ fd_policy_value:
       dim_ff_hidden: ${python.eval:"${.dim} * 4"}
       depth: 16
       num_head: 32
-      base_lr: 0.001
-      base_weight_decay: 0.001
+      base_lr: [0.0001, 0.01]
       chunk_size: 64
       dropout: 0.1

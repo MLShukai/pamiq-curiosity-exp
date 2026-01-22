@@ -86,8 +86,7 @@ class TestStackedTTT:
             DIM,
             DIM_FF_HIDDEN,
             NUM_HEAD,
-            base_lr=0.001,
-            base_weight_decay=0.01,
+            base_lr=(0.0001, 0.01),
             chunk_size=16,
             dropout=DROPOUT,
         )

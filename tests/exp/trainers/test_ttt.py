@@ -45,8 +45,7 @@ class TestTTTFDPiVTrainer:
             dim=self.DIM,
             dim_ff_hidden=self.DIM_FF_HIDDEN,
             num_head=self.NUM_HEAD,
-            base_lr=0.001,
-            base_weight_decay=0.01,
+            base_lr=(0.0001, 0.01),
             chunk_size=16,
             dropout=0.1,
         )
