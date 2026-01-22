@@ -150,12 +150,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         self.metrics["reward"] = reward.item()
         self.metrics["surprisal"] = surprisal.mean().item()
-        self.metrics["surprisal_pos"] = (
-            (F.relu(self.surprisal_coef) * surprisal).sum().item()
-        )
-        self.metrics["surprisal_neg"] = (
-            (F.relu(-self.surprisal_coef) * surprisal).sum().item()
-        )
 
         self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 

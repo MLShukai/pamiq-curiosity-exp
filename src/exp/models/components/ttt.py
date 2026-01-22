@@ -88,7 +88,11 @@ class MultiHeadMLPTTTLayer(nn.Module):
         Z2 = torch.einsum(
             "b n d h, b n l h -> b n l d", W2_prev, X2
         )  # (batch, num_head, length, head_dim)
-        grad_Z2 = Z2 - value  # (batch, num_head, length, head_dim)
+
+        surprisal = 0.5 * ((Z2 - value) ** 2).mean(dim=-1)  # (batch, num_head, length)
+
+        grad_Z2 = (Z2 - value) / head_dim  # (batch, num_head, length, head_dim)
+
         grad_X2 = torch.einsum(
             "b n d h, b n l d -> b n l h", W2_prev, grad_Z2
         )  # (batch, num_head, length, head_dim_hidden)
@@ -151,13 +155,10 @@ class MultiHeadMLPTTTLayer(nn.Module):
             W2_next_inner_chunk + W2_next_cross_chunk
         )  # (batch, num_head, head_dim, head_dim_hidden)
         hidden_next = {"W1": W1_next, "W2": W2_next}
-        surprisal = 0.5 * ((Z2 - value) ** 2).mean(dim=-1).transpose(
-            -2, -1
-        )  # (batch, length, num_head)
         return (
             self.fc_out(Z2_.transpose(2, 1).reshape(batch, length, dim)),
             hidden_next,
-            surprisal,
+            surprisal.transpose(-2, -1),
         )
 
 
