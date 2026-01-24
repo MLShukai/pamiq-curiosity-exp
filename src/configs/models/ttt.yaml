@@ -25,7 +25,7 @@ fd_policy_value:
         _target_: hydra.utils.get_object
         path: exp.envs.vrchat.OSC_ACTION_CHOICES
       dim: 8
-    internal_action_dim: 128
+    internal_action_dim: 16
     dim: ${.core_model.dim}
     core_model:
       _target_: exp.models.components.ttt.TTT
