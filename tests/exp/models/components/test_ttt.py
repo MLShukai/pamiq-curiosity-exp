@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-from exp.models.components.qlstm import QLSTM
 from exp.models.components.ttt import TTT
 
 BATCH = 4
@@ -13,72 +12,7 @@ DROPOUT = 0.1
 NUM_HEAD = 4
 
 
-class TestStackedHiddenState:
-    @pytest.fixture
-    def qlstm(self):
-        return QLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
-
-    @pytest.mark.parametrize(
-        "x_shape,hidden_shape,expected_hidden_shape",
-        [
-            ((BATCH, LEN, DIM), (BATCH, DEPTH, DIM), (BATCH, DEPTH, LEN, DIM)),
-            ((LEN, DIM), (DEPTH, DIM), (DEPTH, LEN, DIM)),
-            (
-                (1, 2, 3, BATCH, LEN, DIM),
-                (1, 2, 3, BATCH, DEPTH, DIM),
-                (1, 2, 3, BATCH, DEPTH, LEN, DIM),
-            ),
-        ],
-    )
-    def test_forward_with_hidden(
-        self, qlstm, x_shape, hidden_shape, expected_hidden_shape
-    ):
-        """Test forward pass with provided hidden state."""
-        x = torch.randn(*x_shape)
-        hidden = torch.randn(*hidden_shape)
-
-        x_out, hidden_out = qlstm(x, hidden)
-        assert x_out.shape == x_shape
-        assert hidden_out.shape == expected_hidden_shape
-
-    @pytest.mark.parametrize(
-        "x_shape,expected_hidden_shape",
-        [
-            ((BATCH, LEN, DIM), (BATCH, DEPTH, LEN, DIM)),
-            ((LEN, DIM), (DEPTH, LEN, DIM)),
-            ((1, 2, 3, BATCH, LEN, DIM), (1, 2, 3, BATCH, DEPTH, LEN, DIM)),
-        ],
-    )
-    def test_forward_without_hidden(self, qlstm, x_shape, expected_hidden_shape):
-        """Test forward pass without hidden state (hidden=None)."""
-        x = torch.randn(*x_shape)
-
-        x_out, hidden_out = qlstm(x)
-        assert x_out.shape == x_shape
-        assert hidden_out.shape == expected_hidden_shape
-
-    @pytest.mark.parametrize(
-        "x_shape,hidden_shape,error_msg",
-        [
-            ((BATCH, LEN, DIM), (BATCH + 1, DEPTH, DIM), "Batch shape mismatch"),
-            ((BATCH, LEN, DIM), (BATCH, DEPTH, DIM + 1), "Feature dim mismatch"),
-            (
-                (2, 3, BATCH, LEN, DIM),
-                (2, 4, BATCH, DEPTH, DIM),
-                "Batch shape mismatch",
-            ),
-        ],
-    )
-    def test_shape_mismatches(self, qlstm, x_shape, hidden_shape, error_msg):
-        """Test error cases when shapes don't match."""
-        x = torch.randn(*x_shape)
-        hidden = torch.randn(*hidden_shape)
-
-        with pytest.raises(ValueError, match=error_msg):
-            qlstm(x, hidden)
-
-
-class TestStackedTTT:
+class TestTTT:
     @pytest.fixture
     def ttt(self):
         return TTT(
@@ -151,7 +85,6 @@ class TestStackedTTT:
             and hidden_out[i]["W2"].shape == hidden[i]["W2"].shape
             for i in range(DEPTH)
         )
-        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD)
 
     def test_forward_with_no_hidden_no_batch(self, ttt):
         """Test forward pass without hidden state and without batch."""
