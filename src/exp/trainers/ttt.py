@@ -49,7 +49,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         batch_size: int = 1,
         norm_advantage: bool = True,
         clip_coef: float = 0.1,
-        action_entropy_coef: float = -0.01,
+        external_action_entropy_coef: float = -0.01,
         vfunc_coef: float = 0.5,
         grad_clip_norm: float = 10.0,
         model_name: str = ModelName.FD_POLICY_VALUE,
@@ -92,7 +92,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         self.max_epochs = max_epochs
         self.norm_advantage = norm_advantage
         self.clip_coef = clip_coef
-        self.action_entropy_coef = action_entropy_coef
+        self.external_action_entropy_coef = external_action_entropy_coef
         self.vfunc_coef = vfunc_coef
         self.global_step = 0
 
@@ -147,7 +147,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         )
         new_log_probs = new_dist.log_prob(external_actions, internal_actions)
 
-        external_action_entropy, _ = new_dist.entropy_per_dist()
+        external_action_entropy, internal_action_entropy = new_dist.entropy_per_dist()
 
         # Calculate ratio for PPO
         log_ratio = new_log_probs - action_log_probs
@@ -188,13 +188,17 @@ class TTTFDPiVTrainer(TorchTrainer):
         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
         v_loss = 0.5 * v_loss_max.mean()
 
-        action_entropy_loss = external_action_entropy.mean() * self.action_entropy_coef
+        external_action_entropy_loss = (
+            external_action_entropy.mean() * self.external_action_entropy_coef
+        )
 
         # Forward dynamics loss
         fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
 
         # Total loss
-        loss = pg_loss + action_entropy_loss + v_loss * self.vfunc_coef + fd_loss
+        loss = (
+            pg_loss + external_action_entropy_loss + v_loss * self.vfunc_coef + fd_loss
+        )
 
         return {
             "loss": loss,
@@ -202,6 +206,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             "value_loss": v_loss,
             "fd_loss": fd_loss,
             "external_action_entropy": external_action_entropy.mean(),
+            "internal_action_std": internal_actions.std(dim=1).mean(),
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
             "advantage_mean": advantages.mean(),
