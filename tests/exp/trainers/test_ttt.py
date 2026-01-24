@@ -28,6 +28,7 @@ class TestTTTFDPiVTrainer:
     OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     DIM_ACTION = 8
+    DIM_INTERNAL_ACTION = 8
     DIM_FF_HIDDEN = 16
     NUM_HEAD = 4
     GET_INTERVAL = 16
@@ -52,6 +53,7 @@ class TestTTTFDPiVTrainer:
         return TTTFDPiV(
             obs_info=obs_info,
             action_info=action_info,
+            internal_action_dim=self.DIM_INTERNAL_ACTION,
             dim=self.DIM,
             core_model=core_model,
         )
@@ -146,9 +148,12 @@ class TestTTTFDPiVTrainer:
                 }
                 for _ in range(self.DEPTH)
             ]
-            actions = torch.stack(
-                [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
-            )
+            actions = {
+                "external_action": torch.stack(
+                    [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
+                ),
+                "internal_action": torch.randn(self.DIM_INTERNAL_ACTION),
+            }
             previous_actions = actions
             action_log_probs = torch.randn(())
             rewards = torch.randn(())

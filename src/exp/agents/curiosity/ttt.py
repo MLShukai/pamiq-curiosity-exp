@@ -12,6 +12,7 @@ from torch.distributions import Distribution
 from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
 from exp.models import ModelName
+from exp.models.components.multi_distributions import MultiDistributions
 
 STEP_DATA_REQUIRED_KEYS = {
     DataKey.OBSERVATION,
@@ -53,7 +54,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         super().__init__()
 
         self.hidden_state = None
-        self.action = None
+        self.external_action = None
+        self.internal_action = None
         self.surprisal_coef = None
         self.device = device
         self.dtype = dtype
@@ -80,10 +82,11 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     # ------ INTERACTION PROCESS ------
 
     hidden_state: list[dict[str, Tensor]] | None  # (depth, dim) or None
-    action: Tensor | None  # (action_choices,) or None
+    external_action: Tensor | None  # (action_choices,) or None
+    internal_action: Tensor | None  # (dim,) or None
     surprisal_coef: Tensor | None
     obs_hat: Tensor | None
-    step_data_fd_piv: dict[str, Tensor | list[dict[str, Tensor]]]
+    step_data_fd_piv: dict[str, Tensor | list[dict[str, Tensor]] | dict[str, Tensor]]
 
     @override
     def setup(self) -> None:
@@ -125,7 +128,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
                 for layer in self.hidden_state
             ]  # Store before update
 
-        action_dist: Distribution
+        action_dist: MultiDistributions
         value: Tensor
         (
             _,
@@ -133,12 +136,21 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             value,
             self.hidden_state,
             surprisal,
-        ) = self.fd_piv(observation, self.action, hidden=self.hidden_state)
-        if self.action is not None:
-            self.step_data_fd_piv[DataKey.PREVIOUS_ACTION] = self.action.cpu()
-        self.action = action_dist.sample()
-        action_log_prob = action_dist.log_prob(self.action)
-
+        ) = self.fd_piv(
+            observation,
+            self.external_action,
+            self.internal_action,
+            hidden=self.hidden_state,
+        )
+        if self.external_action is not None and self.internal_action is not None:
+            self.step_data_fd_piv[DataKey.PREVIOUS_ACTION] = {
+                "external_action": self.external_action.cpu(),
+                "internal_action": self.internal_action.cpu(),
+            }
+        self.external_action, self.internal_action = action_dist.sample()
+        action_log_prob = action_dist.log_prob(
+            self.external_action, self.internal_action
+        )
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
@@ -158,7 +170,10 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
 
         self.step_data_fd_piv[DataKey.OBSERVATION] = observation.cpu()
-        self.step_data_fd_piv[DataKey.ACTION] = self.action.cpu()
+        self.step_data_fd_piv[DataKey.ACTION] = {
+            "external_action": self.external_action.cpu(),
+            "internal_action": self.internal_action.cpu(),
+        }
 
         # Store for next loop
         self.step_data_fd_piv[DataKey.ACTION_LOG_PROB] = action_log_prob.cpu()
@@ -167,7 +182,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         self.scheduler.update()
         self.global_step += 1
-        return self.action
+        return self.external_action
 
     def log_metrics(self) -> None:
         """Log collected metrics to Aim.
@@ -203,8 +218,10 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             torch.save(self.hidden_state, path / "hidden_state.pt")
         if self.surprisal_coef is not None:
             torch.save(self.surprisal_coef, path / "surprisal_coef.pt")
-        if self.action is not None:
-            torch.save(self.action, path / "action.pt")
+        if self.external_action is not None:
+            torch.save(self.external_action, path / "external_action.pt")
+        if self.internal_action is not None:
+            torch.save(self.internal_action, path / "internal_action.pt")
         (path / "global_step").write_text(str(self.global_step), "utf-8")
 
     @override
@@ -231,10 +248,16 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             if surprisal_coef_path.exists()
             else None
         )
-        action_path = path / "action.pt"
-        self.action = (
-            torch.load(action_path, map_location=self.device)
-            if action_path.exists()
+        external_action_path = path / "external_action.pt"
+        self.external_action = (
+            torch.load(external_action_path, map_location=self.device)
+            if external_action_path.exists()
+            else None
+        )
+        internal_action_path = path / "internal_action.pt"
+        self.internal_action = (
+            torch.load(internal_action_path, map_location=self.device)
+            if internal_action_path.exists()
             else None
         )
         self.global_step = int((path / "global_step").read_text("utf-8"))

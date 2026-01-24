@@ -7,9 +7,12 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Distribution
+from torch.distributions.independent import Independent
 
+from .components.deterministic_normal import FCDeterministicNormalHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
+from .components.multi_distributions import MultiDistributions
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
 from .components.stacked_hidden_state import (
     StackedHiddenState,
@@ -196,6 +199,7 @@ class TTTFDPiV(nn.Module):
         self,
         obs_info: ObsInfo,
         action_info: ActionInfo,
+        internal_action_dim: int,
         dim: int,
         core_model: StackedTTT,
     ) -> None:
@@ -219,41 +223,51 @@ class TTTFDPiV(nn.Module):
             action_info.choices, action_info.dim, do_flatten=True
         )
         self.obs_action_projection = nn.Linear(
-            obs_info.dim_hidden + action_info.dim * len(action_info.choices), dim
+            obs_info.dim_hidden
+            + action_info.dim * len(action_info.choices)
+            + internal_action_dim,
+            dim,
         )
         self.core_model = core_model
         self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
-        self.policy_head = FCMultiCategoricalHead(dim, action_info.choices)
+        self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
+        self.internal_action_head = FCDeterministicNormalHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
 
-    def _flatten_obs_action(self, obs: Tensor, action: Tensor | None) -> Tensor:
+    def _flatten_obs_action(
+        self,
+        obs: Tensor,
+        external_action: Tensor | None,
+        internal_action: Tensor | None,
+    ) -> Tensor:
         """Flatten and concat observation and action."""
         obs_flat = self.obs_flatten(obs)
-        if action is None:
+        if external_action is None or internal_action is None:
             return obs_flat.new_zeros((*obs_flat.shape[:-1], self.dim))
         else:
-            action_flat = self.action_flatten(action)
+            external_action_flat = self.action_flatten(external_action)
             return self.obs_action_projection(
-                torch.cat((obs_flat, action_flat), dim=-1)
+                torch.cat((obs_flat, external_action_flat, internal_action), dim=-1)
             )
 
     @override
     def forward(
         self,
         obs: Tensor,
-        action: Tensor | None,
+        external_action: Tensor | None,
+        internal_action: Tensor | None,
         hidden: list[dict[str, Tensor]] | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, Distribution, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
         """Forward pass to predict next observation prediction, policy
         distribution, value estimate, and surprisal.
 
         Args:
             obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, len, num_token, action_choices)
-            upper_action: Not used in this implementation.
+            external_action: External action tensor. shape is (*batch, len, num_token, action_choices)
+            internal_action: Internal action tensor. shape is (*batch, len, dim)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -265,24 +279,28 @@ class TTTFDPiV(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
         """
-        x = self._flatten_obs_action(obs, action)
+        x = self._flatten_obs_action(obs, external_action, internal_action)
         x, next_hidden, surprisal = self.core_model(x, hidden, no_len=no_len)
         obs_hat = self.obs_hat_head(x)
-        action_dist = self.policy_head(x)
+        external_action_dist = self.external_action_head(x)
+        internal_action_dist = Independent(self.internal_action_head(x), 1)
+        action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
         return obs_hat, action_dist, value, next_hidden, surprisal
 
     def forward_with_no_len(
         self,
         obs: Tensor,
-        action: Tensor | None,
+        external_action: Tensor | None,
+        internal_action: Tensor | None,
         hidden: list[dict[str, Tensor]] | None = None,
-    ) -> tuple[Tensor, Distribution, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
-            action: Action tensor. shape is (*batch, num_token, action_choices)
+            external_action: Action tensor. shape is (*batch, num_token, action_choices)
+            internal_action: Internal action tensor. shape is (*batch, dim)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -294,11 +312,16 @@ class TTTFDPiV(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
         """
-        x = self._flatten_obs_action(obs, action)  # (*batch, dim)
+        x = self._flatten_obs_action(
+            obs, external_action, internal_action
+        )  # (*batch, dim)
         x, next_hidden, surprisal = self.core_model(x, hidden, no_len=True)
         return (
             self.obs_hat_head(x),
-            self.policy_head(x),
+            MultiDistributions(
+                self.external_action_head(x),
+                Independent(self.internal_action_head(x), 1),
+            ),
             self.value_head(x),
             next_hidden,
             surprisal,

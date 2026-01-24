@@ -26,8 +26,8 @@ OPTIMIZER_NAME = "optimizer"
 type BatchType = tuple[
     Tensor,
     list[dict[str, Tensor]],
-    Tensor,
-    Tensor,
+    dict[str, Tensor],
+    dict[str, Tensor],
     Tensor,
     Tensor,
     Tensor,
@@ -133,15 +133,21 @@ class TTTFDPiVTrainer(TorchTrainer):
             returns,
         ) = batch
 
+        external_previous_actions = previous_actions["external_action"]
+        internal_previous_actions = previous_actions["internal_action"]
+        external_actions = actions["external_action"]
+        internal_actions = actions["internal_action"]
+
         # Get new distributions and values
         obs_hat, new_dist, new_values, _, _ = self.fd_piv.model(
             observations,
-            previous_actions,
+            external_previous_actions,
+            internal_previous_actions,
             hiddens,
         )
-        new_log_probs = new_dist.log_prob(actions)
+        new_log_probs = new_dist.log_prob(external_actions, internal_actions)
 
-        action_entropy = new_dist.entropy()
+        external_action_entropy, _ = new_dist.entropy_per_dist()
 
         # Calculate ratio for PPO
         log_ratio = new_log_probs - action_log_probs
@@ -182,7 +188,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
         v_loss = 0.5 * v_loss_max.mean()
 
-        action_entropy_loss = action_entropy.mean() * self.action_entropy_coef
+        action_entropy_loss = external_action_entropy.mean() * self.action_entropy_coef
 
         # Forward dynamics loss
         fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
@@ -195,7 +201,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             "policy_loss": pg_loss,
             "value_loss": v_loss,
             "fd_loss": fd_loss,
-            "action_entropy": action_entropy.mean(),
+            "external_action_entropy": external_action_entropy.mean(),
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
             "advantage_mean": advantages.mean(),
@@ -214,8 +220,6 @@ class TTTFDPiVTrainer(TorchTrainer):
 
         chunk_keys = [
             DataKey.OBSERVATION,
-            DataKey.PREVIOUS_ACTION,
-            DataKey.ACTION,
             DataKey.ACTION_LOG_PROB,
             DataKey.REWARD,
             DataKey.VALUE,
@@ -232,6 +236,41 @@ class TTTFDPiVTrainer(TorchTrainer):
             ]
             for key in chunk_keys
         }
+
+        previous_actions_chunks = [
+            {
+                "external_action": torch.stack(
+                    [
+                        t["external_action"] if isinstance(t, dict) else torch.zeros(1)
+                        for t in chunk
+                    ]
+                ),
+                "internal_action": torch.stack(
+                    [
+                        t["internal_action"] if isinstance(t, dict) else torch.zeros(1)
+                        for t in chunk
+                    ]
+                ),
+            }
+            for chunk in data[DataKey.PREVIOUS_ACTION]
+        ]
+        actions_chunks = [
+            {
+                "external_action": torch.stack(
+                    [
+                        t["external_action"] if isinstance(t, dict) else torch.zeros(1)
+                        for t in chunk
+                    ]
+                ),
+                "internal_action": torch.stack(
+                    [
+                        t["internal_action"] if isinstance(t, dict) else torch.zeros(1)
+                        for t in chunk
+                    ]
+                ),
+            }
+            for chunk in data[DataKey.ACTION]
+        ]
 
         # compute advantages and returns
         advantages_list = [
@@ -251,18 +290,7 @@ class TTTFDPiVTrainer(TorchTrainer):
 
         hidden_list = data[DataKey.HIDDEN]
 
-        dataset_raw: list[
-            tuple[
-                Tensor,
-                list[dict[str, Tensor]],
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-            ]
-        ] = [
+        dataset_raw: list[BatchType] = [
             (
                 observations,
                 hiddens,
@@ -276,8 +304,8 @@ class TTTFDPiVTrainer(TorchTrainer):
             for observations, hiddens, previous_actions, actions, action_log_probs, values, advantages, returns in zip(
                 chunks[DataKey.OBSERVATION],
                 hidden_list,
-                chunks[DataKey.PREVIOUS_ACTION],
-                chunks[DataKey.ACTION],
+                previous_actions_chunks,
+                actions_chunks,
                 chunks[DataKey.ACTION_LOG_PROB],
                 chunks[DataKey.VALUE],
                 advantages_list,
@@ -288,18 +316,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         class TTTDataset(Dataset):
             def __init__(
                 self,
-                data: list[
-                    tuple[
-                        Tensor,
-                        list[dict[str, Tensor]],
-                        Tensor,
-                        Tensor,
-                        Tensor,
-                        Tensor,
-                        Tensor,
-                        Tensor,
-                    ]
-                ],
+                data: list[BatchType],
             ) -> None:
                 self.data = data
 
@@ -307,18 +324,7 @@ class TTTFDPiVTrainer(TorchTrainer):
                 return len(self.data)
 
             @override
-            def __getitem__(
-                self, index: int
-            ) -> tuple[
-                Tensor,
-                list[dict[str, Tensor]],
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-            ]:
+            def __getitem__(self, index: int) -> BatchType:
                 return self.data[index]
 
         dataset = TTTDataset(dataset_raw)
@@ -327,24 +333,19 @@ class TTTFDPiVTrainer(TorchTrainer):
         device = get_device(self.fd_piv.model)
 
         for _ in range(self.max_epochs):
-            batch: tuple[
-                Tensor,
-                list[dict[str, Tensor]],
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-                Tensor,
-            ]
+            batch: BatchType
             for batch in dataloader:
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
-                data_list: list[Tensor | list[dict[str, Tensor]] | None] = [
+                data_list: list[
+                    Tensor | list[dict[str, Tensor]] | dict[str, Tensor] | None
+                ] = [
                     d.to(device)
                     if isinstance(d, Tensor)
                     else [{key: v.to(device) for key, v in dd.items()} for dd in d]
                     if isinstance(d, list)
+                    else {key: v.to(device) for key, v in d.items()}
+                    if isinstance(d, dict)
                     else None
                     for d in batch
                 ]
