@@ -49,7 +49,8 @@ class TTTFDPiVTrainer(TorchTrainer):
         batch_size: int = 1,
         norm_advantage: bool = True,
         clip_coef: float = 0.1,
-        external_action_entropy_coef: float = -0.01,
+        external_action_entropy_coef: float = 0.0,
+        internal_action_entropy_coef: float = 0.0,
         vfunc_coef: float = 0.5,
         grad_clip_norm: float = 10.0,
         model_name: str = ModelName.FD_POLICY_VALUE,
@@ -93,6 +94,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         self.norm_advantage = norm_advantage
         self.clip_coef = clip_coef
         self.external_action_entropy_coef = external_action_entropy_coef
+        self.internal_action_entropy_coef = internal_action_entropy_coef
         self.vfunc_coef = vfunc_coef
         self.global_step = 0
 
@@ -191,13 +193,20 @@ class TTTFDPiVTrainer(TorchTrainer):
         external_action_entropy_loss = (
             external_action_entropy.mean() * self.external_action_entropy_coef
         )
+        internal_action_entropy_loss = (
+            internal_action_entropy.mean() * self.internal_action_entropy_coef
+        )
 
         # Forward dynamics loss
         fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
 
         # Total loss
         loss = (
-            pg_loss + external_action_entropy_loss + v_loss * self.vfunc_coef + fd_loss
+            pg_loss
+            + external_action_entropy_loss
+            + internal_action_entropy_loss
+            + v_loss * self.vfunc_coef
+            + fd_loss
         )
 
         return {
@@ -206,7 +215,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             "value_loss": v_loss,
             "fd_loss": fd_loss,
             "external_action_entropy": external_action_entropy.mean(),
-            "internal_action_std": internal_actions.std(dim=1).mean(),
+            "internal_action_entropy": internal_action_entropy.mean(),
             "approx_kl": approx_kl,
             "clipfrac": clipfracs,
             "advantage_mean": advantages.mean(),
