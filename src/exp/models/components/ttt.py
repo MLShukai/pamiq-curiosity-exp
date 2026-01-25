@@ -30,10 +30,12 @@ class MultiHeadMLPTTTLayer(nn.Module):
         self.dim_hidden = dim_hidden
         self.num_head = num_head
         self.log_base_lr_1 = nn.Parameter(
-            torch.linspace(np.log(base_lr[0]), np.log(base_lr[1]), num_head)
+            torch.linspace(np.log(base_lr[0]), np.log(base_lr[1]), num_head),
+            requires_grad=False,
         )
         self.log_base_lr_2 = nn.Parameter(
-            torch.linspace(np.log(base_lr[0]), np.log(base_lr[1]), num_head)
+            torch.linspace(np.log(base_lr[0]), np.log(base_lr[1]), num_head),
+            requires_grad=False,
         )
         self.fc_lr_1 = nn.Linear(dim, num_head)
         self.fc_weight_decay_1 = nn.Linear(dim, num_head)
@@ -237,6 +239,18 @@ class ChunkwiseTTT(nn.Module):
             hidden = {"W1": W1, "W2": W2}
         else:
             hidden = {k: v.detach() for k, v in hidden.items()}
+            hidden["W1"] = hidden["W1"] - hidden["W1"].mean(dim=(2, 3), keepdim=True)
+            hidden["W1"] = (
+                hidden["W1"]
+                / hidden["W1"].std(dim=(2, 3), keepdim=True)
+                * self.head_dim**-0.5
+            )
+            hidden["W2"] = hidden["W2"] - hidden["W2"].mean(dim=(2, 3), keepdim=True)
+            hidden["W2"] = (
+                hidden["W2"]
+                / hidden["W2"].std(dim=(2, 3), keepdim=True)
+                * self.head_dim_hidden**-0.5
+            )
 
         input_chunks = x.split(self.chunk_size, dim=1)
         output_chunks = []
