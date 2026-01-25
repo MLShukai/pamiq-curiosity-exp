@@ -8,7 +8,7 @@ fd_policy_value:
   gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
   gae_lambda: 0.95
   norm_advantage: true
-  external_action_entropy_coef: 0.0
+  external_action_entropy_coef: -0.001
   internal_action_entropy_coef: 0.0
   min_new_data_count: ${buffers.fd_policy_value.get_interval}
   batch_size: 4

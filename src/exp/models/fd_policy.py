@@ -9,10 +9,10 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.distributions.independent import Independent
 
+from .components.deterministic_normal import FCDeterministicNormalHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
 from .components.multi_distributions import MultiDistributions
-from .components.normal import FCNormalHead
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
 from .components.stacked_hidden_state import (
     StackedHiddenState,
@@ -231,7 +231,7 @@ class TTTFDPiV(nn.Module):
         self.core_model = core_model
         self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
         self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
-        self.internal_action_head = FCNormalHead(dim, internal_action_dim)
+        self.internal_action_head = FCDeterministicNormalHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
 
