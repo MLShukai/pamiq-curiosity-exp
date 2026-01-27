@@ -51,6 +51,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         clip_coef: float = 0.1,
         external_action_entropy_coef: float = 0.0,
         internal_action_entropy_coef: float = 0.0,
+        target_delay_frames: int = 1,
         vfunc_coef: float = 0.5,
         grad_clip_norm: float = 10.0,
         model_name: str = ModelName.FD_POLICY_VALUE,
@@ -95,6 +96,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         self.clip_coef = clip_coef
         self.external_action_entropy_coef = external_action_entropy_coef
         self.internal_action_entropy_coef = internal_action_entropy_coef
+        self.target_delay_frames = target_delay_frames
         self.vfunc_coef = vfunc_coef
         self.global_step = 0
 
@@ -198,7 +200,10 @@ class TTTFDPiVTrainer(TorchTrainer):
         )
 
         # Forward dynamics loss
-        fd_loss = torch.nn.functional.mse_loss(obs_hat[:, :-1], observations[:, 1:])
+        fd_loss = torch.nn.functional.mse_loss(
+            obs_hat[:, : -self.target_delay_frames],
+            observations[:, self.target_delay_frames :],
+        )
 
         # Total loss
         loss = (
