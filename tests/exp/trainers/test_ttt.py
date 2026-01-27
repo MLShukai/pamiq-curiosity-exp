@@ -152,7 +152,7 @@ class TestTTTFDPiVTrainer:
                 "external_action": torch.stack(
                     [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
                 ),
-                "internal_action": torch.randn(self.DIM_INTERNAL_ACTION),
+                "internal_action": torch.rand(self.DIM_INTERNAL_ACTION) * 2 - 1,
             }
             previous_actions = actions
             action_log_probs = torch.randn(())
