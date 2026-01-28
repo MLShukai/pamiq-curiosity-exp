@@ -88,9 +88,10 @@ class StackedHiddenState(nn.Module):
 
 
 class StackedTTT(nn.Module):
-    def __init__(self, module_list: nn.ModuleList):
+    def __init__(self, module_list: nn.ModuleList, last_norm: nn.Module | None = None):
         super().__init__()
         self.module_list = module_list
+        self.last_norm = last_norm
 
     @override
     def forward(
@@ -121,6 +122,8 @@ class StackedTTT(nn.Module):
             hidden_out_list.append(hidden_out)
             surprisal_list.append(surprisal)
 
+        if self.last_norm is not None:
+            x = self.last_norm(x)
         surprisal = torch.stack(surprisal_list, dim=2)
 
         if no_batch:

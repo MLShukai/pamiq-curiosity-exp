@@ -201,6 +201,7 @@ class ChunkwiseTTT(nn.Module):
         num_head: int,
         base_lr: tuple[float, float],
         chunk_size: int,
+        normalize_hidden: bool = True,
     ):
         super().__init__()
         self.chunk_size = chunk_size
@@ -208,6 +209,7 @@ class ChunkwiseTTT(nn.Module):
         self.num_head = num_head
         self.head_dim = dim // num_head
         self.head_dim_hidden = dim_hidden // num_head
+        self.normalize_hidden = normalize_hidden
 
     __call__: Callable[
         [Tensor, dict[str, Tensor] | None], tuple[Tensor, dict[str, Tensor], Tensor]
@@ -239,18 +241,23 @@ class ChunkwiseTTT(nn.Module):
             hidden = {"W1": W1, "W2": W2}
         else:
             hidden = {k: v.detach() for k, v in hidden.items()}
-            hidden["W1"] = hidden["W1"] - hidden["W1"].mean(dim=(2, 3), keepdim=True)
-            hidden["W1"] = (
-                hidden["W1"]
-                / hidden["W1"].std(dim=(2, 3), keepdim=True)
-                * self.head_dim**-0.5
-            )
-            hidden["W2"] = hidden["W2"] - hidden["W2"].mean(dim=(2, 3), keepdim=True)
-            hidden["W2"] = (
-                hidden["W2"]
-                / hidden["W2"].std(dim=(2, 3), keepdim=True)
-                * self.head_dim_hidden**-0.5
-            )
+            if self.normalize_hidden:
+                hidden["W1"] = hidden["W1"] - hidden["W1"].mean(
+                    dim=(2, 3), keepdim=True
+                )
+                hidden["W1"] = (
+                    hidden["W1"]
+                    / hidden["W1"].std(dim=(2, 3), keepdim=True)
+                    * self.head_dim**-0.5
+                )
+                hidden["W2"] = hidden["W2"] - hidden["W2"].mean(
+                    dim=(2, 3), keepdim=True
+                )
+                hidden["W2"] = (
+                    hidden["W2"]
+                    / hidden["W2"].std(dim=(2, 3), keepdim=True)
+                    * self.head_dim_hidden**-0.5
+                )
 
         input_chunks = x.split(self.chunk_size, dim=1)
         output_chunks = []
@@ -328,5 +335,6 @@ class TTT(StackedTTT):
                     )
                     for _ in range(depth)
                 ]
-            )
+            ),
+            last_norm=RMSNorm(dim),
         )
