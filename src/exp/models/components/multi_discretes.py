@@ -97,8 +97,8 @@ class NormalizedMat(nn.Module):
     @override
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         normalized_weight = (
-            (self.weight - self.weight.mean())
-            / (self.weight.std() + 1e-8)
+            (self.weight - self.weight.mean(dim=1, keepdim=True))
+            / (self.weight.std(dim=1, keepdim=True) + 1e-8)
             * self.dim_in**-0.5
         )
         return torch.matmul(input, normalized_weight.t())
