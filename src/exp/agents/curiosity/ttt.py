@@ -162,9 +162,15 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
+        self.metrics["surprisal"] = surprisal.mean().item()
+
         if self.surprisal_coef is None:
             self.surprisal_coef = torch.randn_like(
                 surprisal, dtype=self.dtype, device=self.device
+            )
+            self.surprisal_coef = self.surprisal_coef - self.surprisal_coef.mean()
+            self.surprisal_coef = self.surprisal_coef / (
+                self.surprisal_coef.std() + 1e-8
             )
         surprisal_mean = surprisal.mean().detach()
         self.surprisal_mean_ema = (
@@ -183,19 +189,15 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             else self.fatigue * self.fatigue_decay
             + normalized_surprisal_mean * (1 - self.fatigue_decay)
         )
-        excitatory_coef = F.relu(self.surprisal_coef)
-        inhibitory_coef = -F.relu(-self.surprisal_coef) * (
-            self.fatigue if self.fatigue is not None else 0
-        )
-        reward = ((excitatory_coef + inhibitory_coef) * surprisal).mean()
+        if self.fatigue is not None:
+            excitatory_coef = F.relu(self.surprisal_coef)
+            inhibitory_coef = -F.relu(-self.surprisal_coef) * self.fatigue
+            reward = ((excitatory_coef + inhibitory_coef) * surprisal).mean()
 
-        self.metrics["reward"] = reward.item()
-        self.metrics["surprisal"] = surprisal.mean().item()
-        self.metrics["fatigue"] = (
-            self.fatigue.item() if self.fatigue is not None else 0.0
-        )
+            self.metrics["reward"] = reward.item()
+            self.metrics["fatigue"] = self.fatigue.item()
 
-        self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
+            self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
         # ==============================================================================
         #                               Data Collection
