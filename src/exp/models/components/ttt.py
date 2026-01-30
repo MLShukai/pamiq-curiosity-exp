@@ -241,6 +241,11 @@ class ChunkwiseTTT(nn.Module):
             hidden = {"W1": W1, "W2": W2}
         else:
             hidden = {k: v.detach() for k, v in hidden.items()}
+
+        input_chunks = x.split(self.chunk_size, dim=1)
+        output_chunks = []
+        surprisal_chunks = []
+        for input_chunk in input_chunks:
             if self.normalize_hidden:
                 hidden["W1"] = hidden["W1"] - hidden["W1"].mean(
                     dim=(2, 3), keepdim=True
@@ -258,11 +263,6 @@ class ChunkwiseTTT(nn.Module):
                     / hidden["W2"].std(dim=(2, 3), keepdim=True)
                     * self.head_dim_hidden**-0.5
                 )
-
-        input_chunks = x.split(self.chunk_size, dim=1)
-        output_chunks = []
-        surprisal_chunks = []
-        for input_chunk in input_chunks:
             output_chunk, hidden, surprisal = self.memory(input_chunk, hidden)
             output_chunks.append(output_chunk)
             surprisal_chunks.append(surprisal)

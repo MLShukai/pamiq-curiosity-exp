@@ -88,6 +88,22 @@ class MultiCategoricals(Distribution):
         return torch.stack([d.entropy() for d in self.dists], dim=-1).sum(dim=-1)
 
 
+class NormalizedMat(nn.Module):
+    def __init__(self, dim_in: int, dim_out: int) -> None:
+        super().__init__()
+        self.weight = nn.Parameter(torch.randn(dim_out, dim_in))
+        self.dim_in = dim_in
+
+    @override
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        normalized_weight = (
+            (self.weight - self.weight.mean())
+            / (self.weight.std() + 1e-8)
+            * self.dim_in**-0.5
+        )
+        return torch.matmul(input, normalized_weight.t())
+
+
 class FCMultiCategoricalHead(nn.Module):
     """Fully connected multi-categorical distribution head.
 
@@ -108,7 +124,7 @@ class FCMultiCategoricalHead(nn.Module):
 
         self.heads = nn.ModuleList()
         for choice in choices_per_category:
-            self.heads.append(nn.Linear(dim_in, choice, bias=False))
+            self.heads.append(NormalizedMat(dim_in, choice))
 
     @override
     def forward(self, input: torch.Tensor) -> MultiCategoricals:
