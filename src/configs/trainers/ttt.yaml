@@ -1,0 +1,16 @@
+fd_policy_value:
+  _target_: exp.trainers.ttt.TTTFDPiVTrainer
+  partial_optimizer:
+    _target_: torch.optim.RMSprop
+    _partial_: true
+    lr: 1e-4
+    weight_decay: 1e-4
+  gamma: ${python.eval:"1 - 1 / 1000"} # n ステップ先の報酬まで考慮する
+  gae_lambda: 0.95
+  norm_advantage: true
+  external_action_entropy_coef: -0.01
+  internal_action_entropy_coef: 0.0
+  target_delay_frames: 16
+  min_new_data_count: ${buffers.fd_policy_value.get_interval}
+  batch_size: 4
+  max_epochs: 4

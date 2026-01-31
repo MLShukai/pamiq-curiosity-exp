@@ -15,9 +15,11 @@ class DataKey(StrEnum):
 
     OBSERVATION = auto()
     HIDDEN = auto()
+    PREVIOUS_ACTION = auto()
     ACTION = auto()
     ACTION_LOG_PROB = auto()
     REWARD = auto()
     VALUE = auto()
     TARGET = auto()
     UPPER_ACTION = auto()
+    INTERNAL_STATE = auto()

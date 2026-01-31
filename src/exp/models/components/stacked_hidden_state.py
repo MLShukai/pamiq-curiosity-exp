@@ -1,4 +1,4 @@
-from typing import override
+from typing import Any, override
 
 import torch
 import torch.nn as nn
@@ -85,3 +85,58 @@ class StackedHiddenState(nn.Module):
             hidden_out_stack = hidden_out_stack.squeeze(-2)
 
         return x, hidden_out_stack
+
+
+class StackedTTT(nn.Module):
+    def __init__(self, module_list: nn.ModuleList, last_norm: nn.Module | None = None):
+        super().__init__()
+        self.module_list = module_list
+        self.last_norm = last_norm
+
+    @override
+    def forward(
+        self,
+        x: Tensor,
+        hidden_stack: list[Tensor | dict[str, Tensor]] | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, list[Tensor | dict[str, Tensor]], Tensor]:
+        if no_len:
+            x = x.unsqueeze(-2)
+        no_batch = x.ndim < 3
+        if no_batch:
+            x = x.unsqueeze(0)
+            if hidden_stack is not None:
+                hidden_stack = [
+                    h.unsqueeze(0)
+                    if isinstance(h, Tensor)
+                    else {k: v.unsqueeze(0) for k, v in h.items()}
+                    for h in hidden_stack
+                ]
+
+        hidden_out_list = []
+        surprisal_list = []
+        for i, module in enumerate(self.module_list):
+            hidden = hidden_stack[i] if hidden_stack is not None else None
+            x, hidden_out, surprisal = module(x, hidden)
+            hidden_out_list.append(hidden_out)
+            surprisal_list.append(surprisal)
+
+        if self.last_norm is not None:
+            x = self.last_norm(x)
+        surprisal = torch.stack(surprisal_list, dim=2)
+
+        if no_batch:
+            x = x.squeeze(0)
+            surprisal = surprisal.squeeze(0)
+            hidden_out_list = [
+                h.squeeze(0)
+                if isinstance(h, Tensor)
+                else {k: v.squeeze(0) for k, v in h.items()}
+                for h in hidden_out_list
+            ]
+
+        if no_len:
+            x = x.squeeze(-2)
+            surprisal = surprisal.squeeze(-3)
+        return x, hidden_out_list, surprisal

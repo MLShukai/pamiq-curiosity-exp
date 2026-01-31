@@ -7,11 +7,17 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.distributions import Distribution
+from torch.distributions.independent import Independent
 
+from .components.beta import FCBetaMOTOHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
+from .components.multi_distributions import MultiDistributions
 from .components.stacked_features import LerpStackedFeatures, ToStackedFeatures
-from .components.stacked_hidden_state import StackedHiddenState
+from .components.stacked_hidden_state import (
+    StackedHiddenState,
+    StackedTTT,
+)
 from .utils import ActionInfo, ObsInfo
 
 
@@ -182,3 +188,151 @@ class StackedHiddenFDPiV(HiddenStateFDPiV):
             self.value_head(x),
             next_hidden,
         )
+
+
+class TTTFDPiV(nn.Module):
+    """Forward dynamics using StackedHiddenState model variants for core
+    model."""
+
+    @override
+    def __init__(
+        self,
+        obs_info: ObsInfo,
+        action_info: ActionInfo,
+        internal_action_dim: int,
+        internal_state_dim: int,
+        dim: int,
+        core_model: StackedTTT,
+    ) -> None:
+        """Initialize the forward-dynamics policy-value model.
+
+        Sets up the neural network components for predicting next observations
+        from current observations and actions using a stacked hidden state model.
+
+        Args:
+            obs_info: Configuration for observation processing.
+            action_info: Configuration for action processing.
+            internal_action_dim: Dimension of the internal action space.
+            internal_state_dim: Dimension of the internal state space.
+            dim: Hidden dimension size for the core model input projection.
+            core_model: The main stacked hidden state model that processes the
+                concatenated observation-action features.
+        """
+        super().__init__()
+        self.obs_flatten = LerpStackedFeatures(
+            obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
+        )
+        self.action_flatten = MultiEmbeddings(
+            action_info.choices, action_info.dim, do_flatten=True
+        )
+        self.obs_action_projection = nn.Linear(
+            obs_info.dim_hidden
+            + action_info.dim * len(action_info.choices)
+            + internal_action_dim
+            + internal_state_dim,
+            dim,
+        )
+        self.core_model = core_model
+        self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
+        self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
+        self.internal_action_head = FCBetaMOTOHead(dim, internal_action_dim)
+        self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
+        self.dim = dim
+
+    def _flatten_obs_action(
+        self,
+        obs: Tensor,
+        external_action: Tensor | None,
+        internal_action: Tensor | None,
+        internal_state: Tensor | None,
+    ) -> Tensor:
+        """Flatten and concat observation and action."""
+        obs_flat = self.obs_flatten(obs)
+        if external_action is None or internal_action is None or internal_state is None:
+            return obs_flat.new_zeros((*obs_flat.shape[:-1], self.dim))
+        else:
+            external_action_flat = self.action_flatten(external_action)
+            if len(internal_state.shape) != len(internal_action.shape):
+                internal_state = internal_state.unsqueeze(-1)
+            return self.obs_action_projection(
+                torch.cat(
+                    (obs_flat, external_action_flat, internal_action, internal_state),
+                    dim=-1,
+                )
+            )
+
+    @override
+    def forward(
+        self,
+        obs: Tensor,
+        external_action: Tensor | None,
+        internal_action: Tensor | None,
+        internal_state: Tensor | None,
+        hidden: list[dict[str, Tensor]] | None = None,
+        *,
+        no_len: bool = False,
+    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
+        """Forward pass to predict next observation prediction, policy
+        distribution, value estimate, and surprisal.
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, len, num_token, obs_dim)
+            external_action: External action tensor. shape is (*batch, len, num_token, action_choices)
+            internal_action: Internal action tensor. shape is (*batch, len, dim)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
+
+        Returns:
+            A tuple containing:
+                - Tensor representing predicted next observation.
+                - Distribution representing the policy over actions.
+                - Tensor representing the value estimate.
+                - Updated hidden state tensor for use in next prediction.
+                - Tensor representing the surprisal.
+        """
+        x = self._flatten_obs_action(
+            obs, external_action, internal_action, internal_state
+        )
+        x, next_hidden, surprisal = self.core_model(x, hidden, no_len=no_len)
+        obs_hat = self.obs_hat_head(x)
+        external_action_dist = self.external_action_head(x)
+        internal_action_dist = Independent(self.internal_action_head(x), 1)
+        action_dist = MultiDistributions(external_action_dist, internal_action_dist)
+        value = self.value_head(x)
+        return obs_hat, action_dist, value, next_hidden, surprisal
+
+    def forward_with_no_len(
+        self,
+        obs: Tensor,
+        external_action: Tensor | None,
+        internal_action: Tensor | None,
+        internal_state: Tensor | None,
+        hidden: list[dict[str, Tensor]] | None = None,
+    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
+        """Forward with data which has no len dim. (for inference procedure.)
+
+        Args:
+            obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
+            external_action: Action tensor. shape is (*batch, num_token, action_choices)
+            internal_action: Internal action tensor. shape is (*batch, dim)
+            hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
+                If None, the hidden state is initialized to zeros
+
+        Returns:
+            A tuple containing:
+                - Tensor representing predicted next observation.
+                - Distribution representing the policy over actions.
+                - Tensor representing the value estimate.
+                - Updated hidden state tensor for use in next prediction.
+                - Tensor representing the surprisal.
+        """
+        x = self._flatten_obs_action(
+            obs, external_action, internal_action, internal_state
+        )  # (*batch, dim)
+        x, next_hidden, surprisal = self.core_model(x, hidden, no_len=True)
+        obs_hat = self.obs_hat_head(x)
+        external_action_dist = self.external_action_head(x)
+        internal_action_dist = Independent(self.internal_action_head(x), 1)
+        action_dist = MultiDistributions(external_action_dist, internal_action_dist)
+        value = self.value_head(x)
+        return obs_hat, action_dist, value, next_hidden, surprisal
