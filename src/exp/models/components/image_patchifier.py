@@ -65,7 +65,7 @@ class ImageIdentityPatchifier(nn.Module):
         return x
 
     @staticmethod
-    def compute_num_patches(
+    def compute_num_patches_height_width(
         image_size: size_2d, patch_size: size_2d
     ) -> tuple[int, int]:
         """Compute the number of patches in each dimension for given image and
@@ -99,6 +99,37 @@ class ImageIdentityPatchifier(nn.Module):
                     f"{patch_size[i]}. Resulting number of patches would be {o}."
                 )
         return out
+
+    @staticmethod
+    def compute_num_patches(image_size: size_2d, patch_size: size_2d) -> int:
+        """Compute the total number of patches for given image and patch sizes.
+
+        Args:
+            image_size: Size of input image as (height, width) or single int.
+            patch_size: Size of each patch as (height, width) or single int.
+        Returns:
+            Total number of patches.
+        """
+        height_patches, width_patches = (
+            ImageIdentityPatchifier.compute_num_patches_height_width(
+                image_size, patch_size
+            )
+        )
+        return height_patches * width_patches
+
+
+class AddAndRemoveBatchDim(nn.Module):
+    @override
+    def __init__(self) -> None:
+        """Initializes the AddAndRemoveBatchDim module."""
+        super().__init__()
+
+    @override
+    def __call__(self, encoder: nn.Module, data: torch.Tensor) -> torch.Tensor:
+        data = data.unsqueeze(0)  # Add batch dimension
+        data = encoder(data)
+        data = data.squeeze(0)  # Remove batch dimension
+        return data
 
 
 class ImagePatchifier(nn.Module):

@@ -39,7 +39,7 @@ class TestImageIdentityPatchifier:
     ):
         """Test that compute_num_patches matches actual forward pass output."""
         # Compute expected number of patches
-        expected_patches_2d = ImageIdentityPatchifier.compute_num_patches(
+        expected_patches_2d = ImageIdentityPatchifier.compute_num_patches_height_width(
             image_size, patch_size
         )
         expected_total_patches = expected_patches_2d[0] * expected_patches_2d[1]

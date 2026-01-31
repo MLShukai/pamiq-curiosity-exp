@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+  - override /interaction: ttt_e2e
+  - override /trainers: ttt_e2e
+  - override /models: ttt_e2e
+  - override /buffers: ttt_e2e
+
+shared:
+  dtype: float32
+
+experiment_name: "ttt_e2e"
+
+tags:
+  - "ttt_e2e"
+  - "adversarial"

@@ -1,0 +1,5 @@
+disable_jepa: null
+fd_policy_value:
+  _target_: exp.trainers.ttt.TTTFDPiVTrainer.create_buffer
+  max_size: 16
+  get_interval: 128

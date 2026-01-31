@@ -198,6 +198,7 @@ class TTTFDPiV(nn.Module):
     def __init__(
         self,
         obs_info: ObsInfo,
+        obs_dim_hidden: int,
         action_info: ActionInfo,
         internal_action_dim: int,
         internal_state_dim: int,
@@ -211,6 +212,7 @@ class TTTFDPiV(nn.Module):
 
         Args:
             obs_info: Configuration for observation processing.
+            obs_dim_hidden: Hidden dimension size for observation processing.
             action_info: Configuration for action processing.
             internal_action_dim: Dimension of the internal action space.
             internal_state_dim: Dimension of the internal state space.
@@ -220,13 +222,13 @@ class TTTFDPiV(nn.Module):
         """
         super().__init__()
         self.obs_flatten = LerpStackedFeatures(
-            obs_info.dim, obs_info.dim_hidden, obs_info.num_tokens
+            obs_info.dim, obs_dim_hidden, obs_info.num_tokens
         )
         self.action_flatten = MultiEmbeddings(
             action_info.choices, action_info.dim, do_flatten=True
         )
         self.obs_action_projection = nn.Linear(
-            obs_info.dim_hidden
+            obs_dim_hidden
             + action_info.dim * len(action_info.choices)
             + internal_action_dim
             + internal_state_dim,

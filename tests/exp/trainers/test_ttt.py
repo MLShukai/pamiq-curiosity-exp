@@ -52,6 +52,7 @@ class TestTTTFDPiVTrainer:
         )
         return TTTFDPiV(
             obs_info=obs_info,
+            obs_dim_hidden=self.OBS_DIM_HIDDEN,
             action_info=action_info,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
             internal_state_dim=1,
