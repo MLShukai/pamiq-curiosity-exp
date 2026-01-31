@@ -32,6 +32,7 @@ type BatchType = tuple[
     Tensor,
     Tensor,
     Tensor,
+    Tensor,
 ]
 
 
@@ -132,6 +133,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             previous_actions,
             actions,
             action_log_probs,
+            internal_states,
             values,
             advantages,
             returns,
@@ -147,6 +149,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             observations,
             external_previous_actions,
             internal_previous_actions,
+            internal_states,
             hiddens,
         )
         new_log_probs = new_dist.log_prob(external_actions, internal_actions)
@@ -240,6 +243,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         chunk_keys = [
             DataKey.OBSERVATION,
             DataKey.ACTION_LOG_PROB,
+            DataKey.INTERNAL_STATE,
             DataKey.REWARD,
             DataKey.VALUE,
             DataKey.PREVIOUS_ACTION,
@@ -316,16 +320,18 @@ class TTTFDPiVTrainer(TorchTrainer):
                 previous_actions,
                 actions,
                 action_log_probs,
+                internal_states,
                 values,
                 advantages,
                 returns,
             )
-            for observations, hiddens, previous_actions, actions, action_log_probs, values, advantages, returns in zip(
+            for observations, hiddens, previous_actions, actions, action_log_probs, internal_states, values, advantages, returns in zip(
                 chunks[DataKey.OBSERVATION],
                 hidden_list,
                 previous_actions_chunks,
                 actions_chunks,
                 chunks[DataKey.ACTION_LOG_PROB],
+                chunks[DataKey.INTERNAL_STATE],
                 chunks[DataKey.VALUE],
                 advantages_list,
                 returns_list,
@@ -444,6 +450,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
             DataKey.ACTION_LOG_PROB: 0,
+            DataKey.INTERNAL_STATE: 0,
             DataKey.REWARD: 0,
             DataKey.VALUE: 0,
         }

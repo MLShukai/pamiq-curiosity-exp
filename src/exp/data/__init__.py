@@ -22,3 +22,4 @@ class DataKey(StrEnum):
     VALUE = auto()
     TARGET = auto()
     UPPER_ACTION = auto()
+    INTERNAL_STATE = auto()

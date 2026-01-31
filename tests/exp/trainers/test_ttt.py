@@ -54,6 +54,7 @@ class TestTTTFDPiVTrainer:
             obs_info=obs_info,
             action_info=action_info,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
+            internal_state_dim=1,
             dim=self.DIM,
             core_model=core_model,
         )
@@ -71,6 +72,7 @@ class TestTTTFDPiVTrainer:
             DataKey.OBSERVATION: 0,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
+            DataKey.INTERNAL_STATE: 0,
             DataKey.ACTION_LOG_PROB: 0,
             DataKey.REWARD: 0,
             DataKey.VALUE: 0,
@@ -158,6 +160,7 @@ class TestTTTFDPiVTrainer:
             action_log_probs = torch.randn(())
             rewards = torch.randn(())
             values = torch.randn(())
+            internal_state = torch.randn(())
 
             collector.collect(
                 {
@@ -168,6 +171,7 @@ class TestTTTFDPiVTrainer:
                     DataKey.ACTION_LOG_PROB: action_log_probs,
                     DataKey.REWARD: rewards,
                     DataKey.VALUE: values,
+                    DataKey.INTERNAL_STATE: internal_state,
                 }
             )
 

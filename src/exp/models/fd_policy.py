@@ -200,6 +200,7 @@ class TTTFDPiV(nn.Module):
         obs_info: ObsInfo,
         action_info: ActionInfo,
         internal_action_dim: int,
+        internal_state_dim: int,
         dim: int,
         core_model: StackedTTT,
     ) -> None:
@@ -211,6 +212,8 @@ class TTTFDPiV(nn.Module):
         Args:
             obs_info: Configuration for observation processing.
             action_info: Configuration for action processing.
+            internal_action_dim: Dimension of the internal action space.
+            internal_state_dim: Dimension of the internal state space.
             dim: Hidden dimension size for the core model input projection.
             core_model: The main stacked hidden state model that processes the
                 concatenated observation-action features.
@@ -225,7 +228,8 @@ class TTTFDPiV(nn.Module):
         self.obs_action_projection = nn.Linear(
             obs_info.dim_hidden
             + action_info.dim * len(action_info.choices)
-            + internal_action_dim,
+            + internal_action_dim
+            + internal_state_dim,
             dim,
         )
         self.core_model = core_model
@@ -240,15 +244,21 @@ class TTTFDPiV(nn.Module):
         obs: Tensor,
         external_action: Tensor | None,
         internal_action: Tensor | None,
+        internal_state: Tensor | None,
     ) -> Tensor:
         """Flatten and concat observation and action."""
         obs_flat = self.obs_flatten(obs)
-        if external_action is None or internal_action is None:
+        if external_action is None or internal_action is None or internal_state is None:
             return obs_flat.new_zeros((*obs_flat.shape[:-1], self.dim))
         else:
             external_action_flat = self.action_flatten(external_action)
+            if len(internal_state.shape) != len(internal_action.shape):
+                internal_state = internal_state.unsqueeze(-1)
             return self.obs_action_projection(
-                torch.cat((obs_flat, external_action_flat, internal_action), dim=-1)
+                torch.cat(
+                    (obs_flat, external_action_flat, internal_action, internal_state),
+                    dim=-1,
+                )
             )
 
     @override
@@ -257,6 +267,7 @@ class TTTFDPiV(nn.Module):
         obs: Tensor,
         external_action: Tensor | None,
         internal_action: Tensor | None,
+        internal_state: Tensor | None,
         hidden: list[dict[str, Tensor]] | None = None,
         *,
         no_len: bool = False,
@@ -279,7 +290,9 @@ class TTTFDPiV(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
         """
-        x = self._flatten_obs_action(obs, external_action, internal_action)
+        x = self._flatten_obs_action(
+            obs, external_action, internal_action, internal_state
+        )
         x, next_hidden, surprisal = self.core_model(x, hidden, no_len=no_len)
         obs_hat = self.obs_hat_head(x)
         external_action_dist = self.external_action_head(x)
@@ -293,6 +306,7 @@ class TTTFDPiV(nn.Module):
         obs: Tensor,
         external_action: Tensor | None,
         internal_action: Tensor | None,
+        internal_state: Tensor | None,
         hidden: list[dict[str, Tensor]] | None = None,
     ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
@@ -313,16 +327,12 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the surprisal.
         """
         x = self._flatten_obs_action(
-            obs, external_action, internal_action
+            obs, external_action, internal_action, internal_state
         )  # (*batch, dim)
         x, next_hidden, surprisal = self.core_model(x, hidden, no_len=True)
-        return (
-            self.obs_hat_head(x),
-            MultiDistributions(
-                self.external_action_head(x),
-                Independent(self.internal_action_head(x), 1),
-            ),
-            self.value_head(x),
-            next_hidden,
-            surprisal,
-        )
+        obs_hat = self.obs_hat_head(x)
+        external_action_dist = self.external_action_head(x)
+        internal_action_dist = Independent(self.internal_action_head(x), 1)
+        action_dist = MultiDistributions(external_action_dist, internal_action_dist)
+        value = self.value_head(x)
+        return obs_hat, action_dist, value, next_hidden, surprisal

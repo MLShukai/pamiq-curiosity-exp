@@ -20,6 +20,7 @@ STEP_DATA_REQUIRED_KEYS = {
     DataKey.PREVIOUS_ACTION,
     DataKey.ACTION,
     DataKey.ACTION_LOG_PROB,
+    DataKey.INTERNAL_STATE,
     DataKey.VALUE,
     DataKey.REWARD,
 }
@@ -136,6 +137,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
                 for layer in self.hidden_state
             ]  # Store before update
 
+        internal_state = self.fatigue - 0.5 if self.fatigue is not None else None
+
         action_dist: MultiDistributions
         value: Tensor
         (
@@ -148,6 +151,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             observation,
             self.external_action,
             self.internal_action,
+            internal_state,
             hidden=self.hidden_state,
         )
         if self.external_action is not None and self.internal_action is not None:
@@ -159,6 +163,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         action_log_prob = action_dist.log_prob(
             self.external_action, self.internal_action
         )
+        if internal_state is not None:
+            self.step_data_fd_piv[DataKey.INTERNAL_STATE] = internal_state.cpu()
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
