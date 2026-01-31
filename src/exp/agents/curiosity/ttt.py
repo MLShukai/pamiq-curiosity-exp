@@ -190,7 +190,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             + 1e-8
         )
         self.fatigue = (
-            normalized_surprisal_mean
+            torch.zeros(1, dtype=self.dtype, device=self.device)
             if self.fatigue is None
             else self.fatigue * self.fatigue_decay
             + normalized_surprisal_mean * (1 - self.fatigue_decay)
