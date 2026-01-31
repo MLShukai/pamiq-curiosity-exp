@@ -16,6 +16,7 @@ from exp.models.components.multi_distributions import MultiDistributions
 
 STEP_DATA_REQUIRED_KEYS = {
     DataKey.OBSERVATION,
+    DataKey.OBSERVATION_EMBEDDING,
     DataKey.HIDDEN,
     DataKey.PREVIOUS_ACTION,
     DataKey.ACTION,
@@ -143,6 +144,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         value: Tensor
         (
             _,
+            obs_embedding,
             action_dist,
             value,
             self.hidden_state,
@@ -209,6 +211,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         #                               Data Collection
         # ==============================================================================
 
+        self.step_data_fd_piv[DataKey.OBSERVATION_EMBEDDING] = obs_embedding.cpu()
         self.step_data_fd_piv[DataKey.OBSERVATION] = observation.cpu()
         self.step_data_fd_piv[DataKey.ACTION] = {
             "external_action": self.external_action.cpu(),

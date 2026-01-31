@@ -29,6 +29,7 @@ class TestTTTCuriosityAgent:
 
         # Mock FDPiV model behavior
         obs_hat = torch.zeros(3, OBSERVATION_DIM)
+        obs_emb = torch.zeros(3, OBSERVATION_DIM)
         action_dist = MultiDistributions(
             Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
             Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
@@ -39,6 +40,7 @@ class TestTTTCuriosityAgent:
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
+            obs_emb,
             action_dist,
             value,
             hidden,

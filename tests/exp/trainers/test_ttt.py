@@ -71,6 +71,7 @@ class TestTTTFDPiVTrainer:
         }
         chunk_keys_first_add_steps: Mapping[str, int] = {
             DataKey.OBSERVATION: 0,
+            DataKey.OBSERVATION_EMBEDDING: 0,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
             DataKey.INTERNAL_STATE: 0,
@@ -136,6 +137,7 @@ class TestTTTFDPiVTrainer:
         # Collect policy data
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
+            obs_embeddings = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
             hidden = [
                 {
                     "W1": torch.randn(
@@ -166,6 +168,7 @@ class TestTTTFDPiVTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: observations,
+                    DataKey.OBSERVATION_EMBEDDING: obs_embeddings,
                     DataKey.HIDDEN: hidden,
                     DataKey.PREVIOUS_ACTION: previous_actions,
                     DataKey.ACTION: actions,

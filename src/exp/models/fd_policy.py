@@ -273,7 +273,7 @@ class TTTFDPiV(nn.Module):
         hidden: list[dict[str, Tensor]] | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
         """Forward pass to predict next observation prediction, policy
         distribution, value estimate, and surprisal.
 
@@ -301,7 +301,7 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        return obs_hat, action_dist, value, next_hidden, surprisal
+        return obs, obs_hat, action_dist, value, next_hidden, surprisal
 
     def forward_with_no_len(
         self,
@@ -310,7 +310,7 @@ class TTTFDPiV(nn.Module):
         internal_action: Tensor | None,
         internal_state: Tensor | None,
         hidden: list[dict[str, Tensor]] | None = None,
-    ) -> tuple[Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
@@ -337,4 +337,4 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        return obs_hat, action_dist, value, next_hidden, surprisal
+        return obs, obs_hat, action_dist, value, next_hidden, surprisal

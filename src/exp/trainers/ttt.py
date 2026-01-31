@@ -25,6 +25,7 @@ OPTIMIZER_NAME = "optimizer"
 
 type BatchType = tuple[
     Tensor,
+    Tensor,
     list[dict[str, Tensor]],
     dict[str, Tensor],
     dict[str, Tensor],
@@ -129,6 +130,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         """Perform a single training step on a batch of data."""
         (
             observations,
+            obs_embeddings,
             hiddens,
             previous_actions,
             actions,
@@ -145,7 +147,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         internal_actions = actions["internal_action"]
 
         # Get new distributions and values
-        obs_hat, new_dist, new_values, _, _ = self.fd_piv.model(
+        obs_hat, _, new_dist, new_values, _, _ = self.fd_piv.model(
             observations,
             external_previous_actions,
             internal_previous_actions,
@@ -205,7 +207,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         # Forward dynamics loss
         fd_loss = torch.nn.functional.mse_loss(
             obs_hat[:, : -self.target_delay_frames],
-            observations[:, self.target_delay_frames :],
+            obs_embeddings[:, self.target_delay_frames :],
         )
 
         # Total loss
@@ -242,6 +244,7 @@ class TTTFDPiVTrainer(TorchTrainer):
 
         chunk_keys = [
             DataKey.OBSERVATION,
+            DataKey.OBSERVATION_EMBEDDING,
             DataKey.ACTION_LOG_PROB,
             DataKey.INTERNAL_STATE,
             DataKey.REWARD,
@@ -316,6 +319,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         dataset_raw: list[BatchType] = [
             (
                 observations,
+                obs_embeddings,
                 hiddens,
                 previous_actions,
                 actions,
@@ -325,8 +329,9 @@ class TTTFDPiVTrainer(TorchTrainer):
                 advantages,
                 returns,
             )
-            for observations, hiddens, previous_actions, actions, action_log_probs, internal_states, values, advantages, returns in zip(
+            for observations, obs_embeddings, hiddens, previous_actions, actions, action_log_probs, internal_states, values, advantages, returns in zip(
                 chunks[DataKey.OBSERVATION],
+                chunks[DataKey.OBSERVATION_EMBEDDING],
                 hidden_list,
                 previous_actions_chunks,
                 actions_chunks,
@@ -447,6 +452,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         }
         chunk_keys_first_add_steps: Mapping[str, int] = {
             DataKey.OBSERVATION: 0,
+            DataKey.OBSERVATION_EMBEDDING: 0,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
             DataKey.ACTION_LOG_PROB: 0,
