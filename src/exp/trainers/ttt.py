@@ -147,7 +147,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         internal_actions = actions["internal_action"]
 
         # Get new distributions and values
-        obs_hat, _, new_dist, new_values, _, _ = self.fd_piv.model(
+        _, obs_hat, new_dist, new_values, _, _ = self.fd_piv.model(
             observations,
             external_previous_actions,
             internal_previous_actions,

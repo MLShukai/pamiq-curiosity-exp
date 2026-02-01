@@ -143,8 +143,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         action_dist: MultiDistributions
         value: Tensor
         (
-            _,
             obs_embedding,
+            _,
             action_dist,
             value,
             self.hidden_state,
