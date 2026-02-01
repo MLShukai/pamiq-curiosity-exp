@@ -12,6 +12,7 @@ from torch.optim import AdamW
 from exp.data import BufferName, DataKey
 from exp.data.dict_intermittent_chunk_buffer import DictIntermittentChunkBuffer
 from exp.models import ModelName
+from exp.models.components.stacked_features import LerpStackedFeatures
 from exp.models.components.ttt import TTT
 from exp.models.fd_policy import TTTFDPiV
 from exp.models.utils import ActionInfo, ObsInfo
@@ -41,6 +42,11 @@ class TestTTTFDPiVTrainer:
             num_tokens=self.OBS_NUM_TOKENS,
         )
         action_info = ActionInfo(choices=self.ACTION_CHOICES, dim=self.DIM_ACTION)
+        obs_encoder = LerpStackedFeatures(
+            dim_in=obs_info.dim,
+            dim_out=obs_info.dim_hidden,
+            num_stack=obs_info.num_tokens,
+        )
         core_model = TTT(
             depth=self.DEPTH,
             dim=self.DIM,
@@ -57,6 +63,7 @@ class TestTTTFDPiVTrainer:
             internal_action_dim=self.DIM_INTERNAL_ACTION,
             internal_state_dim=1,
             dim=self.DIM,
+            obs_encoder=obs_encoder,
             core_model=core_model,
         )
 
@@ -137,7 +144,7 @@ class TestTTTFDPiVTrainer:
         # Collect policy data
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
-            obs_embeddings = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
+            obs_embeddings = torch.randn(self.OBS_DIM_HIDDEN)
             hidden = [
                 {
                     "W1": torch.randn(

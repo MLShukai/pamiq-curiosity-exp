@@ -18,6 +18,7 @@ from .components.stacked_hidden_state import (
     StackedHiddenState,
     StackedTTT,
 )
+from .components.vit_encoder import VitEncoder
 from .utils import ActionInfo, ObsInfo
 
 
@@ -203,6 +204,7 @@ class TTTFDPiV(nn.Module):
         internal_action_dim: int,
         internal_state_dim: int,
         dim: int,
+        obs_encoder: nn.Module,
         core_model: StackedTTT,
     ) -> None:
         """Initialize the forward-dynamics policy-value model.
@@ -217,13 +219,12 @@ class TTTFDPiV(nn.Module):
             internal_action_dim: Dimension of the internal action space.
             internal_state_dim: Dimension of the internal state space.
             dim: Hidden dimension size for the core model input projection.
+            obs_encoder: Encoder module for processing observations.
             core_model: The main stacked hidden state model that processes the
                 concatenated observation-action features.
         """
         super().__init__()
-        self.obs_flatten = LerpStackedFeatures(
-            obs_info.dim, obs_dim_hidden, obs_info.num_tokens
-        )
+        self.obs_flatten = obs_encoder
         self.action_flatten = MultiEmbeddings(
             action_info.choices, action_info.dim, do_flatten=True
         )
@@ -235,7 +236,7 @@ class TTTFDPiV(nn.Module):
             dim,
         )
         self.core_model = core_model
-        self.obs_hat_head = ToStackedFeatures(dim, obs_info.dim, obs_info.num_tokens)
+        self.obs_hat_head = nn.Linear(dim, obs_dim_hidden)
         self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
         self.internal_action_head = FCBetaMOTOHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
@@ -243,22 +244,21 @@ class TTTFDPiV(nn.Module):
 
     def _flatten_obs_action(
         self,
-        obs: Tensor,
+        obs_emb: Tensor,
         external_action: Tensor | None,
         internal_action: Tensor | None,
         internal_state: Tensor | None,
     ) -> Tensor:
         """Flatten and concat observation and action."""
-        obs_flat = self.obs_flatten(obs)
         if external_action is None or internal_action is None or internal_state is None:
-            return obs_flat.new_zeros((*obs_flat.shape[:-1], self.dim))
+            return obs_emb.new_zeros((*obs_emb.shape[:-1], self.dim))
         else:
             external_action_flat = self.action_flatten(external_action)
             if len(internal_state.shape) != len(internal_action.shape):
                 internal_state = internal_state.unsqueeze(-1)
             return self.obs_action_projection(
                 torch.cat(
-                    (obs_flat, external_action_flat, internal_action, internal_state),
+                    (obs_emb, external_action_flat, internal_action, internal_state),
                     dim=-1,
                 )
             )
@@ -292,8 +292,9 @@ class TTTFDPiV(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
         """
+        obs_emb = self.obs_flatten(obs)
         x = self._flatten_obs_action(
-            obs, external_action, internal_action, internal_state
+            obs_emb, external_action, internal_action, internal_state
         )
         x, next_hidden, surprisal = self.core_model(x, hidden, no_len=no_len)
         obs_hat = self.obs_hat_head(x)
@@ -301,7 +302,7 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        return obs, obs_hat, action_dist, value, next_hidden, surprisal
+        return obs_emb, obs_hat, action_dist, value, next_hidden, surprisal
 
     def forward_with_no_len(
         self,
@@ -328,8 +329,9 @@ class TTTFDPiV(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
         """
+        obs_emb = self.obs_flatten(obs)
         x = self._flatten_obs_action(
-            obs, external_action, internal_action, internal_state
+            obs_emb, external_action, internal_action, internal_state
         )  # (*batch, dim)
         x, next_hidden, surprisal = self.core_model(x, hidden, no_len=True)
         obs_hat = self.obs_hat_head(x)
@@ -337,4 +339,4 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        return obs, obs_hat, action_dist, value, next_hidden, surprisal
+        return obs_emb, obs_hat, action_dist, value, next_hidden, surprisal
