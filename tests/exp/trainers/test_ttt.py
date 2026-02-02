@@ -12,6 +12,7 @@ from torch.optim import AdamW
 from exp.data import BufferName, DataKey
 from exp.data.dict_intermittent_chunk_buffer import DictIntermittentChunkBuffer
 from exp.models import ModelName
+from exp.models.components.qgru import QGRU
 from exp.models.components.stacked_features import LerpStackedFeatures
 from exp.models.components.ttt import TTT
 from exp.models.fd_policy import TTTFDPiV
@@ -47,6 +48,12 @@ class TestTTTFDPiVTrainer:
             dim_out=obs_info.dim_hidden,
             num_stack=obs_info.num_tokens,
         )
+        time_mixer = QGRU(
+            depth=self.DEPTH,
+            dim=self.DIM,
+            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dropout=0.1,
+        )
         core_model = TTT(
             depth=self.DEPTH,
             dim=self.DIM,
@@ -64,6 +71,7 @@ class TestTTTFDPiVTrainer:
             internal_state_dim=1,
             dim=self.DIM,
             obs_encoder=obs_encoder,
+            time_mixer=time_mixer,
             core_model=core_model,
         )
 
@@ -145,21 +153,24 @@ class TestTTTFDPiVTrainer:
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
             obs_embeddings = torch.randn(self.OBS_DIM_HIDDEN)
-            hidden = [
-                {
-                    "W1": torch.randn(
-                        self.NUM_HEAD,
-                        self.DIM_FF_HIDDEN // self.NUM_HEAD,
-                        self.DIM // self.NUM_HEAD,
-                    ),
-                    "W2": torch.randn(
-                        self.NUM_HEAD,
-                        self.DIM // self.NUM_HEAD,
-                        self.DIM_FF_HIDDEN // self.NUM_HEAD,
-                    ),
-                }
-                for _ in range(self.DEPTH)
-            ]
+            hidden = (
+                torch.randn(self.DEPTH, self.DIM),
+                [
+                    {
+                        "W1": torch.randn(
+                            self.NUM_HEAD,
+                            self.DIM_FF_HIDDEN // self.NUM_HEAD,
+                            self.DIM // self.NUM_HEAD,
+                        ),
+                        "W2": torch.randn(
+                            self.NUM_HEAD,
+                            self.DIM // self.NUM_HEAD,
+                            self.DIM_FF_HIDDEN // self.NUM_HEAD,
+                        ),
+                    }
+                    for _ in range(self.DEPTH)
+                ],
+            )
             actions = {
                 "external_action": torch.stack(
                     [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1

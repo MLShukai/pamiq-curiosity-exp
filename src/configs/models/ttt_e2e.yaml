@@ -49,6 +49,12 @@ fd_policy_value:
       num_heads: 8
       num_tokens_enc: ${..obs_info.num_tokens}
       num_tokens_dec: 8
+    time_mixer:
+      _target_: exp.models.components.qgru.QGRU
+      dim: 1024
+      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
+      depth: 2
+      dropout: 0.1
     core_model:
       _target_: exp.models.components.ttt.TTT
       dim: 1024

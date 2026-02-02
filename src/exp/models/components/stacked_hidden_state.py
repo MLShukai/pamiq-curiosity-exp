@@ -14,7 +14,7 @@ class StackedHiddenState(nn.Module):
     stacked hidden state tensor.
     """
 
-    def __init__(self, module_list: nn.ModuleList):
+    def __init__(self, module_list: nn.ModuleList, last_norm: nn.Module | None = None):
         """Initialize the StackedHiddenState module.
 
         Args:
@@ -22,6 +22,7 @@ class StackedHiddenState(nn.Module):
         """
         super().__init__()
         self.module_list = module_list
+        self.last_norm = last_norm
 
     @override
     def forward(
@@ -70,6 +71,8 @@ class StackedHiddenState(nn.Module):
             hidden_out_list.append(hidden_out)
 
         hidden_out_stack = torch.stack(hidden_out_list).transpose(1, 0)
+        if self.last_norm is not None:
+            x = self.last_norm(x)
 
         x = x.view(*batch_shape, *x.shape[1:])
         hidden_out_stack = hidden_out_stack.view(

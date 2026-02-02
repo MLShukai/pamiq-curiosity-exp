@@ -35,7 +35,10 @@ class TestTTTCuriosityAgent:
             Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
         )
         value = torch.tensor(0.5)
-        hidden = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
+        hidden = (
+            torch.randn(DEPTH, HIDDEN_DIM),
+            [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
+        )
         surprisal = torch.randn(DEPTH, 4)
 
         fd_piv_model.inference_model.return_value = (

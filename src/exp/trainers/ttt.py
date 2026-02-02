@@ -11,6 +11,7 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, Dataset
 
+from exp.agents.curiosity.ttt import Action, Hidden
 from exp.aim_utils import get_global_run
 from exp.data import BufferName, DataKey
 from exp.data.dict_intermittent_chunk_buffer import DictIntermittentChunkBuffer
@@ -26,9 +27,9 @@ OPTIMIZER_NAME = "optimizer"
 type BatchType = tuple[
     Tensor,
     Tensor,
-    list[dict[str, Tensor]],
-    dict[str, Tensor],
-    dict[str, Tensor],
+    Hidden,
+    Action,
+    Action,
     Tensor,
     Tensor,
     Tensor,
@@ -108,7 +109,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         trainer."""
         super().on_data_users_attached()
         self.data_user: DataUser[
-            dict[str, list[list[Tensor]] | list[list[dict[str, Tensor]]]]
+            dict[str, list[list[Tensor]] | list[list[Action]] | list[Hidden]]
         ] = self.get_data_user(self.data_user_name)
 
     @override
@@ -364,13 +365,14 @@ class TTTFDPiVTrainer(TorchTrainer):
             for batch in dataloader:
                 self.optimizers[OPTIMIZER_NAME].zero_grad()
 
-                data_list: list[
-                    Tensor | list[dict[str, Tensor]] | dict[str, Tensor] | None
-                ] = [
+                data_list: list[Tensor | Hidden | Action | None] = [
                     d.to(device)
                     if isinstance(d, Tensor)
-                    else [{key: v.to(device) for key, v in dd.items()} for dd in d]
-                    if isinstance(d, list)
+                    else (
+                        d[0].to(device),
+                        [{key: v.to(device) for key, v in dd.items()} for dd in d[1]],
+                    )
+                    if isinstance(d, tuple)
                     else {key: v.to(device) for key, v in d.items()}
                     if isinstance(d, dict)
                     else None

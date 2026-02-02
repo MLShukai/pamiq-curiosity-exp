@@ -9,6 +9,8 @@ from torch import Tensor
 from torch.distributions import Distribution
 from torch.distributions.independent import Independent
 
+from exp.agents.curiosity.ttt import Action, Hidden
+
 from .components.beta import FCBetaMOTOHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
@@ -205,6 +207,7 @@ class TTTFDPiV(nn.Module):
         internal_state_dim: int,
         dim: int,
         obs_encoder: nn.Module,
+        time_mixer: StackedHiddenState,
         core_model: StackedTTT,
     ) -> None:
         """Initialize the forward-dynamics policy-value model.
@@ -235,6 +238,7 @@ class TTTFDPiV(nn.Module):
             + internal_state_dim,
             dim,
         )
+        self.time_mixer = time_mixer
         self.core_model = core_model
         self.obs_hat_head = nn.Linear(dim, obs_dim_hidden)
         self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
@@ -270,10 +274,17 @@ class TTTFDPiV(nn.Module):
         external_action: Tensor | None,
         internal_action: Tensor | None,
         internal_state: Tensor | None,
-        hidden: list[dict[str, Tensor]] | None = None,
+        hidden: tuple[Tensor, list[dict[str, Tensor]]] | None = None,
         *,
         no_len: bool = False,
-    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
+    ) -> tuple[
+        Tensor,
+        Tensor,
+        MultiDistributions,
+        Tensor,
+        tuple[Tensor, list[dict[str, Tensor]]],
+        Tensor,
+    ]:
         """Forward pass to predict next observation prediction, policy
         distribution, value estimate, and surprisal.
 
@@ -296,13 +307,24 @@ class TTTFDPiV(nn.Module):
         x = self._flatten_obs_action(
             obs_emb, external_action, internal_action, internal_state
         )
-        x, next_hidden, surprisal = self.core_model(x, hidden, no_len=no_len)
+        hidden_time, hidden_ttt = None, None if hidden is None else hidden
+        obs_emb, next_hidden_time = self.time_mixer(x, hidden_time, no_len=no_len)
+        x, next_hidden_ttt, surprisal = self.core_model(
+            obs_emb, hidden_ttt, no_len=no_len
+        )
         obs_hat = self.obs_hat_head(x)
         external_action_dist = self.external_action_head(x)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        return obs_emb, obs_hat, action_dist, value, next_hidden, surprisal
+        return (
+            obs_emb,
+            obs_hat,
+            action_dist,
+            value,
+            (next_hidden_time, next_hidden_ttt),
+            surprisal,
+        )
 
     def forward_with_no_len(
         self,
@@ -310,8 +332,15 @@ class TTTFDPiV(nn.Module):
         external_action: Tensor | None,
         internal_action: Tensor | None,
         internal_state: Tensor | None,
-        hidden: list[dict[str, Tensor]] | None = None,
-    ) -> tuple[Tensor, Tensor, MultiDistributions, Tensor, Tensor, Tensor]:
+        hidden: Hidden | None = None,
+    ) -> tuple[
+        Tensor,
+        Tensor,
+        MultiDistributions,
+        Tensor,
+        Hidden,
+        Tensor,
+    ]:
         """Forward with data which has no len dim. (for inference procedure.)
 
         Args:
@@ -333,10 +362,21 @@ class TTTFDPiV(nn.Module):
         x = self._flatten_obs_action(
             obs_emb, external_action, internal_action, internal_state
         )  # (*batch, dim)
-        x, next_hidden, surprisal = self.core_model(x, hidden, no_len=True)
+        hidden_time, hidden_ttt = (None, None) if hidden is None else hidden
+        obs_emb, next_hidden_time = self.time_mixer(x, hidden_time, no_len=True)
+        x, next_hidden_ttt, surprisal = self.core_model(
+            obs_emb, hidden_ttt, no_len=True
+        )
         obs_hat = self.obs_hat_head(x)
         external_action_dist = self.external_action_head(x)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        return obs_emb, obs_hat, action_dist, value, next_hidden, surprisal
+        return (
+            obs_emb,
+            obs_hat,
+            action_dist,
+            value,
+            (next_hidden_time, next_hidden_ttt),
+            surprisal,
+        )

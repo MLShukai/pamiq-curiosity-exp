@@ -26,6 +26,9 @@ STEP_DATA_REQUIRED_KEYS = {
     DataKey.REWARD,
 }
 
+Hidden = tuple[Tensor, list[dict[str, Tensor]]]
+Action = dict[str, Tensor]
+
 
 class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     """A reinforcement learning agent that uses curiosity-driven exploration
@@ -89,14 +92,14 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
     # ------ INTERACTION PROCESS ------
 
-    hidden_state: list[dict[str, Tensor]] | None  # (depth, dim) or None
+    hidden_state: Hidden | None
     external_action: Tensor | None  # (action_choices,) or None
     internal_action: Tensor | None  # (dim,) or None
     surprisal_coef: Tensor | None
     surprisal_mean_ema: Tensor | None
     fatigue: Tensor | None
     obs_hat: Tensor | None
-    step_data_fd_piv: dict[str, Tensor | list[dict[str, Tensor]] | dict[str, Tensor]]
+    step_data_fd_piv: dict[str, Tensor | Hidden | Action]
 
     @override
     def setup(self) -> None:
@@ -133,10 +136,13 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
 
         if self.hidden_state is not None:
-            self.step_data_fd_piv[DataKey.HIDDEN] = [
-                {key: val.cpu() for key, val in layer.items()}
-                for layer in self.hidden_state
-            ]  # Store before update
+            self.step_data_fd_piv[DataKey.HIDDEN] = (
+                self.hidden_state[0].cpu(),
+                [
+                    {key: val.cpu() for key, val in layer.items()}
+                    for layer in self.hidden_state[1]
+                ],
+            )  # Store before update
 
         internal_state = self.fatigue - 0.5 if self.fatigue is not None else None
 
