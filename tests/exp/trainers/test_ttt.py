@@ -78,7 +78,7 @@ class TestTTTFDPiVTrainer:
         }
         chunk_keys_first_add_steps: Mapping[str, int] = {
             DataKey.OBSERVATION: 0,
-            DataKey.OBSERVATION_EMBEDDING: 0,
+            DataKey.TARGET: 1,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
             DataKey.INTERNAL_STATE: 0,
@@ -175,7 +175,7 @@ class TestTTTFDPiVTrainer:
             collector.collect(
                 {
                     DataKey.OBSERVATION: observations,
-                    DataKey.OBSERVATION_EMBEDDING: obs_embeddings,
+                    DataKey.TARGET: obs_embeddings,
                     DataKey.HIDDEN: hidden,
                     DataKey.PREVIOUS_ACTION: previous_actions,
                     DataKey.ACTION: actions,

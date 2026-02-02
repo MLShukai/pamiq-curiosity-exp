@@ -205,10 +205,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         )
 
         # Forward dynamics loss
-        fd_loss = torch.nn.functional.mse_loss(
-            obs_hat[:, : -self.target_delay_frames],
-            obs_embeddings[:, self.target_delay_frames :],
-        )
+        fd_loss = torch.nn.functional.mse_loss(obs_hat, obs_embeddings)
 
         # Total loss
         loss = (
@@ -244,7 +241,7 @@ class TTTFDPiVTrainer(TorchTrainer):
 
         chunk_keys = [
             DataKey.OBSERVATION,
-            DataKey.OBSERVATION_EMBEDDING,
+            DataKey.TARGET,
             DataKey.ACTION_LOG_PROB,
             DataKey.INTERNAL_STATE,
             DataKey.REWARD,
@@ -331,7 +328,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             )
             for observations, obs_embeddings, hiddens, previous_actions, actions, action_log_probs, internal_states, values, advantages, returns in zip(
                 chunks[DataKey.OBSERVATION],
-                chunks[DataKey.OBSERVATION_EMBEDDING],
+                chunks[DataKey.TARGET],
                 hidden_list,
                 previous_actions_chunks,
                 actions_chunks,
@@ -444,7 +441,7 @@ class TTTFDPiVTrainer(TorchTrainer):
 
     @staticmethod
     def create_buffer(
-        max_size: int, get_interval: int
+        max_size: int, get_interval: int, target_delay_frames: int = 1
     ) -> DictIntermittentChunkBuffer[Tensor | list[dict[str, Tensor]]]:
         """Create data buffer for this trainer."""
         intermittent_keys_first_add_steps: Mapping[str, int] = {
@@ -452,7 +449,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         }
         chunk_keys_first_add_steps: Mapping[str, int] = {
             DataKey.OBSERVATION: 0,
-            DataKey.OBSERVATION_EMBEDDING: 0,
+            DataKey.TARGET: target_delay_frames,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
             DataKey.ACTION_LOG_PROB: 0,
