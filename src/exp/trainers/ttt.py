@@ -217,8 +217,8 @@ class TTTFDPiVTrainer(TorchTrainer):
             + internal_action_entropy_loss
             + v_loss * self.vfunc_coef
             + fd_loss
-            - active_surprisal.mean()
-            + stable_surprisal.mean()
+            - active_surprisal.sum()
+            + stable_surprisal.sum()
         )
 
         return {

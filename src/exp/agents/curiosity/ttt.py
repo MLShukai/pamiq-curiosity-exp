@@ -177,8 +177,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         #                             Reward Computation
         # ==============================================================================
         self.metrics["surprisal"] = surprisal.mean().item()
-        self.metrics["active_surprisal"] = active_surprisal.mean().item()
-        self.metrics["stable_surprisal"] = stable_surprisal.mean().item()
+        self.metrics["active_surprisal"] = active_surprisal.sum().item()
+        self.metrics["stable_surprisal"] = stable_surprisal.sum().item()
 
         surprisal_mean = surprisal.mean().detach()
         self.surprisal_mean_ema = (
@@ -198,9 +198,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             + normalized_surprisal_mean * (1 - self.fatigue_decay)
         )
         if self.fatigue is not None:
-            reward = (
-                (-active_surprisal * self.fatigue + stable_surprisal) * surprisal
-            ).mean()
+            reward = -active_surprisal.sum() * self.fatigue + stable_surprisal.sum()
 
             self.metrics["reward"] = reward.item()
             self.metrics["fatigue"] = self.fatigue.item()
