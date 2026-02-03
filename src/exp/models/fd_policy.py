@@ -240,7 +240,7 @@ class TTTFDPiV(nn.Module):
         )
         self.time_mixer = time_mixer
         self.core_model = core_model
-        self.obs_hat_head = nn.Linear(dim, obs_dim_hidden)
+        self.obs_hat_head = nn.Linear(dim, dim)
         self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
         self.internal_action_head = FCBetaMOTOHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)

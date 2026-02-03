@@ -26,7 +26,6 @@ class TestTTTFDPiVTrainer:
     DEPTH = 2
     DIM = 8
     OBS_DIM = 16
-    OBS_DIM_HIDDEN = 12
     OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     DIM_ACTION = 8
@@ -39,13 +38,13 @@ class TestTTTFDPiVTrainer:
     def fd_policy_value_model(self):
         obs_info = ObsInfo(
             dim=self.OBS_DIM,
-            dim_hidden=self.OBS_DIM_HIDDEN,
+            dim_hidden=1,
             num_tokens=self.OBS_NUM_TOKENS,
         )
         action_info = ActionInfo(choices=self.ACTION_CHOICES, dim=self.DIM_ACTION)
         obs_encoder = LerpStackedFeatures(
             dim_in=obs_info.dim,
-            dim_out=obs_info.dim_hidden,
+            dim_out=self.DIM,
             num_stack=obs_info.num_tokens,
         )
         time_mixer = QGRU(
@@ -65,7 +64,7 @@ class TestTTTFDPiVTrainer:
         )
         return TTTFDPiV(
             obs_info=obs_info,
-            obs_dim_hidden=self.OBS_DIM_HIDDEN,
+            obs_dim_hidden=self.DIM,
             action_info=action_info,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
             internal_state_dim=1,
@@ -152,7 +151,7 @@ class TestTTTFDPiVTrainer:
         # Collect policy data
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
-            obs_embeddings = torch.randn(self.OBS_DIM_HIDDEN)
+            obs_embeddings = torch.randn(self.DIM)
             hidden = (
                 torch.randn(self.DEPTH, self.DIM),
                 [
