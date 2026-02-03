@@ -14,7 +14,7 @@ class NoCollectAgent(Agent[Tensor, Tensor]):
     @override
     def __init__(
         self,
-        model_name: str = ModelName.IMAGE_IDENTITY_PATCHIFIER,
+        model_name: str | None = None,
     ) -> None:
         """Initialize the IdentityAgent.
 
@@ -33,7 +33,8 @@ class NoCollectAgent(Agent[Tensor, Tensor]):
         inference models are attached to the agent.
         """
         super().on_inference_models_attached()
-        self.encoder = self.get_inference_model(self.model_name)
+        if self.model_name is not None:
+            self.encoder = self.get_inference_model(self.model_name)
 
     @override
     def step(self, observation: Tensor) -> Tensor:
@@ -47,4 +48,4 @@ class NoCollectAgent(Agent[Tensor, Tensor]):
         Returns:
             The encoded representation of the observation
         """
-        return self.encoder(observation)
+        return self.encoder(observation) if self.model_name is not None else observation

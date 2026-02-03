@@ -1,6 +1,0 @@
-# @package interaction.agent.curiosity
-
-_target_: exp.agents.curiosity.ttt.TTTCuriosityAgent
-
-device: ${shared.device}
-dtype: ${shared.dtype}

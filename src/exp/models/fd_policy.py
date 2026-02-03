@@ -200,7 +200,6 @@ class TTTFDPiV(nn.Module):
     @override
     def __init__(
         self,
-        obs_info: ObsInfo,
         obs_dim_hidden: int,
         action_info: ActionInfo,
         internal_action_dim: int,
@@ -303,7 +302,13 @@ class TTTFDPiV(nn.Module):
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
         """
-        obs_emb = self.obs_flatten(obs)
+        if obs.ndim == 5:  # (*batch, len, channels, height, width)
+            batch_size, seq_len = obs.shape[:2]
+            obs = obs.view(batch_size * seq_len, *obs.shape[2:])
+            obs_emb = self.obs_flatten(obs)
+            obs_emb = obs_emb.view(batch_size, seq_len, *obs_emb.shape[1:])
+        else:
+            obs_emb = self.obs_flatten(obs)
         x = self._flatten_obs_action(
             obs_emb, external_action, internal_action, internal_state
         )

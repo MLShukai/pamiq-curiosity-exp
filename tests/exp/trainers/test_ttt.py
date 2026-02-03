@@ -36,16 +36,9 @@ class TestTTTFDPiVTrainer:
 
     @pytest.fixture
     def fd_policy_value_model(self):
-        obs_info = ObsInfo(
-            dim=self.OBS_DIM,
-            dim_hidden=1,
-            num_tokens=self.OBS_NUM_TOKENS,
-        )
         action_info = ActionInfo(choices=self.ACTION_CHOICES, dim=self.DIM_ACTION)
         obs_encoder = LerpStackedFeatures(
-            dim_in=obs_info.dim,
-            dim_out=self.DIM,
-            num_stack=obs_info.num_tokens,
+            dim_in=self.OBS_DIM, dim_out=self.DIM, num_stack=self.OBS_NUM_TOKENS
         )
         time_mixer = QGRU(
             depth=self.DEPTH,
@@ -63,7 +56,6 @@ class TestTTTFDPiVTrainer:
             dropout=0.1,
         )
         return TTTFDPiV(
-            obs_info=obs_info,
             obs_dim_hidden=self.DIM,
             action_info=action_info,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
