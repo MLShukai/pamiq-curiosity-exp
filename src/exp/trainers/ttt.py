@@ -148,12 +148,14 @@ class TTTFDPiVTrainer(TorchTrainer):
         internal_actions = actions["internal_action"]
 
         # Get new distributions and values
-        _, obs_hat, new_dist, new_values, _, _ = self.fd_piv.model(
-            observations,
-            external_previous_actions,
-            internal_previous_actions,
-            internal_states,
-            hiddens,
+        _, obs_hat, new_dist, new_values, _, _, active_surprisal, stable_surprisal = (
+            self.fd_piv.model(
+                observations,
+                external_previous_actions,
+                internal_previous_actions,
+                internal_states,
+                hiddens,
+            )
         )
         new_log_probs = new_dist.log_prob(external_actions, internal_actions)
 
@@ -215,6 +217,8 @@ class TTTFDPiVTrainer(TorchTrainer):
             + internal_action_entropy_loss
             + v_loss * self.vfunc_coef
             + fd_loss
+            - active_surprisal.mean()
+            + stable_surprisal.mean()
         )
 
         return {

@@ -5,7 +5,8 @@ from typing import override
 
 import torch
 import torch.nn as nn
-from torch import Tensor
+import torch.nn.functional as F
+from torch import Size, Tensor
 from torch.distributions import Distribution
 from torch.distributions.independent import Independent
 
@@ -205,6 +206,7 @@ class TTTFDPiV(nn.Module):
         internal_action_dim: int,
         internal_state_dim: int,
         dim: int,
+        surprisal_shape: tuple[int, int],
         obs_encoder: nn.Module,
         time_mixer: StackedHiddenState,
         core_model: StackedTTT,
@@ -244,6 +246,9 @@ class TTTFDPiV(nn.Module):
         self.internal_action_head = FCBetaMOTOHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
+        self.active_surprisal_coef_logit = nn.Parameter(torch.zeros(*surprisal_shape))
+        self.stable_surprisal_coef_logit = nn.Parameter(torch.zeros(*surprisal_shape))
+        self.surprisal_shape = surprisal_shape
 
     def _flatten_obs_action(
         self,
@@ -282,6 +287,8 @@ class TTTFDPiV(nn.Module):
         MultiDistributions,
         Tensor,
         tuple[Tensor, list[dict[str, Tensor]]],
+        Tensor,
+        Tensor,
         Tensor,
     ]:
         """Forward pass to predict next observation prediction, policy
@@ -322,6 +329,14 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
+        active_surprisal_coef = F.softmax(
+            self.active_surprisal_coef_logit.view(-1), dim=0
+        ).view(*self.surprisal_shape)
+        stable_surprisal_coef = F.softmax(
+            self.stable_surprisal_coef_logit.view(-1), dim=0
+        ).view(*self.surprisal_shape)
+        active_surprisal = surprisal.detach() * active_surprisal_coef.unsqueeze(0)
+        stable_surprisal = surprisal.detach() * stable_surprisal_coef.unsqueeze(0)
         return (
             obs_emb,
             obs_hat,
@@ -329,6 +344,8 @@ class TTTFDPiV(nn.Module):
             value,
             (next_hidden_time, next_hidden_ttt),
             surprisal,
+            active_surprisal,
+            stable_surprisal,
         )
 
     def forward_with_no_len(
@@ -344,6 +361,8 @@ class TTTFDPiV(nn.Module):
         MultiDistributions,
         Tensor,
         Hidden,
+        Tensor,
+        Tensor,
         Tensor,
     ]:
         """Forward with data which has no len dim. (for inference procedure.)
@@ -362,6 +381,8 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
+                - Tensor representing the active surprisal.
+                - Tensor representing the stable surprisal.
         """
         obs_emb = self.obs_flatten(obs)
         x = self._flatten_obs_action(
@@ -377,6 +398,14 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
+        active_surprisal_coef = F.softmax(
+            self.active_surprisal_coef_logit.view(-1), dim=0
+        ).view(*self.surprisal_shape)
+        stable_surprisal_coef = F.softmax(
+            self.stable_surprisal_coef_logit.view(-1), dim=0
+        ).view(*self.surprisal_shape)
+        active_surprisal = surprisal.detach() * active_surprisal_coef
+        stable_surprisal = surprisal.detach() * stable_surprisal_coef
         return (
             obs_emb,
             obs_hat,
@@ -384,4 +413,6 @@ class TTTFDPiV(nn.Module):
             value,
             (next_hidden_time, next_hidden_ttt),
             surprisal,
+            active_surprisal,
+            stable_surprisal,
         )

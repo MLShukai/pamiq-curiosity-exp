@@ -40,6 +40,8 @@ class TestTTTCuriosityAgent:
             [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
         )
         surprisal = torch.randn(DEPTH, 4)
+        active_surprisal = torch.randn(DEPTH, 4)
+        stable_surprisal = torch.randn(DEPTH, 4)
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
@@ -48,6 +50,8 @@ class TestTTTCuriosityAgent:
             value,
             hidden,
             surprisal,
+            active_surprisal,
+            stable_surprisal,
         )
 
         return {
@@ -149,10 +153,12 @@ class TestTTTCuriosityAgent:
     def test_save_and_load_state(self, agent: TTTCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
         agent.global_step = 42
-        agent.hidden_state = [{"test": torch.randn(DEPTH, HIDDEN_DIM)}]
+        agent.hidden_state = (
+            torch.randn(1),
+            [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
+        )
         agent.external_action = torch.randn(ACTION_DIM)
         agent.internal_action = torch.randn(ACTION_DIM)
-        agent.surprisal_coef = torch.randn(ACTION_DIM)
         agent.fatigue = torch.randn(1)
         agent.surprisal_mean_ema = torch.randn(1)
 
@@ -163,7 +169,6 @@ class TestTTTCuriosityAgent:
         assert (save_path / "hidden_state.pt").exists()
         assert (save_path / "external_action.pt").exists()
         assert (save_path / "internal_action.pt").exists()
-        assert (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "fatigue.pt").exists()
         assert (save_path / "surprisal_mean_ema.pt").exists()
         assert (save_path / "global_step").exists()
@@ -174,9 +179,12 @@ class TestTTTCuriosityAgent:
         new_agent.load_state(save_path)
 
         assert new_agent.hidden_state is not None
+        agent_hidden_qgru, agent_hidden_ttt = agent.hidden_state
+        new_hidden_qgru, new_hidden_ttt = new_agent.hidden_state
+        assert torch.equal(new_hidden_qgru, agent_hidden_qgru)
         assert all(
             torch.equal(new_layer[key], old_layer[key])
-            for new_layer, old_layer in zip(new_agent.hidden_state, agent.hidden_state)
+            for new_layer, old_layer in zip(new_hidden_ttt, agent_hidden_ttt)
             for key in new_layer
         )
         assert new_agent.external_action is not None
@@ -184,8 +192,6 @@ class TestTTTCuriosityAgent:
         assert new_agent.internal_action is not None
         assert torch.equal(new_agent.internal_action, agent.internal_action)
         assert new_agent.global_step == 42
-        assert new_agent.surprisal_coef is not None
-        assert torch.equal(new_agent.surprisal_coef, agent.surprisal_coef)
         assert new_agent.fatigue is not None
         assert torch.equal(new_agent.fatigue, agent.fatigue)
         assert new_agent.surprisal_mean_ema is not None
@@ -199,7 +205,6 @@ class TestTTTCuriosityAgent:
         agent.hidden_state = None
         agent.external_action = None
         agent.internal_action = None
-        agent.surprisal_coef = None
         agent.fatigue = None
         agent.surprisal_mean_ema = None
 
@@ -210,7 +215,6 @@ class TestTTTCuriosityAgent:
         assert not (save_path / "hidden_state.pt").exists()
         assert not (save_path / "external_action.pt").exists()
         assert not (save_path / "internal_action.pt").exists()
-        assert not (save_path / "surprisal_coef.pt").exists()
         assert not (save_path / "fatigue.pt").exists()
         assert not (save_path / "surprisal_mean_ema.pt").exists()
         assert (save_path / "global_step").exists()
@@ -222,7 +226,6 @@ class TestTTTCuriosityAgent:
         assert new_agent.hidden_state is None
         assert new_agent.external_action is None
         assert new_agent.internal_action is None
-        assert new_agent.surprisal_coef is None
         assert new_agent.fatigue is None
         assert new_agent.surprisal_mean_ema is None
         assert new_agent.global_step == 100

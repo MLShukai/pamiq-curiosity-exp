@@ -63,7 +63,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.hidden_state = None
         self.external_action = None
         self.internal_action = None
-        self.surprisal_coef = None
         self.surprisal_mean_ema = None
         self.surprisal_mean_ema_decay = surprisal_mean_ema_decay
         self.fatigue = None
@@ -95,7 +94,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     hidden_state: Hidden | None
     external_action: Tensor | None  # (action_choices,) or None
     internal_action: Tensor | None  # (dim,) or None
-    surprisal_coef: Tensor | None
     surprisal_mean_ema: Tensor | None
     fatigue: Tensor | None
     obs_hat: Tensor | None
@@ -155,6 +153,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             value,
             self.hidden_state,
             surprisal,
+            active_surprisal,
+            stable_surprisal,
         ) = self.fd_piv(
             observation,
             self.external_action,
@@ -177,15 +177,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         #                             Reward Computation
         # ==============================================================================
         self.metrics["surprisal"] = surprisal.mean().item()
+        self.metrics["active_surprisal"] = active_surprisal.mean().item()
+        self.metrics["stable_surprisal"] = stable_surprisal.mean().item()
 
-        if self.surprisal_coef is None:
-            self.surprisal_coef = torch.randn_like(
-                surprisal, dtype=self.dtype, device=self.device
-            )
-            self.surprisal_coef = self.surprisal_coef - self.surprisal_coef.mean()
-            self.surprisal_coef = self.surprisal_coef / (
-                self.surprisal_coef.std() + 1e-8
-            )
         surprisal_mean = surprisal.mean().detach()
         self.surprisal_mean_ema = (
             surprisal_mean
@@ -204,9 +198,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             + normalized_surprisal_mean * (1 - self.fatigue_decay)
         )
         if self.fatigue is not None:
-            excitatory_coef = F.relu(self.surprisal_coef)
-            inhibitory_coef = -F.relu(-self.surprisal_coef) * self.fatigue
-            reward = ((excitatory_coef + inhibitory_coef) * surprisal).mean()
+            reward = (
+                (-active_surprisal * self.fatigue + stable_surprisal) * surprisal
+            ).mean()
 
             self.metrics["reward"] = reward.item()
             self.metrics["fatigue"] = self.fatigue.item()
@@ -265,8 +259,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         if self.hidden_state is not None:
             torch.save(self.hidden_state, path / "hidden_state.pt")
-        if self.surprisal_coef is not None:
-            torch.save(self.surprisal_coef, path / "surprisal_coef.pt")
         if self.external_action is not None:
             torch.save(self.external_action, path / "external_action.pt")
         if self.internal_action is not None:
@@ -293,12 +285,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.hidden_state = (
             torch.load(hidden_path, map_location=self.device)
             if hidden_path.exists()
-            else None
-        )
-        surprisal_coef_path = path / "surprisal_coef.pt"
-        self.surprisal_coef = (
-            torch.load(surprisal_coef_path, map_location=self.device)
-            if surprisal_coef_path.exists()
             else None
         )
         external_action_path = path / "external_action.pt"

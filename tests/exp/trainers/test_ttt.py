@@ -61,6 +61,7 @@ class TestTTTFDPiVTrainer:
             internal_action_dim=self.DIM_INTERNAL_ACTION,
             internal_state_dim=1,
             dim=self.DIM,
+            surprisal_shape=(self.DEPTH, self.NUM_HEAD),
             obs_encoder=obs_encoder,
             time_mixer=time_mixer,
             core_model=core_model,
