@@ -277,7 +277,7 @@ class TTTFDPiV(nn.Module):
         external_action: Tensor | None,
         internal_action: Tensor | None,
         internal_state: Tensor | None,
-        hidden: tuple[Tensor, list[dict[str, Tensor]]] | None = None,
+        hidden: Hidden | None = None,
         *,
         no_len: bool = False,
     ) -> tuple[
@@ -285,7 +285,7 @@ class TTTFDPiV(nn.Module):
         Tensor,
         MultiDistributions,
         Tensor,
-        tuple[Tensor, list[dict[str, Tensor]]],
+        Hidden,
         Tensor,
         Tensor,
         Tensor,
@@ -318,7 +318,8 @@ class TTTFDPiV(nn.Module):
         obs_action_proj = self._flatten_obs_action(
             obs_proj, external_action, internal_action, internal_state
         )
-        hidden_time, hidden_ttt = (None, None) if hidden is None else hidden
+        hidden_time = None if hidden is None else hidden["time"]
+        hidden_ttt = None if hidden is None else hidden["ttt"]
         obs_emb, next_hidden_time = self.time_mixer(
             obs_action_proj, hidden_time, no_len=no_len
         )
@@ -338,12 +339,16 @@ class TTTFDPiV(nn.Module):
         ).view(*self.surprisal_shape)
         active_surprisal = surprisal.detach() * active_surprisal_coef.unsqueeze(0)
         stable_surprisal = surprisal.detach() * stable_surprisal_coef.unsqueeze(0)
+        next_hidden = {
+            "time": next_hidden_time,
+            "ttt": next_hidden_ttt,
+        }
         return (
             obs_emb,
             obs_hat,
             action_dist,
             value,
-            (next_hidden_time, next_hidden_ttt),
+            next_hidden,
             surprisal,
             active_surprisal,
             stable_surprisal,
@@ -389,7 +394,8 @@ class TTTFDPiV(nn.Module):
         obs_action_proj = self._flatten_obs_action(
             obs_proj, external_action, internal_action, internal_state
         )  # (*batch, dim)
-        hidden_time, hidden_ttt = (None, None) if hidden is None else hidden
+        hidden_time = None if hidden is None else hidden["time"]
+        hidden_ttt = None if hidden is None else hidden["ttt"]
         obs_emb, next_hidden_time = self.time_mixer(
             obs_action_proj, hidden_time, no_len=True
         )
@@ -409,12 +415,16 @@ class TTTFDPiV(nn.Module):
         ).view(*self.surprisal_shape)
         active_surprisal = surprisal.detach() * active_surprisal_coef
         stable_surprisal = surprisal.detach() * stable_surprisal_coef
+        next_hidden = {
+            "time": next_hidden_time,
+            "ttt": next_hidden_ttt,
+        }
         return (
             obs_emb,
             obs_hat,
             action_dist,
             value,
-            (next_hidden_time, next_hidden_ttt),
+            next_hidden,
             surprisal,
             active_surprisal,
             stable_surprisal,

@@ -26,7 +26,9 @@ STEP_DATA_REQUIRED_KEYS = {
     DataKey.REWARD,
 }
 
-Hidden = tuple[Tensor, list[dict[str, Tensor]]]
+Hidden_Time = Tensor
+Hidden_TTT = list[dict[str, Tensor]]
+Hidden = dict[str, Hidden_Time | Hidden_TTT]
 Action = dict[str, Tensor]
 
 
@@ -134,13 +136,23 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
 
         if self.hidden_state is not None:
-            self.step_data_fd_piv[DataKey.HIDDEN] = (
-                self.hidden_state[0].cpu(),
+            hidden_time: Hidden_Time = (
+                self.hidden_state["time"].cpu()
+                if isinstance(self.hidden_state["time"], Tensor)
+                else torch.tensor(0)
+            )
+            hidden_ttt: Hidden_TTT = (
                 [
                     {key: val.cpu() for key, val in layer.items()}
-                    for layer in self.hidden_state[1]
-                ],
-            )  # Store before update
+                    for layer in self.hidden_state["ttt"]
+                ]
+                if isinstance(self.hidden_state["ttt"], list)
+                else []
+            )
+            self.step_data_fd_piv[DataKey.HIDDEN] = {
+                "time": hidden_time,
+                "ttt": hidden_ttt,
+            }
 
         internal_state = self.fatigue - 1.0 if self.fatigue is not None else None
 

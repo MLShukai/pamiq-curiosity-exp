@@ -35,10 +35,10 @@ class TestTTTCuriosityAgent:
             Normal(torch.zeros(ACTION_DIM), torch.ones(ACTION_DIM)),
         )
         value = torch.tensor(0.5)
-        hidden = (
-            torch.randn(DEPTH, HIDDEN_DIM),
-            [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
-        )
+        hidden = {
+            "time": torch.randn(DEPTH, HIDDEN_DIM),
+            "ttt": [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
+        }
         surprisal = torch.randn(DEPTH, 4)
         active_surprisal = torch.randn(DEPTH, 4)
         stable_surprisal = torch.randn(DEPTH, 4)
@@ -153,10 +153,10 @@ class TestTTTCuriosityAgent:
     def test_save_and_load_state(self, agent: TTTCuriosityAgent, tmp_path):
         """Test state saving and loading functionality."""
         agent.global_step = 42
-        agent.hidden_state = (
-            torch.randn(1),
-            [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
-        )
+        agent.hidden_state = {
+            "time": torch.randn(1),
+            "ttt": [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
+        }
         agent.external_action = torch.randn(ACTION_DIM)
         agent.internal_action = torch.randn(ACTION_DIM)
         agent.fatigue = torch.randn(1)
@@ -179,8 +179,22 @@ class TestTTTCuriosityAgent:
         new_agent.load_state(save_path)
 
         assert new_agent.hidden_state is not None
-        agent_hidden_qgru, agent_hidden_ttt = agent.hidden_state
-        new_hidden_qgru, new_hidden_ttt = new_agent.hidden_state
+        agent_hidden_qgru, agent_hidden_ttt = (
+            agent.hidden_state["time"]
+            if isinstance(agent.hidden_state["time"], torch.Tensor)
+            else torch.tensor(0),
+            agent.hidden_state["ttt"]
+            if isinstance(agent.hidden_state["ttt"], list)
+            else [],
+        )
+        new_hidden_qgru, new_hidden_ttt = (
+            new_agent.hidden_state["time"]
+            if isinstance(new_agent.hidden_state["time"], torch.Tensor)
+            else torch.tensor(0),
+            new_agent.hidden_state["ttt"]
+            if isinstance(new_agent.hidden_state["ttt"], list)
+            else [],
+        )
         assert torch.equal(new_hidden_qgru, agent_hidden_qgru)
         assert all(
             torch.equal(new_layer[key], old_layer[key])

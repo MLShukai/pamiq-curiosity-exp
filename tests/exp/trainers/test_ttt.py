@@ -145,9 +145,9 @@ class TestTTTFDPiVTrainer:
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
             obs_embeddings = torch.randn(self.DIM)
-            hidden = (
-                torch.randn(self.DEPTH, self.DIM),
-                [
+            hidden = {
+                "time": torch.randn(self.DEPTH, self.DIM),
+                "ttt": [
                     {
                         "W1": torch.randn(
                             self.NUM_HEAD,
@@ -162,7 +162,7 @@ class TestTTTFDPiVTrainer:
                     }
                     for _ in range(self.DEPTH)
                 ],
-            )
+            }
             actions = {
                 "external_action": torch.stack(
                     [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1

@@ -373,13 +373,18 @@ class TTTFDPiVTrainer(TorchTrainer):
                     d.to(device)
                     if isinstance(d, Tensor)
                     else (
-                        d[0].to(device),
-                        [{key: v.to(device) for key, v in dd.items()} for dd in d[1]],
+                        {
+                            k: v.to(device)
+                            if isinstance(v, Tensor)
+                            else [
+                                {k1: v1.to(device) for k1, v1 in item.items()}
+                                for item in v
+                            ]
+                            for k, v in d.items()
+                        }
+                        if isinstance(d, dict)
+                        else d
                     )
-                    if isinstance(d, tuple)
-                    else {key: v.to(device) for key, v in d.items()}
-                    if isinstance(d, dict)
-                    else None
                     for d in batch
                 ]
 
