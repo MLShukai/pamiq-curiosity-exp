@@ -198,9 +198,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             + normalized_surprisal_mean * (1 - self.fatigue_decay)
         )
         if self.fatigue is not None:
-            inhibitatory = F.relu(active_surprisal - stable_surprisal).sum()
-            excitatory = F.relu(stable_surprisal - active_surprisal).sum()
-            reward = -excitatory * self.fatigue + inhibitatory
+            inhibitatory = -active_surprisal
+            excitatory = stable_surprisal
+            reward = (excitatory + inhibitatory * self.fatigue).sum()
 
             self.metrics["reward"] = reward.item()
             self.metrics["fatigue"] = self.fatigue.item()

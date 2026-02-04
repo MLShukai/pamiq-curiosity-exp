@@ -312,15 +312,17 @@ class TTTFDPiV(nn.Module):
         if obs.ndim == 5:  # (*batch, len, channels, height, width)
             batch_size, seq_len = obs.shape[:2]
             obs = obs.view(batch_size * seq_len, *obs.shape[2:])
-            obs_emb = self.obs_flatten(obs)
-            obs_emb = obs_emb.view(batch_size, seq_len, *obs_emb.shape[1:])
+            obs_proj = self.obs_flatten(obs)
+            obs_proj = obs_proj.view(batch_size, seq_len, *obs_proj.shape[1:])
         else:
-            obs_emb = self.obs_flatten(obs)
-        x = self._flatten_obs_action(
-            obs_emb, external_action, internal_action, internal_state
+            obs_proj = self.obs_flatten(obs)
+        obs_action_proj = self._flatten_obs_action(
+            obs_proj, external_action, internal_action, internal_state
         )
-        hidden_time, hidden_ttt = None, None if hidden is None else hidden
-        obs_emb, next_hidden_time = self.time_mixer(x, hidden_time, no_len=no_len)
+        hidden_time, hidden_ttt = (None, None) if hidden is None else hidden
+        obs_emb, next_hidden_time = self.time_mixer(
+            obs_action_proj, hidden_time, no_len=no_len
+        )
         x, next_hidden_ttt, surprisal = self.core_model(
             obs_emb, hidden_ttt, no_len=no_len
         )
@@ -384,12 +386,14 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the active surprisal.
                 - Tensor representing the stable surprisal.
         """
-        obs_emb = self.obs_flatten(obs)
-        x = self._flatten_obs_action(
-            obs_emb, external_action, internal_action, internal_state
+        obs_proj = self.obs_flatten(obs)
+        obs_action_proj = self._flatten_obs_action(
+            obs_proj, external_action, internal_action, internal_state
         )  # (*batch, dim)
         hidden_time, hidden_ttt = (None, None) if hidden is None else hidden
-        obs_emb, next_hidden_time = self.time_mixer(x, hidden_time, no_len=True)
+        obs_emb, next_hidden_time = self.time_mixer(
+            obs_action_proj, hidden_time, no_len=True
+        )
         x, next_hidden_ttt, surprisal = self.core_model(
             obs_emb, hidden_ttt, no_len=True
         )

@@ -32,7 +32,7 @@ fd_policy_value:
       _target_: exp.models.components.qgru.QGRU
       dim: 1024
       dim_ff_hidden: ${python.eval:"${.dim} * 4"}
-      depth: 16
+      depth: 4
       dropout: 0.1
       is_weak: true
     core_model:
