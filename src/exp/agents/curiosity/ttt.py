@@ -142,7 +142,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
                 ],
             )  # Store before update
 
-        internal_state = self.fatigue - 0.5 if self.fatigue is not None else None
+        internal_state = self.fatigue - 1.0 if self.fatigue is not None else None
 
         action_dist: MultiDistributions
         value: Tensor
@@ -198,7 +198,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             + normalized_surprisal_mean * (1 - self.fatigue_decay)
         )
         if self.fatigue is not None:
-            reward = -active_surprisal.sum() * self.fatigue + stable_surprisal.sum()
+            inhibitatory = F.relu(active_surprisal - stable_surprisal).sum()
+            excitatory = F.relu(stable_surprisal - active_surprisal).sum()
+            reward = -excitatory * self.fatigue + inhibitatory
 
             self.metrics["reward"] = reward.item()
             self.metrics["fatigue"] = self.fatigue.item()

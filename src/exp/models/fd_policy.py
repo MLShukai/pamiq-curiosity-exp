@@ -246,8 +246,8 @@ class TTTFDPiV(nn.Module):
         self.internal_action_head = FCBetaMOTOHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
-        self.active_surprisal_coef_logit = nn.Parameter(torch.zeros(*surprisal_shape))
-        self.stable_surprisal_coef_logit = nn.Parameter(torch.zeros(*surprisal_shape))
+        self.active_surprisal_coef_logit = nn.Parameter(torch.randn(*surprisal_shape))
+        self.stable_surprisal_coef_logit = nn.Parameter(torch.randn(*surprisal_shape))
         self.surprisal_shape = surprisal_shape
 
     def _flatten_obs_action(
