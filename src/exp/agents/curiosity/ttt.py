@@ -154,6 +154,15 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
                 "ttt": hidden_ttt,
             }
 
+            self.metrics["hidden_time_norm"] = torch.norm(
+                self.hidden_state["time"]
+            ).item()
+            self.metrics["hidden_ttt_norm"] = sum(
+                torch.norm(v).item()
+                for layer in self.hidden_state["ttt"]
+                for v in layer.values()
+            )
+
         internal_state = self.fatigue - 1.0 if self.fatigue is not None else None
 
         action_dist: MultiDistributions
