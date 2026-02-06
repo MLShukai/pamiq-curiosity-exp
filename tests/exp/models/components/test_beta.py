@@ -3,15 +3,15 @@ import torch
 from torch.distributions import Beta
 
 from exp.models.components.beta import (
-    FCBetaMOTOHead,
+    FCBetaHead,
 )
 
 
-class TestFCBetaMOTOHead:
+class TestFCBetaHead:
     def test_forward(self):
         """Test the forward pass returns a Normal distribution with expected
         shape."""
-        layer = FCBetaMOTOHead(10, 20)
+        layer = FCBetaHead(10, 20)
         out = layer(torch.randn(10))
 
         assert isinstance(out, Beta)

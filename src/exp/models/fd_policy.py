@@ -12,7 +12,7 @@ from torch.distributions.independent import Independent
 
 from exp.agents.curiosity.ttt import Action, Hidden
 
-from .components.beta import FCBetaMOTOHead
+from .components.beta import FCBetaHead
 from .components.fc_scalar_head import FCScalarHead
 from .components.multi_discretes import FCMultiCategoricalHead, MultiEmbeddings
 from .components.multi_distributions import MultiDistributions
@@ -243,7 +243,7 @@ class TTTFDPiV(nn.Module):
         self.core_model = core_model
         self.obs_hat_head = nn.Linear(dim, dim)
         self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
-        self.internal_action_head = FCBetaMOTOHead(dim, internal_action_dim)
+        self.internal_action_head = FCBetaHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
         self.surprisal_coef_logit = nn.Parameter(torch.zeros(*surprisal_shape))
@@ -315,6 +315,9 @@ class TTTFDPiV(nn.Module):
             obs_proj = obs_proj.view(batch_size, seq_len, *obs_proj.shape[1:])
         else:
             obs_proj = self.obs_flatten(obs)
+        internal_action = (
+            internal_action * 2.0 - 1.0 if internal_action is not None else None
+        )  # Scale to [-1, 1]
         obs_action_proj = self._flatten_obs_action(
             obs_proj, external_action, internal_action, internal_state
         )
@@ -327,7 +330,7 @@ class TTTFDPiV(nn.Module):
             obs_emb, hidden_ttt, no_len=no_len
         )
         obs_hat = self.obs_hat_head(x)
-        external_action_dist = self.external_action_head(x)
+        external_action_dist = self.external_action_head(obs_emb)
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
@@ -390,42 +393,6 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the active surprisal.
                 - Tensor representing the stable surprisal.
         """
-        obs_proj = self.obs_flatten(obs)
-        obs_action_proj = self._flatten_obs_action(
-            obs_proj, external_action, internal_action, internal_state
-        )  # (*batch, dim)
-        hidden_time = None if hidden is None else hidden["time"]
-        hidden_ttt = None if hidden is None else hidden["ttt"]
-        obs_emb, next_hidden_time = self.time_mixer(
-            obs_action_proj, hidden_time, no_len=True
-        )
-        x, next_hidden_ttt, surprisal = self.core_model(
-            obs_emb, hidden_ttt, no_len=True
-        )
-        obs_hat = self.obs_hat_head(x)
-        external_action_dist = self.external_action_head(x)
-        internal_action_dist = Independent(self.internal_action_head(x), 1)
-        action_dist = MultiDistributions(external_action_dist, internal_action_dist)
-        value = self.value_head(x)
-        active_surprisal_coef = F.softmax(
-            self.surprisal_coef_logit.view(-1), dim=0
-        ).view(*self.surprisal_shape)
-        stable_surprisal_coef = F.softmax(
-            -self.surprisal_coef_logit.view(-1), dim=0
-        ).view(*self.surprisal_shape)
-        active_surprisal = surprisal.detach() * active_surprisal_coef
-        stable_surprisal = surprisal.detach() * stable_surprisal_coef
-        next_hidden = {
-            "time": next_hidden_time,
-            "ttt": next_hidden_ttt,
-        }
-        return (
-            obs_emb,
-            obs_hat,
-            action_dist,
-            value,
-            next_hidden,
-            surprisal,
-            active_surprisal,
-            stable_surprisal,
+        return self.forward(
+            obs, external_action, internal_action, internal_state, hidden, no_len=True
         )
