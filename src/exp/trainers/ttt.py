@@ -266,7 +266,6 @@ class TTTFDPiVTrainer(TorchTrainer):
             DataKey.INTERNAL_STATE,
             DataKey.REWARD,
             DataKey.VALUE,
-            DataKey.PREVIOUS_ACTION,
         ]
 
         # tensors = {key: torch.stack(data[key][:-1]) for key in chunk_keys}
