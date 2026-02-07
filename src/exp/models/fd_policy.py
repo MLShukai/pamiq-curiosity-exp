@@ -206,7 +206,7 @@ class TTTFDPiV(nn.Module):
         internal_action_dim: int,
         internal_state_dim: int,
         dim: int,
-        surprisal_shape: tuple[int, int],
+        surprisal_shape: tuple[int, int, int],
         obs_encoder: nn.Module,
         time_mixer: StackedHiddenState,
         core_model: StackedTTT,
@@ -246,7 +246,7 @@ class TTTFDPiV(nn.Module):
         self.internal_action_head = FCBetaHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.dim = dim
-        self.surprisal_coef_logit = nn.Parameter(torch.zeros(*surprisal_shape))
+        self.surprisal_coef_logit = nn.Parameter(torch.randn(*surprisal_shape))
         self.surprisal_shape = surprisal_shape
 
     def _flatten_obs_action(
@@ -334,12 +334,15 @@ class TTTFDPiV(nn.Module):
         internal_action_dist = Independent(self.internal_action_head(x), 1)
         action_dist = MultiDistributions(external_action_dist, internal_action_dist)
         value = self.value_head(x)
-        active_surprisal_coef = F.softmax(
-            self.surprisal_coef_logit.view(-1), dim=0
-        ).view(*self.surprisal_shape)
-        stable_surprisal_coef = F.softmax(
-            -self.surprisal_coef_logit.view(-1), dim=0
-        ).view(*self.surprisal_shape)
+        surprisal_coef_logit = (
+            self.surprisal_coef_logit - self.surprisal_coef_logit.mean()
+        ) / self.surprisal_coef_logit.std()
+        active_surprisal_coef = F.softmax(surprisal_coef_logit.view(-1), dim=0).view(
+            *self.surprisal_shape
+        )
+        stable_surprisal_coef = F.softmax(-surprisal_coef_logit.view(-1), dim=0).view(
+            *self.surprisal_shape
+        )
         active_surprisal = surprisal.detach() * active_surprisal_coef.unsqueeze(0)
         stable_surprisal = surprisal.detach() * stable_surprisal_coef.unsqueeze(0)
         next_hidden = {

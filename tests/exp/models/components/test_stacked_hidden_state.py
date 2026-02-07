@@ -117,7 +117,7 @@ class TestStackedTTT:
             and hidden_out[i]["W2"].shape == hidden[i]["W2"].shape
             for i in range(DEPTH)
         )
-        assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD)
+        assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD, DIM // NUM_HEAD)
 
     def test_forward_with_no_hidden(self, ttt):
         """Test forward pass without hidden state, but with batch."""
@@ -133,7 +133,7 @@ class TestStackedTTT:
             == (BATCH, NUM_HEAD, DIM // NUM_HEAD, DIM_HIDDEN // NUM_HEAD)
             for i in range(DEPTH)
         )
-        assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD)
+        assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD, DIM // NUM_HEAD)
 
     def test_forward_with_hidden_no_batch(self, ttt):
         """Test forward pass with provided hidden state without batch."""
@@ -154,7 +154,7 @@ class TestStackedTTT:
             and hidden_out[i]["W2"].shape == hidden[i]["W2"].shape
             for i in range(DEPTH)
         )
-        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD)
+        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD, DIM // NUM_HEAD)
 
     def test_forward_with_no_hidden_no_batch(self, ttt):
         """Test forward pass without hidden state and without batch."""
@@ -170,4 +170,4 @@ class TestStackedTTT:
             == (NUM_HEAD, DIM // NUM_HEAD, DIM_HIDDEN // NUM_HEAD)
             for i in range(DEPTH)
         )
-        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD)
+        assert surprisal.shape == (LEN, DEPTH, NUM_HEAD, DIM // NUM_HEAD)
