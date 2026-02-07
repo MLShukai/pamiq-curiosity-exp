@@ -54,8 +54,6 @@ class StackedHiddenState(nn.Module):
 
         if hidden_stack is not None and x.shape[:-2] != hidden_stack.shape[:-2]:
             raise ValueError("Batch shape mismatch between x and hidden_stack")
-        if hidden_stack is not None and x.size(-1) != hidden_stack.size(-1):
-            raise ValueError("Feature dim mismatch between x and hidden_stack")
 
         batch_shape = x.shape[:-2]
         x = x.reshape(-1, *x.shape[len(batch_shape) :])

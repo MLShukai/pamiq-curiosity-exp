@@ -30,7 +30,7 @@ class TestTTTFDPiVTrainer:
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     DIM_ACTION = 8
     DIM_INTERNAL_ACTION = 8
-    DIM_FF_HIDDEN = 16
+    DIM_HIDDEN = 16
     NUM_HEAD = 4
     GET_INTERVAL = 16
 
@@ -43,13 +43,13 @@ class TestTTTFDPiVTrainer:
         time_mixer = QGRU(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             dropout=0.1,
         )
         core_model = TTT(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             num_head=self.NUM_HEAD,
             base_lr=(0.0001, 0.01),
             chunk_size=16,
@@ -146,18 +146,18 @@ class TestTTTFDPiVTrainer:
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
             obs_embeddings = torch.randn(self.DIM)
             hidden = {
-                "time": torch.randn(self.DEPTH, self.DIM),
+                "time": torch.randn(self.DEPTH, self.DIM_HIDDEN),
                 "ttt": [
                     {
                         "W1": torch.randn(
                             self.NUM_HEAD,
-                            self.DIM_FF_HIDDEN // self.NUM_HEAD,
+                            self.DIM_HIDDEN // self.NUM_HEAD,
                             self.DIM // self.NUM_HEAD,
                         ),
                         "W2": torch.randn(
                             self.NUM_HEAD,
                             self.DIM // self.NUM_HEAD,
-                            self.DIM_FF_HIDDEN // self.NUM_HEAD,
+                            self.DIM_HIDDEN // self.NUM_HEAD,
                         ),
                     }
                     for _ in range(self.DEPTH)

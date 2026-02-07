@@ -277,15 +277,15 @@ class TTTBlock(nn.Module):
     def __init__(
         self,
         dim: int,
-        dim_ff_hidden: int,
+        dim_hidden: int,
         num_head: int,
         base_lr: tuple[float, float],
         chunk_size: int,
         dropout: float,
     ):
         super().__init__()
-        self.memory = ChunkwiseTTT(dim, dim_ff_hidden, num_head, base_lr, chunk_size)
-        self.ffn = FFNSwiGLU(dim, dim_ff_hidden)
+        self.memory = ChunkwiseTTT(dim, dim_hidden, num_head, base_lr, chunk_size)
+        self.ffn = FFNSwiGLU(dim, dim_hidden)
         self.norm_memory = RMSNorm(dim)
         self.norm_ffn = RMSNorm(dim)
         self.dropout = nn.Dropout(dropout)
@@ -316,7 +316,7 @@ class TTT(StackedTTT):
         self,
         depth: int,
         dim: int,
-        dim_ff_hidden: int,
+        dim_hidden: int,
         num_head: int,
         base_lr: tuple[float, float],
         chunk_size: int,
@@ -327,7 +327,7 @@ class TTT(StackedTTT):
                 [
                     TTTBlock(
                         dim,
-                        dim_ff_hidden,
+                        dim_hidden,
                         num_head,
                         base_lr,
                         chunk_size,

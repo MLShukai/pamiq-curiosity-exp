@@ -7,7 +7,7 @@ from exp.models.components.ttt import TTT
 BATCH = 4
 DEPTH = 8
 DIM = 16
-DIM_FF_HIDDEN = 32
+DIM_HIDDEN = 32
 LEN = 64
 DROPOUT = 0.1
 NUM_HEAD = 4
@@ -16,17 +16,21 @@ NUM_HEAD = 4
 class TestStackedHiddenState:
     @pytest.fixture
     def qlstm(self):
-        return QLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
+        return QLSTM(DEPTH, DIM, DIM_HIDDEN, DROPOUT)
 
     @pytest.mark.parametrize(
         "x_shape,hidden_shape,expected_hidden_shape",
         [
-            ((BATCH, LEN, DIM), (BATCH, DEPTH, DIM), (BATCH, DEPTH, LEN, DIM)),
-            ((LEN, DIM), (DEPTH, DIM), (DEPTH, LEN, DIM)),
+            (
+                (BATCH, LEN, DIM),
+                (BATCH, DEPTH, DIM_HIDDEN),
+                (BATCH, DEPTH, LEN, DIM_HIDDEN),
+            ),
+            ((LEN, DIM), (DEPTH, DIM_HIDDEN), (DEPTH, LEN, DIM_HIDDEN)),
             (
                 (1, 2, 3, BATCH, LEN, DIM),
-                (1, 2, 3, BATCH, DEPTH, DIM),
-                (1, 2, 3, BATCH, DEPTH, LEN, DIM),
+                (1, 2, 3, BATCH, DEPTH, DIM_HIDDEN),
+                (1, 2, 3, BATCH, DEPTH, LEN, DIM_HIDDEN),
             ),
         ],
     )
@@ -44,9 +48,9 @@ class TestStackedHiddenState:
     @pytest.mark.parametrize(
         "x_shape,expected_hidden_shape",
         [
-            ((BATCH, LEN, DIM), (BATCH, DEPTH, LEN, DIM)),
-            ((LEN, DIM), (DEPTH, LEN, DIM)),
-            ((1, 2, 3, BATCH, LEN, DIM), (1, 2, 3, BATCH, DEPTH, LEN, DIM)),
+            ((BATCH, LEN, DIM), (BATCH, DEPTH, LEN, DIM_HIDDEN)),
+            ((LEN, DIM), (DEPTH, LEN, DIM_HIDDEN)),
+            ((1, 2, 3, BATCH, LEN, DIM), (1, 2, 3, BATCH, DEPTH, LEN, DIM_HIDDEN)),
         ],
     )
     def test_forward_without_hidden(self, qlstm, x_shape, expected_hidden_shape):
@@ -60,11 +64,10 @@ class TestStackedHiddenState:
     @pytest.mark.parametrize(
         "x_shape,hidden_shape,error_msg",
         [
-            ((BATCH, LEN, DIM), (BATCH + 1, DEPTH, DIM), "Batch shape mismatch"),
-            ((BATCH, LEN, DIM), (BATCH, DEPTH, DIM + 1), "Feature dim mismatch"),
+            ((BATCH, LEN, DIM), (BATCH + 1, DEPTH, DIM_HIDDEN), "Batch shape mismatch"),
             (
                 (2, 3, BATCH, LEN, DIM),
-                (2, 4, BATCH, DEPTH, DIM),
+                (2, 4, BATCH, DEPTH, DIM_HIDDEN),
                 "Batch shape mismatch",
             ),
         ],
@@ -84,7 +87,7 @@ class TestStackedTTT:
         return TTT(
             DEPTH,
             DIM,
-            DIM_FF_HIDDEN,
+            DIM_HIDDEN,
             NUM_HEAD,
             base_lr=(0.0001, 0.01),
             chunk_size=16,
@@ -97,10 +100,10 @@ class TestStackedTTT:
         hidden = [
             {
                 "W1": torch.randn(
-                    BATCH, NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD, DIM // NUM_HEAD
+                    BATCH, NUM_HEAD, DIM_HIDDEN // NUM_HEAD, DIM // NUM_HEAD
                 ),
                 "W2": torch.randn(
-                    BATCH, NUM_HEAD, DIM // NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD
+                    BATCH, NUM_HEAD, DIM // NUM_HEAD, DIM_HIDDEN // NUM_HEAD
                 ),
             }
             for _ in range(DEPTH)
@@ -125,9 +128,9 @@ class TestStackedTTT:
         assert len(hidden_out) == DEPTH
         assert all(
             hidden_out[i]["W1"].shape
-            == (BATCH, NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD, DIM // NUM_HEAD)
+            == (BATCH, NUM_HEAD, DIM_HIDDEN // NUM_HEAD, DIM // NUM_HEAD)
             and hidden_out[i]["W2"].shape
-            == (BATCH, NUM_HEAD, DIM // NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD)
+            == (BATCH, NUM_HEAD, DIM // NUM_HEAD, DIM_HIDDEN // NUM_HEAD)
             for i in range(DEPTH)
         )
         assert surprisal.shape == (BATCH, LEN, DEPTH, NUM_HEAD)
@@ -137,8 +140,8 @@ class TestStackedTTT:
         x = torch.randn(LEN, DIM)
         hidden = [
             {
-                "W1": torch.randn(NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD, DIM // NUM_HEAD),
-                "W2": torch.randn(NUM_HEAD, DIM // NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD),
+                "W1": torch.randn(NUM_HEAD, DIM_HIDDEN // NUM_HEAD, DIM // NUM_HEAD),
+                "W2": torch.randn(NUM_HEAD, DIM // NUM_HEAD, DIM_HIDDEN // NUM_HEAD),
             }
             for _ in range(DEPTH)
         ]
@@ -162,9 +165,9 @@ class TestStackedTTT:
         assert len(hidden_out) == DEPTH
         assert all(
             hidden_out[i]["W1"].shape
-            == (NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD, DIM // NUM_HEAD)
+            == (NUM_HEAD, DIM_HIDDEN // NUM_HEAD, DIM // NUM_HEAD)
             and hidden_out[i]["W2"].shape
-            == (NUM_HEAD, DIM // NUM_HEAD, DIM_FF_HIDDEN // NUM_HEAD)
+            == (NUM_HEAD, DIM // NUM_HEAD, DIM_HIDDEN // NUM_HEAD)
             for i in range(DEPTH)
         )
         assert surprisal.shape == (LEN, DEPTH, NUM_HEAD)

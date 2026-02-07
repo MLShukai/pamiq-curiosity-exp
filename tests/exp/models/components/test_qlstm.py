@@ -6,7 +6,7 @@ from exp.models.components.qlstm import QLSTM, scan
 BATCH = 4
 DEPTH = 8
 DIM = 16
-DIM_FF_HIDDEN = 32
+DIM_HIDDEN = 32
 LEN = 64
 DROPOUT = 0.1
 
@@ -23,23 +23,23 @@ class TestScan:
 class TestQLSTM:
     @pytest.fixture
     def qlstm(self):
-        qlstm = QLSTM(DEPTH, DIM, DIM_FF_HIDDEN, DROPOUT)
+        qlstm = QLSTM(DEPTH, DIM, DIM_HIDDEN, DROPOUT)
         return qlstm
 
     def test_qlstm(self, qlstm):
         """Test QLSTM with provided hidden state."""
         x_shape = (BATCH, LEN, DIM)
         x = torch.randn(*x_shape)
-        hidden_shape = (BATCH, DEPTH, DIM)
+        hidden_shape = (BATCH, DEPTH, DIM_HIDDEN)
         hidden = torch.randn(*hidden_shape)
 
         x, hidden_out = qlstm(x, hidden)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM_HIDDEN)
 
         x, hidden_out = qlstm(x, hidden_out[:, :, -1, :])
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM_HIDDEN)
 
     def test_qlstm_no_hidden(self, qlstm):
         """Test QLSTM without providing hidden state."""
@@ -48,9 +48,9 @@ class TestQLSTM:
 
         x, hidden_out = qlstm(x)
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM_HIDDEN)
 
         # Test continuing with the output hidden state
         x, hidden_out = qlstm(x, hidden_out[:, :, -1, :])
         assert x.shape == x_shape
-        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM)
+        assert hidden_out.shape == (BATCH, DEPTH, LEN, DIM_HIDDEN)

@@ -17,7 +17,7 @@ class TestStackedHiddenPiV:
     OBS_DIM_HIDDEN = 12
     OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [2, 3, 4]
-    DIM_FF_HIDDEN = 16
+    DIM_HIDDEN = 16
 
     @pytest.fixture
     def obs_info(self):
@@ -32,7 +32,7 @@ class TestStackedHiddenPiV:
         return QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             dropout=0.0,
         )
 
@@ -53,7 +53,7 @@ class TestStackedHiddenPiV:
 
     @pytest.fixture
     def hidden(self):
-        return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM)
+        return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM_HIDDEN)
 
     def test_forward(self, policy_value_model, observation, hidden):
         """Test forward pass of StackedHiddenPiV model."""
@@ -77,7 +77,7 @@ class TestStackedHiddenPiV:
             self.BATCH_SIZE,
             self.DEPTH,
             self.SEQ_LEN,
-            self.DIM,
+            self.DIM_HIDDEN,
         )
 
         # Check distribution properties
@@ -103,7 +103,7 @@ class TestStackedHiddenPiV:
         sample_action = policy_dist.sample()
         assert sample_action.shape == (1, self.SEQ_LEN, len(self.ACTION_CHOICES))
         assert value.shape == (1, self.SEQ_LEN)
-        assert next_hidden.shape == (1, self.DEPTH, self.SEQ_LEN, self.DIM)
+        assert next_hidden.shape == (1, self.DEPTH, self.SEQ_LEN, self.DIM_HIDDEN)
 
     def test_forward_with_no_len(self, policy_value_model, hidden):
         """Test forward_with_no_len for inference without sequence
@@ -123,7 +123,7 @@ class TestStackedHiddenPiV:
         assert next_hidden.shape == (
             self.BATCH_SIZE,
             self.DEPTH,
-            self.DIM,
+            self.DIM_HIDDEN,
         )
 
         # Check distribution properties
@@ -152,7 +152,7 @@ class TestStackedHiddenPiV:
             self.BATCH_SIZE,
             self.DEPTH,
             self.SEQ_LEN,
-            self.DIM,
+            self.DIM_HIDDEN,
         )
 
     def test_forward_with_no_len_no_hidden(self, policy_value_model):
@@ -172,5 +172,5 @@ class TestStackedHiddenPiV:
         assert next_hidden.shape == (
             self.BATCH_SIZE,
             self.DEPTH,
-            self.DIM,
+            self.DIM_HIDDEN,
         )

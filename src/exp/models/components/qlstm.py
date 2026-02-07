@@ -129,19 +129,23 @@ class QLSTMLayer(nn.Module):
     is designed to be used in a QLSTM block.
     """
 
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, dim_hidden: int):
         """Initialize the QLSTM layer.
 
         Args:
             dim: The number of features in the input.
+            dim_hidden: The number of features in the hidden state.
         """
         super().__init__()
         self.dim = dim
-        self.fc_forget = nn.Linear(dim, dim)
-        self.fc_input = nn.Linear(dim, dim)
-        self.fc_input_gate = nn.Linear(dim, dim)
-        self.fc_output_gate = nn.Linear(dim, dim)
+        self.dim_hidden = dim_hidden
+        self.fc_forget = nn.Linear(dim, dim_hidden)
+        self.fc_input = nn.Linear(dim, dim_hidden)
+        self.fc_input_gate = nn.Linear(dim, dim_hidden)
+        self.fc_output = nn.Linear(dim_hidden, dim)
+        self.fc_output_gate = nn.Linear(dim_hidden, dim)
         self.sigmoid = nn.Sigmoid()
+        self.dim_hidden = dim_hidden
         self.tanh = nn.Tanh()
 
     __call__: Callable[[Tensor, Tensor | None], tuple[Tensor, Tensor]]
@@ -158,23 +162,23 @@ class QLSTMLayer(nn.Module):
         """
         batch, len, dim = x.shape
         if hidden is None:
-            hidden = torch.zeros(batch, dim, device=x.device, dtype=x.dtype)
+            hidden = torch.zeros(batch, self.dim_hidden, device=x.device, dtype=x.dtype)
 
-        forget = F.sigmoid(self.fc_forget(x))  # (batch, len, dim)
+        forget = F.sigmoid(self.fc_forget(x))  # (batch, len, dim_hidden)
 
         input = self.tanh(self.fc_input(x)) * self.sigmoid(self.fc_input_gate(x))
         h_inner_chunk = (
             scan(
-                forget.transpose(2, 1).reshape(batch * dim, len),
-                input.transpose(2, 1).reshape(batch * dim, len),
+                forget.transpose(2, 1).reshape(batch * self.dim_hidden, len),
+                input.transpose(2, 1).reshape(batch * self.dim_hidden, len),
             )
-            .reshape(batch, dim, len)
+            .reshape(batch, self.dim_hidden, len)
             .transpose(2, 1)
         )
 
         h = torch.addcmul(h_inner_chunk, hidden[:, torch.newaxis, :], forget.cumprod(1))
 
-        y = self.tanh(h) * self.sigmoid(self.fc_output_gate(x))
+        y = self.tanh(self.fc_output(h)) * self.sigmoid(self.fc_output_gate(h))
         return y, h
 
 
@@ -182,7 +186,7 @@ class QLSTMBlock(nn.Module):
     """QLSTM Block, which consists of a QLSTM layer and a feed forward
     network."""
 
-    def __init__(self, dim: int, dim_ff_hidden: int, dropout: float):
+    def __init__(self, dim: int, dim_hidden: int, dropout: float):
         """Initialize the QLSTM block.
 
         Args:
@@ -191,8 +195,8 @@ class QLSTMBlock(nn.Module):
             dropout: The dropout rate.
         """
         super().__init__()
-        self.qlstm = QLSTMLayer(dim)
-        self.ffn = FFNSwiGLU(dim, dim_ff_hidden)
+        self.qlstm = QLSTMLayer(dim, dim_hidden)
+        self.ffn = FFNSwiGLU(dim, dim_hidden)
         self.norm_qlstm = RMSNorm(dim)
         self.norm_ffn = RMSNorm(dim)
         self.dropout = nn.Dropout(dropout)
@@ -225,7 +229,7 @@ class QLSTMBlock(nn.Module):
 class QLSTM(StackedHiddenState):
     """QLSTM, which is a stack of QLSTM blocks."""
 
-    def __init__(self, depth: int, dim: int, dim_ff_hidden: int, dropout: float):
+    def __init__(self, depth: int, dim: int, dim_hidden: int, dropout: float):
         """Initialize the QLSTM.
 
         Args:
@@ -235,9 +239,7 @@ class QLSTM(StackedHiddenState):
             dropout: The dropout rate.
         """
         super().__init__(
-            nn.ModuleList(
-                [QLSTMBlock(dim, dim_ff_hidden, dropout) for _ in range(depth)]
-            )
+            nn.ModuleList([QLSTMBlock(dim, dim_hidden, dropout) for _ in range(depth)])
         )
 
 

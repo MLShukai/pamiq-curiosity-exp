@@ -29,7 +29,7 @@ class TestPPOHiddenStatePiVTrainer:
     OBS_NUM_TOKENS = 4
     ACTION_CHOICES = [3, 4]  # Multiple discrete actions
     SEQ_LEN = 10
-    DIM_FF_HIDDEN = 16
+    DIM_HIDDEN = 16
 
     @pytest.fixture
     def policy_value_model(self):
@@ -41,7 +41,7 @@ class TestPPOHiddenStatePiVTrainer:
         core_model = QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             dropout=0.0,
         )
         return StackedHiddenPiV(
@@ -135,7 +135,7 @@ class TestPPOHiddenStatePiVTrainer:
         # Collect policy data
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
-            hidden = torch.randn(self.DEPTH, self.DIM)
+            hidden = torch.randn(self.DEPTH, self.DIM_HIDDEN)
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )
@@ -207,7 +207,7 @@ class TestPPOHiddenStatePiVTrainer:
         # Collect policy data with upper action
         for _ in range(20):
             observations = torch.randn(self.OBS_NUM_TOKENS, self.OBS_DIM)
-            hidden = torch.randn(self.DEPTH, self.DIM)
+            hidden = torch.randn(self.DEPTH, self.DIM_HIDDEN)
             actions = torch.stack(
                 [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
             )

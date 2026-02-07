@@ -31,14 +31,14 @@ fd_policy_value:
     time_mixer:
       _target_: exp.models.components.qgru.QGRU
       dim: 1024
-      dim_ff_hidden: ${python.eval:"${.dim} * 4"}
+      dim_hidden: 4096
       depth: 16
       dropout: 0.1
-      is_weak: true
+      is_weak: false
     core_model:
       _target_: exp.models.components.ttt.TTT
       dim: 1024
-      dim_ff_hidden: 4096
+      dim_hidden: 4096
       depth: 16
       num_head: 32
       base_lr: [0.0001, 0.1]

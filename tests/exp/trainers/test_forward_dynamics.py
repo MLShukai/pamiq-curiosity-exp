@@ -25,7 +25,7 @@ class TestHiddenStateFDTrainer:
     BATCH = 4
     DEPTH = 8
     DIM = 16
-    DIM_FF_HIDDEN = 32
+    DIM_HIDDEN = 32
     LEN = 64
     LEN_SEQ = 16
     DROPOUT = 0.1
@@ -42,7 +42,7 @@ class TestHiddenStateFDTrainer:
         core_model = QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             dropout=self.DROPOUT,
         )
         return StackedHiddenFD(
@@ -100,7 +100,7 @@ class TestHiddenStateFDTrainer:
                 {
                     DataKey.OBSERVATION: torch.randn(1, self.DIM_OBS),
                     DataKey.ACTION: self.create_action(),
-                    DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM),
+                    DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM_HIDDEN),
                 }
             )
 
@@ -156,7 +156,7 @@ class TestHiddenStateFDTrainerExplicitTarget:
     BATCH = 4
     DEPTH = 8
     DIM = 16
-    DIM_FF_HIDDEN = 32
+    DIM_HIDDEN = 32
     LEN = 64
     LEN_SEQ = 16
     DROPOUT = 0.1
@@ -172,7 +172,7 @@ class TestHiddenStateFDTrainerExplicitTarget:
         core_model = QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             dropout=self.DROPOUT,
         )
         return StackedHiddenFD(
@@ -249,7 +249,7 @@ class TestHiddenStateFDTrainerExplicitTarget:
                 {
                     DataKey.OBSERVATION: torch.randn(1, self.DIM_OBS),
                     DataKey.ACTION: self.create_action(),
-                    DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM),
+                    DataKey.HIDDEN: torch.randn(self.DEPTH, self.DIM_HIDDEN),
                     DataKey.TARGET: torch.randn(1, self.DIM_OBS),  # Explicit target
                 }
             )
