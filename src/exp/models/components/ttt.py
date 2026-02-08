@@ -23,6 +23,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         dim_hidden: int,
         num_head: int,
         base_lr: tuple[float, float],
+        normalize_hidden: bool = True,
     ):
         super().__init__()
         assert dim % num_head == 0, "dim must be divisible by num_head"
@@ -45,6 +46,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         self.fc_key = nn.Linear(dim, dim)
         self.fc_value = nn.Linear(dim, dim)
         self.fc_out = nn.Linear(dim, dim)
+        self.normalize_hidden = normalize_hidden
 
     __call__: Callable[
         [Tensor, dict[str, Tensor]], tuple[Tensor, dict[str, Tensor], Tensor]
@@ -57,6 +59,22 @@ class MultiHeadMLPTTTLayer(nn.Module):
         batch, length, dim = x.shape
         num_head = self.num_head
         head_dim = dim // num_head
+        head_dim_hidden = self.dim_hidden // num_head
+
+        if self.normalize_hidden:
+            hidden["W1"] = hidden["W1"] - hidden["W1"].mean(dim=(2, 3), keepdim=True)
+            hidden["W1"] = (
+                hidden["W1"]
+                / hidden["W1"].std(dim=(2, 3), keepdim=True)
+                * head_dim**-0.5
+            )
+            hidden["W2"] = hidden["W2"] - hidden["W2"].mean(dim=(2, 3), keepdim=True)
+            hidden["W2"] = (
+                hidden["W2"]
+                / hidden["W2"].std(dim=(2, 3), keepdim=True)
+                * head_dim_hidden**-0.5
+            )
+
         W1_prev = hidden["W1"]  # (batch, num_head, head_dim_hidden, head_dim)
         W2_prev = hidden["W2"]  # (batch, num_head, head_dim, head_dim_hidden)
         query = (
@@ -203,7 +221,6 @@ class ChunkwiseTTT(nn.Module):
         num_head: int,
         base_lr: tuple[float, float],
         chunk_size: int,
-        normalize_hidden: bool = True,
     ):
         super().__init__()
         self.chunk_size = chunk_size
@@ -211,7 +228,6 @@ class ChunkwiseTTT(nn.Module):
         self.num_head = num_head
         self.head_dim = dim // num_head
         self.head_dim_hidden = dim_hidden // num_head
-        self.normalize_hidden = normalize_hidden
 
     __call__: Callable[
         [Tensor, dict[str, Tensor] | None], tuple[Tensor, dict[str, Tensor], Tensor]
@@ -248,23 +264,6 @@ class ChunkwiseTTT(nn.Module):
         output_chunks = []
         surprisal_chunks = []
         for input_chunk in input_chunks:
-            if self.normalize_hidden:
-                hidden["W1"] = hidden["W1"] - hidden["W1"].mean(
-                    dim=(2, 3), keepdim=True
-                )
-                hidden["W1"] = (
-                    hidden["W1"]
-                    / hidden["W1"].std(dim=(2, 3), keepdim=True)
-                    * self.head_dim**-0.5
-                )
-                hidden["W2"] = hidden["W2"] - hidden["W2"].mean(
-                    dim=(2, 3), keepdim=True
-                )
-                hidden["W2"] = (
-                    hidden["W2"]
-                    / hidden["W2"].std(dim=(2, 3), keepdim=True)
-                    * self.head_dim_hidden**-0.5
-                )
             output_chunk, hidden, surprisal = self.memory(input_chunk, hidden)
             output_chunks.append(output_chunk)
             surprisal_chunks.append(surprisal)
