@@ -327,7 +327,7 @@ class TTTFDPiV(nn.Module):
             obs_action_proj, hidden_time, no_len=no_len
         )
         x, next_hidden_ttt, surprisal = self.core_model(
-            obs_emb, hidden_ttt, no_len=no_len
+            obs_emb.detach(), hidden_ttt, no_len=no_len
         )
         obs_hat = self.obs_hat_head(x)
         external_action_dist = self.external_action_head(obs_emb)
