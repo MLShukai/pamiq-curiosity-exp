@@ -19,10 +19,6 @@ fd_policy_value:
     internal_action_dim: 256
     internal_state_dim: 1
     dim: ${.core_model.dim}
-    surprisal_shape:
-      - ${..core_model.depth}
-      - ${..core_model.num_head}
-      - ${python.eval:"${..core_model.dim} // ${..core_model.num_head}"}
     obs_encoder:
       _target_: exp.models.components.cnn_encoder.CNNEncoder
       input_channels: ${shared.image.channels}

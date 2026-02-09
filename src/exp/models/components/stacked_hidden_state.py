@@ -139,5 +139,5 @@ class StackedTTT(nn.Module):
 
         if no_len:
             x = x.squeeze(-2)
-            surprisal = surprisal.squeeze(-3)
+            surprisal = surprisal.squeeze(-4)
         return x, hidden_out_list, surprisal

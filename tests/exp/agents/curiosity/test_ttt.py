@@ -39,9 +39,7 @@ class TestTTTCuriosityAgent:
             "time": torch.randn(DEPTH, HIDDEN_DIM),
             "ttt": [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
         }
-        surprisal = torch.randn(DEPTH, 4)
-        active_surprisal = torch.randn(DEPTH, 4)
-        stable_surprisal = torch.randn(DEPTH, 4)
+        surprisal = torch.randn(DEPTH, 4, 6)
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
@@ -50,8 +48,6 @@ class TestTTTCuriosityAgent:
             value,
             hidden,
             surprisal,
-            active_surprisal,
-            stable_surprisal,
         )
 
         return {
@@ -161,6 +157,7 @@ class TestTTTCuriosityAgent:
         agent.internal_action = torch.randn(ACTION_DIM)
         agent.fatigue = torch.randn(1)
         agent.surprisal_mean_ema = torch.randn(1)
+        agent.surprisal_coef = torch.randn(1)
 
         # Save state
         save_path = tmp_path / "agent_state"
@@ -171,6 +168,7 @@ class TestTTTCuriosityAgent:
         assert (save_path / "internal_action.pt").exists()
         assert (save_path / "fatigue.pt").exists()
         assert (save_path / "surprisal_mean_ema.pt").exists()
+        assert (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
@@ -210,6 +208,8 @@ class TestTTTCuriosityAgent:
         assert torch.equal(new_agent.fatigue, agent.fatigue)
         assert new_agent.surprisal_mean_ema is not None
         assert torch.equal(new_agent.surprisal_mean_ema, agent.surprisal_mean_ema)
+        assert new_agent.surprisal_coef is not None
+        assert torch.equal(new_agent.surprisal_coef, agent.surprisal_coef)
 
     def test_save_and_load_state_with_none_hidden(
         self, agent: TTTCuriosityAgent, tmp_path
@@ -221,7 +221,7 @@ class TestTTTCuriosityAgent:
         agent.internal_action = None
         agent.fatigue = None
         agent.surprisal_mean_ema = None
-
+        agent.surprisal_coef = None
         # Save state
         save_path = tmp_path / "agent_state_none"
         agent.save_state(save_path)
@@ -231,6 +231,7 @@ class TestTTTCuriosityAgent:
         assert not (save_path / "internal_action.pt").exists()
         assert not (save_path / "fatigue.pt").exists()
         assert not (save_path / "surprisal_mean_ema.pt").exists()
+        assert not (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "global_step").exists()
 
         # Create new agent and load state
@@ -242,4 +243,5 @@ class TestTTTCuriosityAgent:
         assert new_agent.internal_action is None
         assert new_agent.fatigue is None
         assert new_agent.surprisal_mean_ema is None
+        assert new_agent.surprisal_coef is None
         assert new_agent.global_step == 100
