@@ -197,7 +197,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
-        self.metrics["surprisal"] = surprisal.mean().item()
         if self.surprisal_coef is None:
             surprisal_depth, surprisal_num_head, surprisal_dim_per_head = (
                 surprisal.shape
@@ -209,10 +208,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             self.surprisal_coef = (
                 surprisal_rand < surprisal_depth_factor
             ).float() * 2 - 1  # -1 or 1
-        active_surprisal = F.relu(surprisal * -self.surprisal_coef)
-        stable_surprisal = F.relu(surprisal * self.surprisal_coef)
-        self.metrics["active_surprisal"] = active_surprisal.mean().item()
-        self.metrics["stable_surprisal"] = stable_surprisal.mean().item()
+        shallow_surprisal = F.relu(surprisal * -self.surprisal_coef)
+        deep_surprisal = F.relu(surprisal * self.surprisal_coef)
 
         surprisal_mean = surprisal.mean().detach()
         self.surprisal_mean_ema = (
@@ -221,25 +218,44 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             else self.surprisal_mean_ema * self.surprisal_mean_ema_decay
             + surprisal_mean * (1 - self.surprisal_mean_ema_decay)
         )
-        normalized_surprisal_mean = surprisal_mean / (
-            (self.surprisal_mean_ema if self.surprisal_mean_ema is not None else 0)
-            + 1e-8
-        )
-        self.fatigue = (
-            torch.zeros(1, dtype=self.dtype, device=self.device)
-            if self.fatigue is None
-            else self.fatigue * self.fatigue_decay
-            + normalized_surprisal_mean * (1 - self.fatigue_decay)
-        )
-        if self.fatigue is not None:
-            inhibitatory = -active_surprisal
-            excitatory = stable_surprisal
-            reward = (excitatory + inhibitatory * self.fatigue).mean()
 
-            self.metrics["reward"] = reward.item()
-            self.metrics["fatigue"] = self.fatigue.item()
+        self.metrics["surprisal"] = surprisal.mean().item()
+        self.metrics["shallow_surprisal"] = shallow_surprisal.mean().item()
+        self.metrics["deep_surprisal"] = deep_surprisal.mean().item()
 
-            self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
+        if self.surprisal_mean_ema is not None:
+            normalized_surprisal_mean = surprisal_mean / self.surprisal_mean_ema
+
+            normalized_shallow_surprisal = (
+                shallow_surprisal / self.surprisal_mean_ema.item()
+            )
+            normalized_deep_surprisal = deep_surprisal / self.surprisal_mean_ema.item()
+
+            self.metrics["normalized_surprisal"] = (
+                surprisal.mean().item() / self.surprisal_mean_ema.item()
+            )
+            self.metrics["normalized_shallow_surprisal"] = (
+                normalized_shallow_surprisal.mean().item()
+            )
+            self.metrics["normalized_deep_surprisal"] = (
+                normalized_deep_surprisal.mean().item()
+            )
+
+            self.fatigue = (
+                torch.zeros(1, dtype=self.dtype, device=self.device)
+                if self.fatigue is None
+                else self.fatigue * self.fatigue_decay
+                + normalized_surprisal_mean * (1 - self.fatigue_decay)
+            )
+            if self.fatigue is not None:
+                inhibitatory = -normalized_shallow_surprisal
+                excitatory = normalized_deep_surprisal
+                reward = (excitatory + inhibitatory * self.fatigue).mean()
+
+                self.metrics["reward"] = reward.item()
+                self.metrics["fatigue"] = self.fatigue.item()
+
+                self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
         # ==============================================================================
         #                               Data Collection
