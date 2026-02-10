@@ -205,17 +205,15 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             surprisal_depth_factor = torch.linspace(
                 0.0, 1.0, surprisal_depth, device=self.device
             )[:, None, None].expand(-1, surprisal_num_head, surprisal_dim_per_head)
-            self.surprisal_coef = (
-                surprisal_rand < surprisal_depth_factor
-            ).float() * 2 - 1  # -1 or 1
-        shallow_surprisal = F.relu(surprisal * -self.surprisal_coef)
-        deep_surprisal = F.relu(surprisal * self.surprisal_coef)
+            self.surprisal_coef = (surprisal_rand < surprisal_depth_factor).float()
+        shallow_surprisal = surprisal * (1 - self.surprisal_coef)
+        deep_surprisal = surprisal * self.surprisal_coef
 
-        surprisal_mean = surprisal.mean().detach()
+        surprisal_mean: Tensor = surprisal.mean().detach()
+        if self.surprisal_mean_ema is None:
+            self.surprisal_mean_ema = surprisal_mean
         self.surprisal_mean_ema = (
-            surprisal_mean
-            if self.surprisal_mean_ema is None
-            else self.surprisal_mean_ema * self.surprisal_mean_ema_decay
+            self.surprisal_mean_ema * self.surprisal_mean_ema_decay
             + surprisal_mean * (1 - self.surprisal_mean_ema_decay)
         )
 
@@ -223,39 +221,37 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.metrics["shallow_surprisal"] = shallow_surprisal.mean().item()
         self.metrics["deep_surprisal"] = deep_surprisal.mean().item()
 
-        if self.surprisal_mean_ema is not None:
-            normalized_surprisal_mean = surprisal_mean / self.surprisal_mean_ema
+        normalized_surprisal_mean = surprisal_mean / self.surprisal_mean_ema
 
-            normalized_shallow_surprisal = (
-                shallow_surprisal / self.surprisal_mean_ema.item()
-            )
-            normalized_deep_surprisal = deep_surprisal / self.surprisal_mean_ema.item()
+        normalized_shallow_surprisal = (
+            shallow_surprisal / self.surprisal_mean_ema.item()
+        )
+        normalized_deep_surprisal = deep_surprisal / self.surprisal_mean_ema.item()
 
-            self.metrics["normalized_surprisal"] = (
-                surprisal.mean().item() / self.surprisal_mean_ema.item()
-            )
-            self.metrics["normalized_shallow_surprisal"] = (
-                normalized_shallow_surprisal.mean().item()
-            )
-            self.metrics["normalized_deep_surprisal"] = (
-                normalized_deep_surprisal.mean().item()
-            )
+        self.metrics["normalized_surprisal"] = (
+            surprisal.mean().item() / self.surprisal_mean_ema.item()
+        )
+        self.metrics["normalized_shallow_surprisal"] = (
+            normalized_shallow_surprisal.mean().item()
+        )
+        self.metrics["normalized_deep_surprisal"] = (
+            normalized_deep_surprisal.mean().item()
+        )
 
-            self.fatigue = (
-                torch.zeros(1, dtype=self.dtype, device=self.device)
-                if self.fatigue is None
-                else self.fatigue * self.fatigue_decay
-                + normalized_surprisal_mean * (1 - self.fatigue_decay)
-            )
-            if self.fatigue is not None:
-                inhibitatory = -normalized_shallow_surprisal
-                excitatory = normalized_deep_surprisal
-                reward = (excitatory + inhibitatory * self.fatigue).mean()
+        if self.fatigue is None:
+            self.fatigue = torch.zeros(1, dtype=self.dtype, device=self.device)
+        self.fatigue = self.fatigue * self.fatigue_decay + normalized_surprisal_mean * (
+            1 - self.fatigue_decay
+        )
 
-                self.metrics["reward"] = reward.item()
-                self.metrics["fatigue"] = self.fatigue.item()
+        inhibitatory = normalized_shallow_surprisal
+        excitatory = normalized_deep_surprisal
+        reward = (excitatory + inhibitatory * (1 - self.fatigue)).mean()
 
-                self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
+        self.metrics["reward"] = reward.item()
+        self.metrics["fatigue"] = self.fatigue.item()
+
+        self.step_data_fd_piv[DataKey.REWARD] = reward.cpu()
 
         # ==============================================================================
         #                               Data Collection
