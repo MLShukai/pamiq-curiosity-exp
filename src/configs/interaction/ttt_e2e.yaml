@@ -10,5 +10,7 @@ agent:
     _target_: exp.agents.no_collect.NoCollectAgent
   curiosity:
     _target_: exp.agents.curiosity.ttt.TTTCuriosityAgent
+    surprisal_mean_ema_decay: 0.9999
+    fatigue_decay: 0.999
     device: ${shared.device}
     dtype: ${shared.dtype}
