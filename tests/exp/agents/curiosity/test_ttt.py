@@ -157,6 +157,8 @@ class TestTTTCuriosityAgent:
         agent.internal_action = torch.randn(ACTION_DIM)
         agent.fatigue = torch.randn(1)
         agent.surprisal_mean_ema = torch.randn(1)
+        agent.shallow_surprisal_mean_ema = torch.randn(1)
+        agent.deep_surprisal_mean_ema = torch.randn(1)
         agent.surprisal_coef = torch.randn(1)
 
         # Save state
@@ -168,6 +170,8 @@ class TestTTTCuriosityAgent:
         assert (save_path / "internal_action.pt").exists()
         assert (save_path / "fatigue.pt").exists()
         assert (save_path / "surprisal_mean_ema.pt").exists()
+        assert (save_path / "shallow_surprisal_mean_ema.pt").exists()
+        assert (save_path / "deep_surprisal_mean_ema.pt").exists()
         assert (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -208,6 +212,14 @@ class TestTTTCuriosityAgent:
         assert torch.equal(new_agent.fatigue, agent.fatigue)
         assert new_agent.surprisal_mean_ema is not None
         assert torch.equal(new_agent.surprisal_mean_ema, agent.surprisal_mean_ema)
+        assert new_agent.shallow_surprisal_mean_ema is not None
+        assert torch.equal(
+            new_agent.shallow_surprisal_mean_ema, agent.shallow_surprisal_mean_ema
+        )
+        assert new_agent.deep_surprisal_mean_ema is not None
+        assert torch.equal(
+            new_agent.deep_surprisal_mean_ema, agent.deep_surprisal_mean_ema
+        )
         assert new_agent.surprisal_coef is not None
         assert torch.equal(new_agent.surprisal_coef, agent.surprisal_coef)
 
@@ -221,6 +233,8 @@ class TestTTTCuriosityAgent:
         agent.internal_action = None
         agent.fatigue = None
         agent.surprisal_mean_ema = None
+        agent.shallow_surprisal_mean_ema = None
+        agent.deep_surprisal_mean_ema = None
         agent.surprisal_coef = None
         # Save state
         save_path = tmp_path / "agent_state_none"
@@ -231,6 +245,8 @@ class TestTTTCuriosityAgent:
         assert not (save_path / "internal_action.pt").exists()
         assert not (save_path / "fatigue.pt").exists()
         assert not (save_path / "surprisal_mean_ema.pt").exists()
+        assert not (save_path / "shallow_surprisal_mean_ema.pt").exists()
+        assert not (save_path / "deep_surprisal_mean_ema.pt").exists()
         assert not (save_path / "surprisal_coef.pt").exists()
         assert (save_path / "global_step").exists()
 
@@ -243,5 +259,7 @@ class TestTTTCuriosityAgent:
         assert new_agent.internal_action is None
         assert new_agent.fatigue is None
         assert new_agent.surprisal_mean_ema is None
+        assert new_agent.shallow_surprisal_mean_ema is None
+        assert new_agent.deep_surprisal_mean_ema is None
         assert new_agent.surprisal_coef is None
         assert new_agent.global_step == 100

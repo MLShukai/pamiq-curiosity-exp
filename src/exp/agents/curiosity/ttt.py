@@ -65,8 +65,10 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.hidden_state = None
         self.external_action = None
         self.internal_action = None
-        self.surprisal_mean_ema = None
         self.surprisal_mean_ema_decay = surprisal_mean_ema_decay
+        self.surprisal_mean_ema = None
+        self.shallow_surprisal_mean_ema = None
+        self.deep_surprisal_mean_ema = None
         self.surprisal_coef = None
         self.fatigue = None
         self.fatigue_decay = fatigue_decay
@@ -98,6 +100,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     external_action: Tensor | None  # (action_choices,) or None
     internal_action: Tensor | None  # (dim,) or None
     surprisal_mean_ema: Tensor | None
+    shallow_surprisal_mean_ema: Tensor | None
+    deep_surprisal_mean_ema: Tensor | None
     surprisal_coef: Tensor | None
     fatigue: Tensor | None
     obs_hat: Tensor | None
@@ -216,17 +220,30 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             self.surprisal_mean_ema * self.surprisal_mean_ema_decay
             + surprisal_mean * (1 - self.surprisal_mean_ema_decay)
         )
+        shallow_surprisal_mean: Tensor = shallow_surprisal.mean().detach()
+        if self.shallow_surprisal_mean_ema is None:
+            self.shallow_surprisal_mean_ema = shallow_surprisal_mean
+        self.shallow_surprisal_mean_ema = (
+            self.shallow_surprisal_mean_ema * self.surprisal_mean_ema_decay
+            + shallow_surprisal_mean * (1 - self.surprisal_mean_ema_decay)
+        )
+        deep_surprisal_mean: Tensor = deep_surprisal.mean().detach()
+        if self.deep_surprisal_mean_ema is None:
+            self.deep_surprisal_mean_ema = deep_surprisal_mean
+        self.deep_surprisal_mean_ema = (
+            self.deep_surprisal_mean_ema * self.surprisal_mean_ema_decay
+            + deep_surprisal_mean * (1 - self.surprisal_mean_ema_decay)
+        )
 
-        self.metrics["surprisal"] = surprisal.mean().item()
-        self.metrics["shallow_surprisal"] = shallow_surprisal.mean().item()
-        self.metrics["deep_surprisal"] = deep_surprisal.mean().item()
+        self.metrics["surprisal"] = surprisal_mean.item()
+        self.metrics["shallow_surprisal"] = shallow_surprisal_mean.item()
+        self.metrics["deep_surprisal"] = deep_surprisal_mean.item()
 
         normalized_surprisal_mean = surprisal_mean / self.surprisal_mean_ema
-
         normalized_shallow_surprisal = (
-            shallow_surprisal / self.surprisal_mean_ema.item()
+            shallow_surprisal / self.shallow_surprisal_mean_ema.item()
         )
-        normalized_deep_surprisal = deep_surprisal / self.surprisal_mean_ema.item()
+        normalized_deep_surprisal = deep_surprisal / self.deep_surprisal_mean_ema.item()
 
         self.metrics["normalized_surprisal"] = (
             surprisal.mean().item() / self.surprisal_mean_ema.item()
@@ -244,9 +261,9 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             1 - self.fatigue_decay
         )
 
-        inhibitatory = normalized_shallow_surprisal
-        excitatory = normalized_deep_surprisal
-        reward = (excitatory + inhibitatory * (1 - self.fatigue)).mean()
+        reward = (
+            normalized_deep_surprisal - normalized_shallow_surprisal * self.fatigue
+        ).mean()
 
         self.metrics["reward"] = reward.item()
         self.metrics["fatigue"] = self.fatigue.item()
@@ -313,6 +330,14 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             torch.save(self.fatigue, path / "fatigue.pt")
         if self.surprisal_mean_ema is not None:
             torch.save(self.surprisal_mean_ema, path / "surprisal_mean_ema.pt")
+        if self.shallow_surprisal_mean_ema is not None:
+            torch.save(
+                self.shallow_surprisal_mean_ema, path / "shallow_surprisal_mean_ema.pt"
+            )
+        if self.deep_surprisal_mean_ema is not None:
+            torch.save(
+                self.deep_surprisal_mean_ema, path / "deep_surprisal_mean_ema.pt"
+            )
         if self.surprisal_coef is not None:
             torch.save(self.surprisal_coef, path / "surprisal_coef.pt")
         (path / "global_step").write_text(str(self.global_step), "utf-8")
@@ -357,6 +382,18 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.surprisal_mean_ema = (
             torch.load(surprisal_mean_ema_path, map_location=self.device)
             if surprisal_mean_ema_path.exists()
+            else None
+        )
+        shallow_surprisal_mean_ema_path = path / "shallow_surprisal_mean_ema.pt"
+        self.shallow_surprisal_mean_ema = (
+            torch.load(shallow_surprisal_mean_ema_path, map_location=self.device)
+            if shallow_surprisal_mean_ema_path.exists()
+            else None
+        )
+        deep_surprisal_mean_ema_path = path / "deep_surprisal_mean_ema.pt"
+        self.deep_surprisal_mean_ema = (
+            torch.load(deep_surprisal_mean_ema_path, map_location=self.device)
+            if deep_surprisal_mean_ema_path.exists()
             else None
         )
         surprisal_coef_path = path / "surprisal_coef.pt"
