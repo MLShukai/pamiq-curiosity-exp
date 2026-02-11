@@ -8,6 +8,11 @@ defaults:
 
 shared:
   dtype: float32
+  image:
+    height: 144
+    width: 288
+    channels: 3
+
 
 experiment_name: "ttt_e2e"
 
