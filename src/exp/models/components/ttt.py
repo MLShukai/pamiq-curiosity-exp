@@ -39,9 +39,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
             requires_grad=False,
         )
         self.fc_lr_1 = nn.Linear(dim, num_head)
-        self.fc_weight_decay_1 = nn.Linear(dim, num_head)
         self.fc_lr_2 = nn.Linear(dim, num_head)
-        self.fc_weight_decay_2 = nn.Linear(dim, num_head)
         self.fc_query = nn.Linear(dim, dim)
         self.fc_key = nn.Linear(dim, dim)
         self.fc_value = nn.Linear(dim, dim)
@@ -62,17 +60,15 @@ class MultiHeadMLPTTTLayer(nn.Module):
         head_dim_hidden = self.dim_hidden // num_head
 
         if self.normalize_hidden:
-            hidden["W1"] = hidden["W1"] - hidden["W1"].mean(dim=(2, 3), keepdim=True)
             hidden["W1"] = (
                 hidden["W1"]
-                / hidden["W1"].std(dim=(2, 3), keepdim=True)
-                * head_dim**-0.5
+                / torch.linalg.matrix_norm(hidden["W1"], keepdim=True)
+                * head_dim_hidden**0.5
             )
-            hidden["W2"] = hidden["W2"] - hidden["W2"].mean(dim=(2, 3), keepdim=True)
             hidden["W2"] = (
                 hidden["W2"]
-                / hidden["W2"].std(dim=(2, 3), keepdim=True)
-                * head_dim_hidden**-0.5
+                / torch.linalg.matrix_norm(hidden["W2"], keepdim=True)
+                * head_dim**0.5
             )
 
         W1_prev = hidden["W1"]  # (batch, num_head, head_dim_hidden, head_dim)
@@ -90,11 +86,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         lr_1 = torch.exp(self.log_base_lr_1)[None, :, None] * F.sigmoid(
             self.fc_lr_1(x)
         ).transpose(2, 1)  # (batch, num_head, length)
-        log_weight_decay_1 = torch.log(
-            1
-            - torch.exp(self.log_base_lr_1)[None, :, None]
-            * F.sigmoid(self.fc_weight_decay_1(x)).transpose(2, 1)
-        )  # (batch, num_head, length)
+        log_weight_decay_1 = torch.log(1 - lr_1)  # (batch, num_head, length)
         weight_decay_cross_chunk_1 = torch.exp(
             torch.cumsum(log_weight_decay_1, dim=2)
         )  # (batch, num_head, length)
@@ -108,11 +100,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         lr_2 = torch.exp(self.log_base_lr_2)[None, :, None] * F.sigmoid(
             self.fc_lr_2(x)
         ).transpose(2, 1)  # (batch, num_head, length)
-        log_weight_decay_2 = torch.log(
-            1
-            - torch.exp(self.log_base_lr_2)[None, :, None]
-            * F.sigmoid(self.fc_weight_decay_2(x)).transpose(2, 1)
-        )  # (batch, num_head, length)
+        log_weight_decay_2 = torch.log(1 - lr_2)  # (batch, num_head, length)
         weight_decay_cross_chunk_2 = torch.exp(
             torch.cumsum(log_weight_decay_2, dim=2)
         )  # (batch, num_head, length)
@@ -240,22 +228,22 @@ class ChunkwiseTTT(nn.Module):
         batch, length, dim = x.shape
 
         if hidden is None:
+            W1 = torch.randn(
+                (batch, self.num_head, self.head_dim_hidden, self.head_dim),
+                device=x.device,
+                dtype=x.dtype,
+            )
             W1 = (
-                torch.randn(
-                    (batch, self.num_head, self.head_dim_hidden, self.head_dim),
-                    device=x.device,
-                    dtype=x.dtype,
-                )
-                * self.head_dim**-0.5
+                W1
+                / torch.linalg.matrix_norm(W1, keepdim=True)
+                * self.head_dim_hidden**0.5
             )
-            W2 = (
-                torch.randn(
-                    (batch, self.num_head, self.head_dim, self.head_dim_hidden),
-                    device=x.device,
-                    dtype=x.dtype,
-                )
-                * self.head_dim_hidden**-0.5
+            W2 = torch.randn(
+                (batch, self.num_head, self.head_dim, self.head_dim_hidden),
+                device=x.device,
+                dtype=x.dtype,
             )
+            W2 = W2 / torch.linalg.matrix_norm(W2, keepdim=True) * self.head_dim**0.5
             hidden = {"W1": W1, "W2": W2}
         else:
             hidden = {k: v.detach() for k, v in hidden.items()}
