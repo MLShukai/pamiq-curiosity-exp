@@ -261,9 +261,11 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             1 - self.fatigue_decay
         )
 
-        reward = (
-            normalized_deep_surprisal - normalized_shallow_surprisal * self.fatigue
-        ).mean()
+        reward = torch.tanh(
+            (
+                normalized_deep_surprisal - normalized_shallow_surprisal * self.fatigue
+            ).mean()
+        )
 
         self.metrics["reward"] = reward.item()
         self.metrics["fatigue"] = self.fatigue.item()
