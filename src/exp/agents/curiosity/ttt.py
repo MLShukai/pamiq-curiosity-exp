@@ -169,7 +169,11 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
                 for v in layer.values()
             )
 
-        internal_state = self.fatigue - 1.0 if self.fatigue is not None else None
+        internal_state = (
+            torch.clamp(self.fatigue, 0.0, 2.0) - 1.0
+            if self.fatigue is not None
+            else None
+        )
 
         action_dist: MultiDistributions
         value: Tensor
@@ -263,7 +267,11 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         reward = torch.tanh(
             (
-                normalized_deep_surprisal - normalized_shallow_surprisal * self.fatigue
+                torch.lerp(
+                    normalized_deep_surprisal,
+                    -normalized_shallow_surprisal,
+                    torch.clamp(self.fatigue, 0.0, 2.0) * 0.5,
+                )
             ).mean()
         )
 
