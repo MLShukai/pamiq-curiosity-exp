@@ -21,19 +21,20 @@ class CNNEncoder(nn.Module):
         conv_output_height = input_height
         conv_output_width = input_width
 
-        self.norm_in = nn.InstanceNorm2d(3)
-
         self.conv1 = nn.Conv2d(input_channels, 4, kernel_size=5, padding=2)
+        self.norm1 = nn.InstanceNorm2d(4)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
         conv_output_height = conv_output_height // 2
         conv_output_width = conv_output_width // 2
 
         self.conv2 = nn.Conv2d(4, 16, kernel_size=5, padding=2)
+        self.norm2 = nn.InstanceNorm2d(16)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
         conv_output_height = conv_output_height // 2
         conv_output_width = conv_output_width // 2
 
         self.conv3 = nn.Conv2d(16, 64, kernel_size=5, padding=2)
+        self.norm3 = nn.InstanceNorm2d(64)
         self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
         conv_output_height = conv_output_height // 2
         conv_output_width = conv_output_width // 2
@@ -60,10 +61,9 @@ class CNNEncoder(nn.Module):
         no_batch = x.ndim == 3
         if no_batch:
             x = x.unsqueeze(0)  # Add batch dimension if missing
-        x = self.norm_in(x)
-        x = self.pool1(self.act(self.conv1(x)))
-        x = self.pool2(self.act(self.conv2(x)))
-        x = self.pool3(self.act(self.conv3(x)))
+        x = self.pool1(self.act(self.norm1(self.conv1(x))))
+        x = self.pool2(self.act(self.norm2(self.conv2(x))))
+        x = self.pool3(self.act(self.norm3(self.conv3(x))))
         x = self.flatten(x)
         x = self.fc(x)
         x = self.norm_out(x)
