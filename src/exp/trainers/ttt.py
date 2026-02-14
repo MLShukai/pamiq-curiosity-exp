@@ -159,6 +159,8 @@ class TTTFDPiVTrainer(TorchTrainer):
             new_values,
             _,
             _,
+            shallow_surprisal,
+            deep_surprisal,
         ) = self.fd_piv.model(
             observations,
             external_previous_actions,

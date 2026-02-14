@@ -1,6 +1,7 @@
 """Defines forward-dynamics policy models."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from typing import override
 
 import torch
@@ -209,6 +210,7 @@ class TTTFDPiV(nn.Module):
         obs_encoder: nn.Module,
         time_mixer: StackedHiddenState,
         core_model: StackedTTT,
+        surprisal_shape: Iterable[int],
     ) -> None:
         """Initialize the forward-dynamics policy-value model.
 
@@ -244,6 +246,17 @@ class TTTFDPiV(nn.Module):
         self.external_action_head = FCMultiCategoricalHead(dim, action_info.choices)
         self.internal_action_head = FCBetaHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
+        self.surprisal_shape = surprisal_shape
+        depth = list(surprisal_shape)[0]
+        self.surprisal_coef = nn.Parameter(
+            (
+                torch.rand(*surprisal_shape)
+                < torch.linspace(0.0, 1.0, depth)[:, None, None]
+            ).float()
+            * 2.0
+            - 1.0,
+            requires_grad=False,
+        )
         self.dim = dim
 
     def _flatten_obs_action(
@@ -284,6 +297,8 @@ class TTTFDPiV(nn.Module):
         Tensor,
         Hidden,
         Tensor,
+        Tensor,
+        Tensor,
     ]:
         """Forward pass to predict next observation prediction, policy
         distribution, value estimate, and surprisal.
@@ -302,6 +317,8 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
+                - Tensor representing the shallow surprisal.
+                - Tensor representing the deep surprisal.
         """
         if obs.ndim == 5:  # (*batch, len, channels, height, width)
             batch_size, seq_len = obs.shape[:2]
@@ -333,6 +350,14 @@ class TTTFDPiV(nn.Module):
             "time": next_hidden_time,
             "ttt": next_hidden_ttt,
         }
+        shallow_surprisal = (
+            surprisal.detach() * torch.relu(-self.surprisal_coef)
+        ).mean(
+            dim=(-3, -2, -1)
+        )  # Sum over all surprisal dimensions except batch and time
+        deep_surprisal = (surprisal.detach() * torch.relu(self.surprisal_coef)).mean(
+            dim=(-3, -2, -1)
+        )  # Sum over all surprisal dimensions except batch and time
         return (
             obs_emb,
             obs_hat,
@@ -340,6 +365,8 @@ class TTTFDPiV(nn.Module):
             value,
             next_hidden,
             surprisal,
+            shallow_surprisal,
+            deep_surprisal,
         )
 
     def forward_with_no_len(
@@ -355,6 +382,8 @@ class TTTFDPiV(nn.Module):
         MultiDistributions,
         Tensor,
         Hidden,
+        Tensor,
+        Tensor,
         Tensor,
     ]:
         """Forward with data which has no len dim. (for inference procedure.)
@@ -373,8 +402,8 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
-                - Tensor representing the active surprisal.
-                - Tensor representing the stable surprisal.
+                - Tensor representing the shallow surprisal.
+                - Tensor representing the deep surprisal.
         """
         return self.forward(
             obs, external_action, internal_action, internal_state, hidden, no_len=True

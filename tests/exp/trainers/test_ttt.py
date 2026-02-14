@@ -64,6 +64,9 @@ class TestTTTFDPiVTrainer:
             obs_encoder=obs_encoder,
             time_mixer=time_mixer,
             core_model=core_model,
+            surprisal_shape=torch.Size(
+                [self.DEPTH, self.NUM_HEAD, self.DIM // self.NUM_HEAD]
+            ),
         )
 
     @pytest.fixture

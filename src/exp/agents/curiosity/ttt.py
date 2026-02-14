@@ -180,6 +180,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             value,
             self.hidden_state,
             surprisal,
+            shallow_surprisal,
+            deep_surprisal,
         ) = self.fd_piv(
             observation,
             self.external_action,
@@ -201,17 +203,6 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         # ==============================================================================
         #                             Reward Computation
         # ==============================================================================
-        if self.surprisal_coef is None:
-            surprisal_depth, surprisal_num_head, surprisal_dim_per_head = (
-                surprisal.shape
-            )
-            surprisal_rand = torch.rand_like(surprisal, device=self.device)
-            surprisal_depth_factor = torch.linspace(
-                0.0, 1.0, surprisal_depth, device=self.device
-            )[:, None, None].expand(-1, surprisal_num_head, surprisal_dim_per_head)
-            self.surprisal_coef = (surprisal_rand < surprisal_depth_factor).float()
-        shallow_surprisal = surprisal * (1 - self.surprisal_coef)
-        deep_surprisal = surprisal * self.surprisal_coef
 
         surprisal_mean: Tensor = surprisal.mean().detach()
         if self.surprisal_mean_ema is None:
