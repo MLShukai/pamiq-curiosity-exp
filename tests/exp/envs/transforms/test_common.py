@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from exp.envs.transforms.common import (
+    MeanDivide,
     Standardize,
     ToDevice,
     ToDtype,
@@ -117,6 +118,41 @@ class TestStandardize:
 
     def test_empty_tensor(self):
         transform = Standardize()
+        input_tensor = torch.tensor([])
+        output = transform(input_tensor)
+
+        assert output.shape == (0,)
+
+
+class TestMeanDivide:
+    @pytest.mark.parametrize(
+        "input_shape",
+        [(100,), (3, 32, 32), (5, 10, 10), (2, 3, 64, 64)],
+    )
+    def test_mean_division(self, input_shape):
+        transform = MeanDivide()
+        input_tensor = torch.randn(input_shape) * 5 + 3
+        output = transform(input_tensor)
+
+        assert output.mean().item() == pytest.approx(1.0, abs=1e-6)
+
+    def test_constant_tensor(self):
+        transform = MeanDivide(eps=1e-8)
+        input_tensor = torch.ones(10, 10) * 5.0
+        output = transform(input_tensor)
+
+        assert torch.allclose(output, torch.ones_like(output))
+
+    def test_single_value_tensor(self):
+        transform = MeanDivide()
+        input_tensor = torch.tensor([42.0])
+        output = transform(input_tensor)
+
+        assert output.shape == (1,)
+        assert output.item() == pytest.approx(1.0)
+
+    def test_empty_tensor(self):
+        transform = MeanDivide()
         input_tensor = torch.tensor([])
         output = transform(input_tensor)
 

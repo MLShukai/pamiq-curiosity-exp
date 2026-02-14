@@ -125,7 +125,7 @@ def create_env(
                 transforms.ToDevice(device),
                 transforms.image.ResizeAndCenterCrop(image_size),
                 transforms.ToDtype(dtype),
-                transforms.Standardize(),
+                transforms.MeanDivide(),
                 ToPureTensor(),
             ),
         ).wrap_sensor(ImageSensor()),
