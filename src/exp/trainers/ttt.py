@@ -56,7 +56,6 @@ class TTTFDPiVTrainer(TorchTrainer):
         external_action_entropy_coef_decay: float = 1.0,
         internal_action_entropy_coef: float = 0.0,
         internal_action_entropy_coef_decay: float = 1.0,
-        target_delay_frames: int = 1,
         vfunc_coef: float = 0.5,
         grad_clip_norm: float = 10.0,
         model_name: str = ModelName.FD_POLICY_VALUE,
@@ -103,7 +102,6 @@ class TTTFDPiVTrainer(TorchTrainer):
         self.external_action_entropy_coef_decay = external_action_entropy_coef_decay
         self.internal_action_entropy_coef = internal_action_entropy_coef
         self.internal_action_entropy_coef_decay = internal_action_entropy_coef_decay
-        self.target_delay_frames = target_delay_frames
         self.vfunc_coef = vfunc_coef
         self.global_step = 0
 
