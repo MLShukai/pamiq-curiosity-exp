@@ -247,14 +247,8 @@ class TTTFDPiV(nn.Module):
         self.internal_action_head = FCBetaHead(dim, internal_action_dim)
         self.value_head = FCScalarHead(dim, squeeze_scalar_dim=True)
         self.surprisal_shape = surprisal_shape
-        depth = list(surprisal_shape)[0]
         self.surprisal_coef = nn.Parameter(
-            (
-                torch.rand(*surprisal_shape)
-                < torch.linspace(0.0, 1.0, depth)[:, None, None]
-            ).float()
-            * 2.0
-            - 1.0,
+            torch.randn(*surprisal_shape),
             requires_grad=False,
         )
         self.dim = dim
