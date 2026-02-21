@@ -33,6 +33,11 @@ class TestTTTFDPiVTrainer:
     DIM_HIDDEN = 16
     NUM_HEAD = 4
     GET_INTERVAL = 16
+    DIM_EXTERNAL_ACTION = 16
+    DIM_ATTENTION = 17
+    DIM_SURPRISAL = 18
+    DIM_VALUE = 19
+    DIM_BODY_STATE = 1
 
     @pytest.fixture
     def fd_policy_value_model(self):
@@ -58,11 +63,15 @@ class TestTTTFDPiVTrainer:
         return TTTFDPiV(
             obs_dim_hidden=self.DIM,
             action_info=action_info,
+            external_action_dim=self.DIM_EXTERNAL_ACTION,
+            attention_dim=self.DIM_ATTENTION,
+            surprisal_dim=self.DIM_SURPRISAL,
+            value_dim=self.DIM_VALUE,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
-            internal_state_dim=1,
+            body_state_dim=self.DIM_BODY_STATE,
             dim=self.DIM,
             obs_encoder=obs_encoder,
-            time_mixer=time_mixer,
+            obs_time_mixer=time_mixer,
             core_model=core_model,
             surprisal_shape=torch.Size(
                 [self.DEPTH, self.NUM_HEAD, self.DIM // self.NUM_HEAD]
@@ -169,7 +178,12 @@ class TestTTTFDPiVTrainer:
                 "external_action": torch.stack(
                     [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
                 ),
-                "internal_action": torch.rand(self.DIM_INTERNAL_ACTION),
+                "internal_action": torch.rand(
+                    self.DIM_VALUE
+                    + self.DIM_ATTENTION
+                    + self.DIM_SURPRISAL
+                    + self.DIM_INTERNAL_ACTION
+                ),
             }
             previous_actions = actions
             action_log_probs = torch.randn(())

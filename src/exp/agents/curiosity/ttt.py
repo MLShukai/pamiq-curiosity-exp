@@ -28,7 +28,7 @@ STEP_DATA_REQUIRED_KEYS = {
 
 Hidden_Time = Tensor
 Hidden_TTT = list[dict[str, Tensor]]
-Hidden = dict[str, Hidden_Time | Hidden_TTT]
+Hidden = dict[str, Hidden_Time | Hidden_TTT | Tensor]
 Action = dict[str, Tensor]
 
 
