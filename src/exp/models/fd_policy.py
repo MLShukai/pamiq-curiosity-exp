@@ -348,10 +348,11 @@ class TTTFDPiV(nn.Module):
             obs_proj, hidden_time, no_len=no_len
         )
 
-        external_action_emb = (
+        external_action_emb = F.layer_norm(
             self.action_flatten(external_action)
             if external_action is not None
-            else obs_emb.new_zeros((*obs_emb.shape[:-1], self.external_action_dim))
+            else obs_emb.new_zeros((*obs_emb.shape[:-1], self.external_action_dim)),
+            (self.external_action_dim,),
         )
         if internal_action is not None and body_state is not None:
             if len(internal_action.shape) != len(body_state.shape):
