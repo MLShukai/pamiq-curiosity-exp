@@ -460,13 +460,13 @@ class TTTFDPiV(nn.Module):
             "ttt": next_hidden_ttt,
         }
         shallow_surprisal = (
-            surprisal.flatten().detach()
-            * F.softmax(surprisal_coef_logit.flatten(), dim=-1)
-        ).sum()
+            surprisal.detach()
+            * F.softmax(surprisal_coef_logit.flatten(), dim=-1).view(*surprisal.shape)
+        ).sum(dim=(-3, -2, -1))
         deep_surprisal = (
-            surprisal.flatten().detach()
-            * F.softmax(-surprisal_coef_logit.flatten(), dim=-1)
-        ).sum()
+            surprisal.detach()
+            * F.softmax(-surprisal_coef_logit.flatten(), dim=-1).view(*surprisal.shape)
+        ).sum(dim=(-3, -2, -1))
         return (
             obs_emb,
             obs_hat,
