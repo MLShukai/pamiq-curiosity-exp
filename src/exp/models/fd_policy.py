@@ -281,7 +281,7 @@ class TTTFDPiV(nn.Module):
         self.attention_coef_logit_projection = nn.Parameter(
             torch.randn(embedding_dim, attention_dim)
         )
-        self.surprisal_coef_projection = nn.Parameter(
+        self.surprisal_coef_logit_projection = nn.Parameter(
             torch.randn(*surprisal_shape, surprisal_dim)
         )
 
@@ -314,8 +314,6 @@ class TTTFDPiV(nn.Module):
         Tensor,
         Hidden,
         Tensor,
-        Tensor,
-        Tensor,
     ]:
         """Forward pass to predict next observation prediction, policy
         distribution, value estimate, and surprisal.
@@ -334,8 +332,6 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
-                - Tensor representing the shallow surprisal.
-                - Tensor representing the deep surprisal.
         """
         hidden_time = None if hidden is None else hidden["time"]
         hidden_ttt = None if hidden is None else hidden["ttt"]
@@ -376,7 +372,7 @@ class TTTFDPiV(nn.Module):
             ),
             self.attention_coef_logit_projection,
         )
-        surprisal_coef = torch.einsum(
+        surprisal_coef_logit = torch.einsum(
             "...i,dhji->...dhj",
             F.softmax(
                 internal_state[
@@ -387,7 +383,7 @@ class TTTFDPiV(nn.Module):
                 ],
                 dim=-1,
             ),
-            self.surprisal_coef_projection,
+            self.surprisal_coef_logit_projection,
         )
 
         emb = torch.cat((obs_emb, external_action_emb, internal_state), dim=-1)
@@ -453,12 +449,10 @@ class TTTFDPiV(nn.Module):
             "time": next_hidden_time,
             "ttt": next_hidden_ttt,
         }
-        shallow_surprisal = (F.relu(surprisal.detach() * surprisal_coef)).mean(
-            dim=(-3, -2, -1)
-        )
-        deep_surprisal = (F.relu(-surprisal.detach() * surprisal_coef)).mean(
-            dim=(-3, -2, -1)
-        )
+        surprisal = (
+            surprisal.detach()
+            * F.softmax(surprisal_coef_logit.flatten(), dim=-1).view(surprisal.shape)
+        ).mean(dim=(-3, -2, -1))
         return (
             obs_emb,
             obs_hat,
@@ -466,8 +460,6 @@ class TTTFDPiV(nn.Module):
             value,
             next_hidden,
             surprisal,
-            shallow_surprisal,
-            deep_surprisal,
         )
 
     def forward_with_no_len(
@@ -483,8 +475,6 @@ class TTTFDPiV(nn.Module):
         MultiDistributions,
         Tensor,
         Hidden,
-        Tensor,
-        Tensor,
         Tensor,
     ]:
         """Forward with data which has no len dim. (for inference procedure.)
@@ -503,8 +493,6 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the value estimate.
                 - Updated hidden state tensor for use in next prediction.
                 - Tensor representing the surprisal.
-                - Tensor representing the shallow surprisal.
-                - Tensor representing the deep surprisal.
         """
         return self.forward(
             obs, external_action, internal_state, body_state, hidden, no_len=True
