@@ -17,8 +17,8 @@ fd_policy_value:
         path: exp.envs.vrchat.OSC_ACTION_CHOICES
       dim: 8
     external_action_dim: 256
-    attention_dim: 32
-    surprisal_dim: 16
+    attention_dim: 64
+    surprisal_dim: 64
     value_dim: 64
     internal_action_dim: 256
     body_state_dim: 1

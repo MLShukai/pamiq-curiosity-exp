@@ -228,8 +228,8 @@ class TTTFDPiVTrainer(TorchTrainer):
         # Forward dynamics loss
         fd_loss = torch.nn.functional.mse_loss(obs_hat, obs_embeddings)
 
-        shallow_surprisal_loss = -shallow_surprisal.mean()
-        deep_surprisal_loss = deep_surprisal.mean()
+        # shallow_surprisal_loss = -shallow_surprisal.mean()
+        # deep_surprisal_loss = deep_surprisal.mean()
 
         # Total loss
         loss = (
@@ -238,8 +238,8 @@ class TTTFDPiVTrainer(TorchTrainer):
             + internal_action_entropy_loss
             + v_loss * self.vfunc_coef
             + fd_loss
-            + shallow_surprisal_loss
-            + deep_surprisal_loss
+            # + shallow_surprisal_loss
+            # + deep_surprisal_loss
         )
 
         return {
@@ -247,8 +247,8 @@ class TTTFDPiVTrainer(TorchTrainer):
             "policy_loss": pg_loss,
             "value_loss": v_loss,
             "fd_loss": fd_loss,
-            "shallow_surprisal_loss": shallow_surprisal_loss,
-            "deep_surprisal_loss": deep_surprisal_loss,
+            # "shallow_surprisal_loss": shallow_surprisal_loss,
+            # "deep_surprisal_loss": deep_surprisal_loss,
             "external_action_entropy": external_action_entropy.mean(),
             "external_action_entropy_coef": external_action_entropy_coef,
             "internal_action_entropy": internal_action_entropy.mean(),

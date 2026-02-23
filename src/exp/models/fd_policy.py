@@ -281,7 +281,7 @@ class TTTFDPiV(nn.Module):
         self.attention_coef_logit_projection = nn.Parameter(
             torch.randn(embedding_dim, attention_dim)
         )
-        self.surprisal_coef_logit_projection = nn.Parameter(
+        self.surprisal_coef_projection = nn.Parameter(
             torch.randn(*surprisal_shape, surprisal_dim)
         )
 
@@ -289,6 +289,9 @@ class TTTFDPiV(nn.Module):
             external_action_dim, action_info.choices
         )
         self.internal_state_head = IdentityHead(self.internal_state_dim)
+
+        self.emb_core_norm = nn.LayerNorm(dim)
+        self.emb_next_norm = nn.LayerNorm(embedding_dim)
 
         self.core_model = core_model
 
@@ -365,30 +368,32 @@ class TTTFDPiV(nn.Module):
 
         attention_coef_logit = torch.einsum(
             "...i,ji->...j",
-            F.softplus(
+            F.softmax(
                 internal_state[
                     ..., self.value_dim : self.value_dim + self.attention_dim
-                ]
+                ],
+                dim=-1,
             ),
             self.attention_coef_logit_projection,
         )
-        surprisal_coef_logit = torch.einsum(
+        surprisal_coef = torch.einsum(
             "...i,dhji->...dhj",
-            F.softplus(
+            F.softmax(
                 internal_state[
                     ...,
                     self.value_dim + self.attention_dim : self.value_dim
                     + self.attention_dim
                     + self.surprisal_dim,
-                ]
+                ],
+                dim=-1,
             ),
-            self.surprisal_coef_logit_projection,
+            self.surprisal_coef_projection,
         )
 
         emb = torch.cat((obs_emb, external_action_emb, internal_state), dim=-1)
-        emb_attention = emb * F.softmax(
-            attention_coef_logit, dim=-1
-        )  # Apply attention to the embedding
+        attention_coef = F.softmax(attention_coef_logit, dim=-1)
+
+        emb = emb * attention_coef
         emb_projection = torch.cat(
             [
                 self.obs_projection,
@@ -401,45 +406,33 @@ class TTTFDPiV(nn.Module):
             ],
             dim=-1,
         )
-        emb_core = torch.einsum("...i,ji->...j", emb_attention, emb_projection)
+        emb_core = torch.einsum("...i,ji->...j", emb, emb_projection)
+        emb_core = self.emb_core_norm(emb_core)
 
         emb_core_next, next_hidden_ttt, surprisal = self.core_model(
             emb_core, hidden_ttt, no_len=no_len
         )
-        obs_hat = F.layer_norm(
-            torch.einsum("...i,ij->...j", emb_core_next, self.obs_projection),
-            self.obs_projection.shape[1:],
-        )
-        external_action_dist = self.external_action_head(
-            F.layer_norm(
-                torch.einsum(
-                    "...i,ij->...j", emb_core_next, self.external_action_projection
-                ),
-                self.external_action_projection.shape[1:],
-            )
-        )
-        latent_value = F.layer_norm(
-            torch.einsum("...i,ij->...j", emb_core_next, self.value_projection),
-            self.value_projection.shape[1:],
-        )
-        value = self.value_head(latent_value)
+        emb_next = torch.einsum("...i,ij->...j", emb_core_next, emb_projection)
+        emb_next = self.emb_next_norm(emb_next)
+        # emb_next = emb_next / attention_coef
 
-        next_attention = F.layer_norm(
-            torch.einsum("...i,ij->...j", emb_core_next, self.attention_projection),
-            self.attention_projection.shape[1:],
+        index_start = 0
+        obs_hat = emb_next[..., index_start : index_start + self.obs_dim_hidden]
+        index_start += self.obs_dim_hidden
+        external_action_dist = self.external_action_head(
+            emb_next[..., index_start : index_start + self.external_action_dim]
         )
-        next_surprisal = F.layer_norm(
-            torch.einsum("...i,ij->...j", emb_core_next, self.surprisal_projection),
-            self.surprisal_projection.shape[1:],
-        )
-        next_internal_action = F.layer_norm(
-            torch.einsum(
-                "...i,ij->...j",
-                emb_core_next,
-                self.internal_action_projection,
-            ),
-            self.internal_action_projection.shape[1:],
-        )
+        index_start += self.external_action_dim
+        latent_value = emb_next[..., index_start : index_start + self.value_dim]
+        value = self.value_head(latent_value)
+        index_start += self.value_dim
+        next_attention = emb_next[..., index_start : index_start + self.attention_dim]
+        index_start += self.attention_dim
+        next_surprisal = emb_next[..., index_start : index_start + self.surprisal_dim]
+        index_start += self.surprisal_dim
+        next_internal_action = emb_next[
+            ..., index_start : index_start + self.internal_action_dim
+        ]
 
         internal_action_dist = Independent(
             self.internal_state_head(
@@ -460,14 +453,12 @@ class TTTFDPiV(nn.Module):
             "time": next_hidden_time,
             "ttt": next_hidden_ttt,
         }
-        shallow_surprisal = (
-            surprisal.detach()
-            * F.softmax(surprisal_coef_logit.flatten(), dim=-1).view(*surprisal.shape)
-        ).sum(dim=(-3, -2, -1))
-        deep_surprisal = (
-            surprisal.detach()
-            * F.softmax(-surprisal_coef_logit.flatten(), dim=-1).view(*surprisal.shape)
-        ).sum(dim=(-3, -2, -1))
+        shallow_surprisal = (F.relu(surprisal.detach() * surprisal_coef)).mean(
+            dim=(-3, -2, -1)
+        )
+        deep_surprisal = (F.relu(-surprisal.detach() * surprisal_coef)).mean(
+            dim=(-3, -2, -1)
+        )
         return (
             obs_emb,
             obs_hat,
