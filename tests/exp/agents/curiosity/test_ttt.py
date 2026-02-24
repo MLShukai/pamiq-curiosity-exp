@@ -40,6 +40,7 @@ class TestTTTCuriosityAgent:
             "ttt": [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
         }
         surprisal = torch.randn(DEPTH, 4, 6)
+        surprisal_coef = torch.randn(DEPTH, 4, 6)
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
@@ -48,6 +49,7 @@ class TestTTTCuriosityAgent:
             value,
             hidden,
             surprisal,
+            surprisal_coef,
         )
 
         return {

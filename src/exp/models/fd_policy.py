@@ -211,6 +211,7 @@ class TTTFDPiV(nn.Module):
         value_dim: int,
         internal_action_dim: int,
         body_state_dim: int,
+        body_state_emb_dim: int,
         dim: int,
         obs_encoder: nn.Module,
         obs_time_mixer: StackedHiddenState,
@@ -241,6 +242,7 @@ class TTTFDPiV(nn.Module):
             MultiEmbeddings(action_info.choices, action_info.dim, do_flatten=True),
             nn.Linear(action_info.dim * len(action_info.choices), external_action_dim),
         )
+        self.body_state_projection = nn.Linear(body_state_dim, body_state_emb_dim)
         self.dim = dim
 
         self.obs_dim_hidden = obs_dim_hidden
@@ -250,13 +252,13 @@ class TTTFDPiV(nn.Module):
         self.attention_dim = attention_dim
         self.surprisal_dim = surprisal_dim
         self.internal_action_dim = internal_action_dim
-        self.body_state_dim = body_state_dim
+        self.body_state_emb_dim = body_state_emb_dim
         self.internal_state_dim = (
             value_dim
             + attention_dim
             + surprisal_dim
             + internal_action_dim
-            + body_state_dim
+            + body_state_emb_dim
         )
 
         embedding_dim = obs_dim_hidden + external_action_dim + self.internal_state_dim
@@ -276,7 +278,9 @@ class TTTFDPiV(nn.Module):
         self.internal_action_projection = nn.Parameter(
             torch.randn(dim, internal_action_dim)
         )
-        self.body_state_projection = nn.Parameter(torch.randn(dim, body_state_dim))
+        self.body_state_emb_projection = nn.Parameter(
+            torch.randn(dim, body_state_emb_dim)
+        )
 
         self.attention_coef_logit_projection = nn.Parameter(
             torch.randn(embedding_dim, attention_dim)
@@ -284,6 +288,7 @@ class TTTFDPiV(nn.Module):
         self.surprisal_coef_logit_projection = nn.Parameter(
             torch.randn(*surprisal_shape, surprisal_dim)
         )
+        self.surprisal_shape = surprisal_shape
 
         self.external_action_head = FCMultiCategoricalHead(
             external_action_dim, action_info.choices
@@ -313,6 +318,7 @@ class TTTFDPiV(nn.Module):
         MultiDistributions,
         Tensor,
         Hidden,
+        Tensor,
         Tensor,
     ]:
         """Forward pass to predict next observation prediction, policy
@@ -356,7 +362,11 @@ class TTTFDPiV(nn.Module):
         if internal_action is not None and body_state is not None:
             if len(internal_action.shape) != len(body_state.shape):
                 body_state = body_state.unsqueeze(-1)
-            internal_state = torch.cat([internal_action, body_state], dim=-1)
+            body_state_emb = self.body_state_projection(body_state)
+            internal_state = F.layer_norm(
+                torch.cat([internal_action, body_state_emb], dim=-1),
+                (self.internal_state_dim,),
+            )
         else:
             internal_state = obs_emb.new_zeros(
                 (*obs_emb.shape[:-1], self.internal_state_dim)
@@ -372,19 +382,6 @@ class TTTFDPiV(nn.Module):
             ),
             self.attention_coef_logit_projection,
         )
-        surprisal_coef_logit = torch.einsum(
-            "...i,dhji->...dhj",
-            F.softmax(
-                internal_state[
-                    ...,
-                    self.value_dim + self.attention_dim : self.value_dim
-                    + self.attention_dim
-                    + self.surprisal_dim,
-                ],
-                dim=-1,
-            ),
-            self.surprisal_coef_logit_projection,
-        )
 
         emb = torch.cat((obs_emb, external_action_emb, internal_state), dim=-1)
         attention_coef = F.softmax(attention_coef_logit, dim=-1)
@@ -398,7 +395,7 @@ class TTTFDPiV(nn.Module):
                 self.attention_projection,
                 self.surprisal_projection,
                 self.internal_action_projection,
-                self.body_state_projection,
+                self.body_state_emb_projection,
             ],
             dim=-1,
         )
@@ -449,10 +446,16 @@ class TTTFDPiV(nn.Module):
             "time": next_hidden_time,
             "ttt": next_hidden_ttt,
         }
-        surprisal = (
-            surprisal.detach()
-            * F.softmax(surprisal_coef_logit.flatten(), dim=-1).view(surprisal.shape)
-        ).mean(dim=(-3, -2, -1))
+
+        surprisal_coef_logit = torch.einsum(
+            "...i,dhji->...dhj",
+            F.softmax(next_surprisal, dim=-1),
+            self.surprisal_coef_logit_projection,
+        )
+
+        surprisal_coef = F.softmax(
+            surprisal_coef_logit.flatten(start_dim=-3), dim=-1
+        ).view(*surprisal.shape)
         return (
             obs_emb,
             obs_hat,
@@ -460,6 +463,7 @@ class TTTFDPiV(nn.Module):
             value,
             next_hidden,
             surprisal,
+            surprisal_coef,
         )
 
     def forward_with_no_len(
@@ -475,6 +479,7 @@ class TTTFDPiV(nn.Module):
         MultiDistributions,
         Tensor,
         Hidden,
+        Tensor,
         Tensor,
     ]:
         """Forward with data which has no len dim. (for inference procedure.)

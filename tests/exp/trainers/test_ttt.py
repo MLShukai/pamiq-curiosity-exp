@@ -69,6 +69,7 @@ class TestTTTFDPiVTrainer:
             value_dim=self.DIM_VALUE,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
             body_state_dim=self.DIM_BODY_STATE,
+            body_state_emb_dim=1,
             dim=self.DIM,
             obs_encoder=obs_encoder,
             obs_time_mixer=time_mixer,

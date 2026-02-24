@@ -114,6 +114,24 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         super().setup()
         self.step_data_fd_piv = {}
 
+    @property
+    def fatigue(self) -> Tensor | None:
+        """Calculate fatigue based on the normalized surprisal.
+
+        Fatigue is defined as the hyperbolic tangent of the normalized surprisal,
+        which is the ratio of the fast surprisal EMA to the slow surprisal EMA.
+        This provides a measure of how surprising recent observations are compared
+        to longer-term trends, which can be used to modulate exploration.
+
+        Returns:
+            A tensor representing fatigue, or None if EMAs are not initialized.
+        """
+        if self.fast_surprisal_ema is not None and self.slow_surprisal_ema is not None:
+            return (self.fast_surprisal_ema + 1e-8) / (
+                self.slow_surprisal_ema + 1e-8
+            ) - 1
+        return None
+
     @override
     def step(self, observation: Tensor) -> Tensor:
         """Execute the common step procedure for the curiosity-driven agent.
@@ -168,10 +186,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             )
 
         internal_state = (
-            F.tanh(self.fast_surprisal_ema / self.slow_surprisal_ema)
-            if self.fast_surprisal_ema is not None
-            and self.slow_surprisal_ema is not None
-            else None
+            F.tanh(self.fatigue).flatten() if self.fatigue is not None else None
         )
 
         action_dist: MultiDistributions
@@ -183,6 +198,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             value,
             self.hidden_state,
             surprisal,
+            surprisal_coef,
         ) = self.fd_piv(
             observation,
             self.external_action,
@@ -256,12 +272,14 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.metrics["surprisal"] = surprisal.mean().item()
 
         self.metrics["normalized_surprisal"] = (
-            (self.fast_surprisal_ema / self.slow_surprisal_ema).mean().item()
+            (self.fatigue + 1).mean().item() if self.fatigue is not None else 1.0
         )
 
-        reward = F.tanh(
-            F.relu(1 - self.fast_surprisal_ema / self.slow_surprisal_ema)
-        ).mean()
+        reward = (
+            F.tanh((F.relu(-self.fatigue) * surprisal_coef).sum())
+            if self.fatigue is not None
+            else torch.zeros(1, device=surprisal.device)
+        )
 
         self.metrics["reward"] = reward.item()
 
