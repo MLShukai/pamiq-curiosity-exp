@@ -10,7 +10,7 @@ agent:
     _target_: exp.agents.no_collect.NoCollectAgent
   curiosity:
     _target_: exp.agents.curiosity.ttt.TTTCuriosityAgent
-    fast_surprisal_ema_decay: 0.99
-    slow_surprisal_ema_decay: 0.9999
+    fast_surprisal_ema_decay_range: [0.8, 0.9]
+    slow_surprisal_ema_decay_range: [0.98, 0.99]
     device: ${shared.device}
     dtype: ${shared.dtype}

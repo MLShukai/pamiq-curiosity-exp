@@ -45,8 +45,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     def __init__(
         self,
         log_every_n_steps: int = 1,
-        fast_surprisal_ema_decay: float = 0.99,
-        slow_surprisal_ema_decay: float = 0.9999,
+        fast_surprisal_ema_decay_range: tuple[float, float] = (0.8, 0.9),
+        slow_surprisal_ema_decay_range: tuple[float, float] = (0.98, 0.99),
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ) -> None:
@@ -65,8 +65,10 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.hidden_state = None
         self.external_action = None
         self.internal_action = None
-        self.slow_surprisal_ema_decay = slow_surprisal_ema_decay
-        self.fast_surprisal_ema_decay = fast_surprisal_ema_decay
+        self.fast_surprisal_ema_decay_range = fast_surprisal_ema_decay_range
+        self.slow_surprisal_ema_decay_range = slow_surprisal_ema_decay_range
+        self.fast_surprisal_ema_decay = None
+        self.slow_surprisal_ema_decay = None
         self.slow_surprisal_ema = None
         self.fast_surprisal_ema = None
         self.device = device
@@ -96,6 +98,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     hidden_state: Hidden | None
     external_action: Tensor | None  # (action_choices,) or None
     internal_action: Tensor | None  # (dim,) or None
+    fast_surprisal_ema_decay: Tensor | None
+    slow_surprisal_ema_decay: Tensor | None
     slow_surprisal_ema: Tensor | None
     fast_surprisal_ema: Tensor | None
     obs_hat: Tensor | None
@@ -203,17 +207,50 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         if not isinstance(surprisal, Tensor):
             raise ValueError("Surprisal must be a Tensor.")
+        if self.fast_surprisal_ema_decay is None:
+            self.fast_surprisal_ema_decay = (
+                1
+                - torch.lerp(
+                    (
+                        (1 - self.fast_surprisal_ema_decay_range[0])
+                        * torch.ones_like(surprisal, device=surprisal.device)
+                    ).log(),
+                    (
+                        (1 - self.fast_surprisal_ema_decay_range[1])
+                        * torch.ones_like(surprisal, device=surprisal.device)
+                    ).log(),
+                    torch.rand_like(surprisal, device=surprisal.device),
+                ).exp()
+            )
+        if not isinstance(self.fast_surprisal_ema_decay, Tensor):
+            raise ValueError("fast_surprisal_ema_decay must be a Tensor.")
         if self.fast_surprisal_ema is None:
             self.fast_surprisal_ema = surprisal
-        self.fast_surprisal_ema = (
-            self.fast_surprisal_ema * self.fast_surprisal_ema_decay
-            + surprisal * (1 - self.fast_surprisal_ema_decay)
+        self.fast_surprisal_ema = torch.lerp(
+            self.fast_surprisal_ema, surprisal, self.fast_surprisal_ema_decay
         )
+
+        if self.slow_surprisal_ema_decay is None:
+            self.slow_surprisal_ema_decay = (
+                1
+                - torch.lerp(
+                    (
+                        (1 - self.slow_surprisal_ema_decay_range[0])
+                        * torch.ones_like(surprisal, device=surprisal.device)
+                    ).log(),
+                    (
+                        (1 - self.slow_surprisal_ema_decay_range[1])
+                        * torch.ones_like(surprisal, device=surprisal.device)
+                    ).log(),
+                    torch.rand_like(surprisal, device=surprisal.device),
+                ).exp()
+            )
+        if not isinstance(self.slow_surprisal_ema_decay, Tensor):
+            raise ValueError("slow_surprisal_ema_decay must be a Tensor.")
         if self.slow_surprisal_ema is None:
             self.slow_surprisal_ema = surprisal
-        self.slow_surprisal_ema = (
-            self.slow_surprisal_ema * self.slow_surprisal_ema_decay
-            + surprisal * (1 - self.slow_surprisal_ema_decay)
+        self.slow_surprisal_ema = torch.lerp(
+            self.slow_surprisal_ema, surprisal, self.slow_surprisal_ema_decay
         )
 
         self.metrics["surprisal"] = surprisal.mean().item()
@@ -286,6 +323,14 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             torch.save(self.external_action, path / "external_action.pt")
         if self.internal_action is not None:
             torch.save(self.internal_action, path / "internal_action.pt")
+        if self.fast_surprisal_ema_decay is not None:
+            torch.save(
+                self.fast_surprisal_ema_decay, path / "fast_surprisal_ema_decay.pt"
+            )
+        if self.slow_surprisal_ema_decay is not None:
+            torch.save(
+                self.slow_surprisal_ema_decay, path / "slow_surprisal_ema_decay.pt"
+            )
         if self.fast_surprisal_ema is not None:
             torch.save(self.fast_surprisal_ema, path / "fast_surprisal_ema.pt")
         if self.slow_surprisal_ema is not None:
@@ -320,6 +365,18 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.internal_action = (
             torch.load(internal_action_path, map_location=self.device)
             if internal_action_path.exists()
+            else None
+        )
+        fast_surprisal_ema_decay_path = path / "fast_surprisal_ema_decay.pt"
+        self.fast_surprisal_ema_decay = (
+            torch.load(fast_surprisal_ema_decay_path, map_location=self.device)
+            if fast_surprisal_ema_decay_path.exists()
+            else None
+        )
+        slow_surprisal_ema_decay_path = path / "slow_surprisal_ema_decay.pt"
+        self.slow_surprisal_ema_decay = (
+            torch.load(slow_surprisal_ema_decay_path, map_location=self.device)
+            if slow_surprisal_ema_decay_path.exists()
             else None
         )
         fast_surprisal_ema_path = path / "fast_surprisal_ema.pt"
