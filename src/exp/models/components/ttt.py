@@ -73,14 +73,17 @@ class MultiHeadMLPTTTLayer(nn.Module):
 
         W1_prev = hidden["W1"]  # (batch, num_head, head_dim_hidden, head_dim)
         W2_prev = hidden["W2"]  # (batch, num_head, head_dim, head_dim_hidden)
-        query = (
-            self.fc_query(x).view(batch, length, num_head, head_dim).transpose(2, 1)
+        query = F.layer_norm(
+            self.fc_query(x).view(batch, length, num_head, head_dim).transpose(2, 1),
+            (head_dim,),
         )  # (batch, num_head, length, head_dim)
-        key = (
-            self.fc_key(x).view(batch, length, num_head, head_dim).transpose(2, 1)
+        key = F.layer_norm(
+            self.fc_key(x).view(batch, length, num_head, head_dim).transpose(2, 1),
+            (head_dim,),
         )  # (batch, num_head, length, head_dim)
-        value = (
-            self.fc_value(x).view(batch, length, num_head, head_dim).transpose(2, 1)
+        value = F.layer_norm(
+            self.fc_value(x).view(batch, length, num_head, head_dim).transpose(2, 1),
+            (head_dim,),
         )  # (batch, num_head, length, head_dim)
 
         lr_1 = torch.exp(self.log_base_lr_1)[None, :, None] * F.sigmoid(
@@ -119,12 +122,23 @@ class MultiHeadMLPTTTLayer(nn.Module):
         Z2 = torch.einsum(
             "b n d h, b n l h -> b n l d", W2_prev, X2
         )  # (batch, num_head, length, head_dim)
+        eps = 1e-5
+        LNZ2 = F.layer_norm(
+            Z2, (head_dim,), eps=eps
+        )  # (batch, num_head, length, head_dim)
 
-        surprisal = 0.5 * (
-            (Z2 - value) ** 2
-        )  # .mean(dim=-1)  # (batch, num_head, length, head_dim)
+        surprisal = 0.5 * ((LNZ2 - value) ** 2)  # (batch, num_head, length, head_dim)
 
-        grad_Z2 = (Z2 - value) / head_dim  # (batch, num_head, length, head_dim)
+        grad_LNZ2 = Z2 - value  # (batch, num_head, length, head_dim)
+        grad_Z2 = (
+            (Z2.var(dim=-1, keepdim=True, correction=0) + eps) ** (-0.5)
+            / head_dim
+            * (
+                head_dim * grad_LNZ2
+                - grad_LNZ2.sum(dim=-1, keepdim=True)
+                - LNZ2 * (grad_LNZ2 * LNZ2).sum(dim=-1, keepdim=True)
+            )
+        )  # (batch, num_head, length, head_dim)
 
         grad_X2 = torch.einsum(
             "b n d h, b n l d -> b n l h", W2_prev, grad_Z2
@@ -194,8 +208,11 @@ class MultiHeadMLPTTTLayer(nn.Module):
             W2_next_inner_chunk + W2_next_cross_chunk
         )  # (batch, num_head, head_dim, head_dim_hidden)
         hidden_next = {"W1": W1_next, "W2": W2_next}
+        LNZ2_ = F.layer_norm(
+            Z2_, (head_dim,), eps=eps
+        )  # (batch, num_head, length, head_dim)
         return (
-            self.fc_out(Z2_.transpose(2, 1).reshape(batch, length, dim)),
+            self.fc_out(LNZ2_.transpose(2, 1).reshape(batch, length, dim)),
             hidden_next,
             surprisal.transpose(2, 1),
         )
