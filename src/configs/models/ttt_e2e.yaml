@@ -46,7 +46,7 @@ fd_policy_value:
       base_lr: [0.01, 0.1]
       chunk_size: 64
       dropout: 0.1
-      normalize_hidden: true
+      normalize_hidden: false
     surprisal_shape:
       - ${..core_model.depth}
       - ${..core_model.num_head}
