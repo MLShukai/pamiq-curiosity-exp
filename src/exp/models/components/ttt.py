@@ -23,7 +23,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         dim_hidden: int,
         num_head: int,
         base_lr: tuple[float, float],
-        normalize_hidden: bool = True,
+        normalize_hidden: bool,
     ):
         super().__init__()
         assert dim % num_head == 0, "dim must be divisible by num_head"
@@ -209,10 +209,13 @@ class ChunkwiseTTT(nn.Module):
         num_head: int,
         base_lr: tuple[float, float],
         chunk_size: int,
+        normalize_hidden: bool,
     ):
         super().__init__()
         self.chunk_size = chunk_size
-        self.memory = MultiHeadMLPTTTLayer(dim, dim_hidden, num_head, base_lr)
+        self.memory = MultiHeadMLPTTTLayer(
+            dim, dim_hidden, num_head, base_lr, normalize_hidden
+        )
         self.num_head = num_head
         self.head_dim = dim // num_head
         self.head_dim_hidden = dim_hidden // num_head
@@ -271,9 +274,12 @@ class TTTBlock(nn.Module):
         base_lr: tuple[float, float],
         chunk_size: int,
         dropout: float,
+        normalize_hidden: bool,
     ):
         super().__init__()
-        self.memory = ChunkwiseTTT(dim, dim_hidden, num_head, base_lr, chunk_size)
+        self.memory = ChunkwiseTTT(
+            dim, dim_hidden, num_head, base_lr, chunk_size, normalize_hidden
+        )
         self.ffn = FFNSwiGLU(dim, dim_hidden)
         self.norm_memory = RMSNorm(dim)
         self.norm_ffn = RMSNorm(dim)
@@ -310,6 +316,7 @@ class TTT(StackedTTT):
         base_lr: tuple[float, float],
         chunk_size: int,
         dropout: float,
+        normalize_hidden: bool = True,
     ):
         super().__init__(
             nn.ModuleList(
@@ -321,6 +328,7 @@ class TTT(StackedTTT):
                         base_lr,
                         chunk_size,
                         dropout,
+                        normalize_hidden,
                     )
                     for _ in range(depth)
                 ]

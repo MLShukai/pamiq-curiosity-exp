@@ -243,7 +243,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         if self.fast_surprisal_ema is None:
             self.fast_surprisal_ema = surprisal
         self.fast_surprisal_ema = torch.lerp(
-            self.fast_surprisal_ema, surprisal, self.fast_surprisal_ema_decay
+            surprisal, self.fast_surprisal_ema, self.fast_surprisal_ema_decay
         )
 
         if self.slow_surprisal_ema_decay is None:
@@ -266,7 +266,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         if self.slow_surprisal_ema is None:
             self.slow_surprisal_ema = surprisal
         self.slow_surprisal_ema = torch.lerp(
-            self.slow_surprisal_ema, surprisal, self.slow_surprisal_ema_decay
+            surprisal, self.slow_surprisal_ema, self.slow_surprisal_ema_decay
         )
 
         self.metrics["surprisal"] = surprisal.mean().item()
