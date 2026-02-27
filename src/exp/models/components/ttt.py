@@ -168,7 +168,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         )  # (batch, num_head, length, head_dim_hidden)
         W1_next_inner_chunk = -torch.einsum(
             "b n l h, b n l, b n l d -> b n h d",
-            F.normalize(grad_Z1, dim=-1) * (head_dim_hidden**0.5) * (head_dim**-0.5),
+            grad_Z1,
             lr_1 * weight_decay_inner_chunk_1[:, :, :, -1],
             X1,
         )  # (batch, num_head, head_dim_hidden, head_dim)
@@ -197,7 +197,7 @@ class MultiHeadMLPTTTLayer(nn.Module):
         Z2_ = Z2__inner_chunk + Z2__cross_chunk  # (batch, num_head, length, head_dim)
         W2_next_inner_chunk = -torch.einsum(
             "b n l d, b n l, b n l h -> b n d h",
-            F.normalize(grad_Z2, dim=-1) * (head_dim**0.5) * (head_dim_hidden**-0.5),
+            grad_Z2,
             lr_2 * weight_decay_inner_chunk_2[:, :, :, -1],
             X2,
         )  # (batch, num_head, head_dim, head_dim_hidden)
