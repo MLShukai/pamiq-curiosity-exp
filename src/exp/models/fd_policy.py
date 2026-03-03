@@ -353,20 +353,16 @@ class TTTFDPiV(nn.Module):
             obs_proj, hidden_time, no_len=no_len
         )
 
-        external_action_emb = F.layer_norm(
+        external_action_emb = (
             self.action_flatten(external_action)
             if external_action is not None
-            else obs_emb.new_zeros((*obs_emb.shape[:-1], self.external_action_dim)),
-            (self.external_action_dim,),
+            else obs_emb.new_zeros((*obs_emb.shape[:-1], self.external_action_dim))
         )
         if internal_action is not None and body_state is not None:
             if len(internal_action.shape) != len(body_state.shape):
                 body_state = body_state.unsqueeze(-1)
             body_state_emb = self.body_state_projection(body_state)
-            internal_state = F.layer_norm(
-                torch.cat([internal_action, body_state_emb], dim=-1),
-                (self.internal_state_dim,),
-            )
+            internal_state = torch.cat([internal_action, body_state_emb], dim=-1)
         else:
             internal_state = obs_emb.new_zeros(
                 (*obs_emb.shape[:-1], self.internal_state_dim)
