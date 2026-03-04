@@ -206,7 +206,6 @@ class TTTFDPiV(nn.Module):
         obs_dim_hidden: int,
         action_info: ActionInfo,
         external_action_dim: int,
-        attention_dim: int,
         surprisal_dim: int,
         value_dim: int,
         internal_action_dim: int,
@@ -249,41 +248,27 @@ class TTTFDPiV(nn.Module):
         self.external_action_dim = external_action_dim
         self.value_dim = value_dim
 
-        self.attention_dim = attention_dim
         self.surprisal_dim = surprisal_dim
         self.internal_action_dim = internal_action_dim
         self.body_state_emb_dim = body_state_emb_dim
         self.internal_state_dim = (
-            value_dim
-            + attention_dim
-            + surprisal_dim
-            + internal_action_dim
-            + body_state_emb_dim
+            value_dim + surprisal_dim + internal_action_dim + body_state_emb_dim
         )
 
         embedding_dim = obs_dim_hidden + external_action_dim + self.internal_state_dim
         self.embedding_dim = embedding_dim
-
-        self.attention_projection = nn.Parameter(
-            torch.randn(embedding_dim, attention_dim)
-        )
 
         self.obs_projection = nn.Parameter(torch.randn(dim, obs_dim_hidden))
         self.external_action_projection = nn.Parameter(
             torch.randn(dim, self.external_action_dim)
         )
         self.value_projection = nn.Parameter(torch.randn(dim, value_dim))
-        self.attention_projection = nn.Parameter(torch.randn(dim, attention_dim))
         self.surprisal_projection = nn.Parameter(torch.randn(dim, surprisal_dim))
         self.internal_action_projection = nn.Parameter(
             torch.randn(dim, internal_action_dim)
         )
         self.body_state_emb_projection = nn.Parameter(
             torch.randn(dim, body_state_emb_dim)
-        )
-
-        self.attention_coef_logit_projection = nn.Parameter(
-            torch.randn(embedding_dim, attention_dim)
         )
         self.surprisal_coef_logit_projection = nn.Parameter(
             torch.randn(*surprisal_shape, surprisal_dim)
@@ -368,27 +353,13 @@ class TTTFDPiV(nn.Module):
                 (*obs_emb.shape[:-1], self.internal_state_dim)
             )
 
-        attention_coef_logit = torch.einsum(
-            "...i,ji->...j",
-            F.softmax(
-                internal_state[
-                    ..., self.value_dim : self.value_dim + self.attention_dim
-                ],
-                dim=-1,
-            ),
-            self.attention_coef_logit_projection,
-        )
-
         emb = torch.cat((obs_emb, external_action_emb, internal_state), dim=-1)
-        attention_coef = F.softmax(attention_coef_logit, dim=-1)
 
-        emb = emb * attention_coef
         emb_projection = torch.cat(
             [
                 self.obs_projection,
                 self.external_action_projection,
                 self.value_projection,
-                self.attention_projection,
                 self.surprisal_projection,
                 self.internal_action_projection,
                 self.body_state_emb_projection,
@@ -415,8 +386,6 @@ class TTTFDPiV(nn.Module):
         latent_value = emb_next[..., index_start : index_start + self.value_dim]
         value = self.value_head(latent_value)
         index_start += self.value_dim
-        next_attention = emb_next[..., index_start : index_start + self.attention_dim]
-        index_start += self.attention_dim
         next_surprisal = emb_next[..., index_start : index_start + self.surprisal_dim]
         index_start += self.surprisal_dim
         next_internal_action = emb_next[
@@ -428,7 +397,6 @@ class TTTFDPiV(nn.Module):
                 torch.cat(
                     [
                         latent_value,
-                        next_attention,
                         next_surprisal,
                         next_internal_action,
                     ],

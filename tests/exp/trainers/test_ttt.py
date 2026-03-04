@@ -34,7 +34,6 @@ class TestTTTFDPiVTrainer:
     NUM_HEAD = 4
     GET_INTERVAL = 16
     DIM_EXTERNAL_ACTION = 16
-    DIM_ATTENTION = 17
     DIM_SURPRISAL = 18
     DIM_VALUE = 19
     DIM_BODY_STATE = 1
@@ -64,7 +63,6 @@ class TestTTTFDPiVTrainer:
             obs_dim_hidden=self.DIM,
             action_info=action_info,
             external_action_dim=self.DIM_EXTERNAL_ACTION,
-            attention_dim=self.DIM_ATTENTION,
             surprisal_dim=self.DIM_SURPRISAL,
             value_dim=self.DIM_VALUE,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
@@ -180,10 +178,7 @@ class TestTTTFDPiVTrainer:
                     [torch.randint(0, dim, ()) for dim in self.ACTION_CHOICES], dim=-1
                 ),
                 "internal_action": torch.rand(
-                    self.DIM_VALUE
-                    + self.DIM_ATTENTION
-                    + self.DIM_SURPRISAL
-                    + self.DIM_INTERNAL_ACTION
+                    self.DIM_VALUE + self.DIM_SURPRISAL + self.DIM_INTERNAL_ACTION
                 ),
             }
             previous_actions = actions
