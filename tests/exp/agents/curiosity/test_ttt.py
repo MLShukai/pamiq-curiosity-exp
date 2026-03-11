@@ -18,6 +18,7 @@ OBSERVATION_DIM = 16
 ACTION_DIM = 4
 HIDDEN_DIM = 32
 DEPTH = 2
+DIM = 8
 
 
 class TestTTTCuriosityAgent:
@@ -41,9 +42,11 @@ class TestTTTCuriosityAgent:
         }
         surprisal = torch.randn(DEPTH, 4, 6)
         surprisal_coef = torch.randn(DEPTH, 4, 6)
+        core_emb = torch.randn(DIM)
 
         fd_piv_model.inference_model.return_value = (
             obs_hat,
+            core_emb,
             obs_emb,
             action_dist,
             value,
@@ -155,6 +158,7 @@ class TestTTTCuriosityAgent:
             "time": torch.randn(1),
             "ttt": [{"test": torch.randn(DEPTH, HIDDEN_DIM)}],
         }
+        agent.core_emb = torch.randn(DIM)
         agent.external_action = torch.randn(ACTION_DIM)
         agent.internal_action = torch.randn(ACTION_DIM)
         agent.fast_surprisal_ema_decay = torch.randn(1)
@@ -167,6 +171,7 @@ class TestTTTCuriosityAgent:
         agent.save_state(save_path)
 
         assert (save_path / "hidden_state.pt").exists()
+        assert (save_path / "core_emb.pt").exists()
         assert (save_path / "external_action.pt").exists()
         assert (save_path / "internal_action.pt").exists()
         assert (save_path / "fast_surprisal_ema_decay.pt").exists()
@@ -207,6 +212,8 @@ class TestTTTCuriosityAgent:
         assert torch.equal(new_agent.external_action, agent.external_action)
         assert new_agent.internal_action is not None
         assert torch.equal(new_agent.internal_action, agent.internal_action)
+        assert new_agent.core_emb is not None
+        assert torch.equal(new_agent.core_emb, agent.core_emb)
         assert new_agent.global_step == 42
         assert new_agent.fast_surprisal_ema_decay is not None
         assert torch.equal(
@@ -227,6 +234,7 @@ class TestTTTCuriosityAgent:
         """Test state saving and loading when hidden states are None."""
         agent.global_step = 100
         agent.hidden_state = None
+        agent.core_emb = None
         agent.external_action = None
         agent.internal_action = None
         agent.fast_surprisal_ema_decay = None
@@ -238,6 +246,7 @@ class TestTTTCuriosityAgent:
         agent.save_state(save_path)
 
         assert not (save_path / "hidden_state.pt").exists()
+        assert not (save_path / "core_emb.pt").exists()
         assert not (save_path / "external_action.pt").exists()
         assert not (save_path / "internal_action.pt").exists()
         assert not (save_path / "fast_surprisal_ema_decay.pt").exists()
@@ -251,6 +260,7 @@ class TestTTTCuriosityAgent:
         new_agent.load_state(save_path)
 
         assert new_agent.hidden_state is None
+        assert new_agent.core_emb is None
         assert new_agent.external_action is None
         assert new_agent.internal_action is None
         assert new_agent.fast_surprisal_ema_decay is None

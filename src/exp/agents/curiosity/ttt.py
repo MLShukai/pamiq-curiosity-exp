@@ -16,6 +16,7 @@ from exp.models.components.multi_distributions import MultiDistributions
 
 STEP_DATA_REQUIRED_KEYS = {
     DataKey.OBSERVATION,
+    DataKey.CORE_EMB,
     DataKey.TARGET,
     DataKey.HIDDEN,
     DataKey.PREVIOUS_ACTION,
@@ -63,6 +64,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         super().__init__()
 
         self.hidden_state = None
+        self.core_emb = None
         self.external_action = None
         self.internal_action = None
         self.fast_surprisal_ema_decay_range = fast_surprisal_ema_decay_range
@@ -96,6 +98,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
     # ------ INTERACTION PROCESS ------
 
     hidden_state: Hidden | None
+    core_emb: Tensor | None
     external_action: Tensor | None  # (action_choices,) or None
     internal_action: Tensor | None  # (dim,) or None
     fast_surprisal_ema_decay: Tensor | None
@@ -188,11 +191,15 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         internal_state = (
             F.tanh(self.fatigue).flatten() if self.fatigue is not None else None
         )
+        if self.core_emb is not None:
+            self.step_data_fd_piv[DataKey.CORE_EMB] = self.core_emb.cpu()
+            self.metrics["core_emb_norm"] = torch.norm(self.core_emb).item()
 
         action_dist: MultiDistributions
         value: Tensor
         (
             obs_embedding,
+            self.core_emb,
             _,
             action_dist,
             value,
@@ -201,6 +208,7 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
             surprisal_coef,
         ) = self.fd_piv(
             observation,
+            self.core_emb,
             self.external_action,
             self.internal_action,
             internal_state,
@@ -276,7 +284,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         )
 
         reward = (
-            F.tanh((F.relu(-self.fatigue) * surprisal_coef).sum())
+            # F.tanh((F.relu(self.fatigue) * surprisal_coef).sum())
+            F.tanh((-self.fatigue * surprisal_coef).sum())
             if self.fatigue is not None
             else torch.zeros(1, device=surprisal.device)
         )
@@ -337,6 +346,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
 
         if self.hidden_state is not None:
             torch.save(self.hidden_state, path / "hidden_state.pt")
+        if self.core_emb is not None:
+            torch.save(self.core_emb, path / "core_emb.pt")
         if self.external_action is not None:
             torch.save(self.external_action, path / "external_action.pt")
         if self.internal_action is not None:
@@ -371,6 +382,12 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         self.hidden_state = (
             torch.load(hidden_path, map_location=self.device)
             if hidden_path.exists()
+            else None
+        )
+        core_emb_path = path / "core_emb.pt"
+        self.core_emb = (
+            torch.load(core_emb_path, map_location=self.device)
+            if core_emb_path.exists()
             else None
         )
         external_action_path = path / "external_action.pt"

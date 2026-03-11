@@ -14,6 +14,7 @@ class DataKey(StrEnum):
     """Enumerates all data key names in the experiments."""
 
     OBSERVATION = auto()
+    CORE_EMB = auto()
     HIDDEN = auto()
     PREVIOUS_ACTION = auto()
     ACTION = auto()

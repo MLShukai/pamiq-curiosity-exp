@@ -34,9 +34,11 @@ class TestTTTFDPiVTrainer:
     NUM_HEAD = 4
     GET_INTERVAL = 16
     DIM_EXTERNAL_ACTION = 16
-    DIM_SURPRISAL = 18
-    DIM_VALUE = 19
+    DIM_ATTENTION = 4
+    DIM_SURPRISAL = 16
+    DIM_VALUE = 20
     DIM_BODY_STATE = 1
+    DIM_BODY_STATE_EMB = 4
 
     @pytest.fixture
     def fd_policy_value_model(self):
@@ -63,11 +65,12 @@ class TestTTTFDPiVTrainer:
             obs_dim_hidden=self.DIM,
             action_info=action_info,
             external_action_dim=self.DIM_EXTERNAL_ACTION,
+            attention_dim=self.DIM_ATTENTION,
             surprisal_dim=self.DIM_SURPRISAL,
             value_dim=self.DIM_VALUE,
             internal_action_dim=self.DIM_INTERNAL_ACTION,
             body_state_dim=self.DIM_BODY_STATE,
-            body_state_emb_dim=1,
+            body_state_emb_dim=self.DIM_BODY_STATE_EMB,
             dim=self.DIM,
             obs_encoder=obs_encoder,
             obs_time_mixer=time_mixer,
@@ -88,6 +91,7 @@ class TestTTTFDPiVTrainer:
         }
         chunk_keys_first_add_steps: Mapping[str, int] = {
             DataKey.OBSERVATION: 0,
+            DataKey.CORE_EMB: 0,
             DataKey.TARGET: 1,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,
@@ -186,10 +190,12 @@ class TestTTTFDPiVTrainer:
             rewards = torch.randn(())
             values = torch.randn(())
             internal_state = torch.randn(())
+            core_embs = torch.randn(self.DIM)
 
             collector.collect(
                 {
                     DataKey.OBSERVATION: observations,
+                    DataKey.CORE_EMB: core_embs,
                     DataKey.TARGET: obs_embeddings,
                     DataKey.HIDDEN: hidden,
                     DataKey.PREVIOUS_ACTION: previous_actions,

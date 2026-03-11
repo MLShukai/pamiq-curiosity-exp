@@ -27,6 +27,7 @@ OPTIMIZER_NAME = "optimizer"
 type BatchType = tuple[
     Tensor,
     Tensor,
+    Tensor,
     Hidden,
     Action,
     Action,
@@ -133,6 +134,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         """Perform a single training step on a batch of data."""
         (
             observations,
+            core_embs,
             obs_embeddings,
             hiddens,
             previous_actions,
@@ -152,6 +154,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         # Get new distributions and values
         (
             _,
+            _,
             obs_hat,
             new_dist,
             new_values,
@@ -160,6 +163,7 @@ class TTTFDPiVTrainer(TorchTrainer):
             surprisal_coef,
         ) = self.fd_piv.model(
             observations,
+            core_embs,
             external_previous_actions,
             internal_previous_actions,
             internal_states,
@@ -269,6 +273,7 @@ class TTTFDPiVTrainer(TorchTrainer):
 
         chunk_keys = [
             DataKey.OBSERVATION,
+            DataKey.CORE_EMB,
             DataKey.TARGET,
             DataKey.ACTION_LOG_PROB,
             DataKey.INTERNAL_STATE,
@@ -343,6 +348,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         dataset_raw: list[BatchType] = [
             (
                 observations,
+                core_embs,
                 obs_embeddings,
                 hiddens,
                 previous_actions,
@@ -353,8 +359,9 @@ class TTTFDPiVTrainer(TorchTrainer):
                 advantages,
                 returns,
             )
-            for observations, obs_embeddings, hiddens, previous_actions, actions, action_log_probs, internal_states, values, advantages, returns in zip(
+            for observations, core_embs, obs_embeddings, hiddens, previous_actions, actions, action_log_probs, internal_states, values, advantages, returns in zip(
                 chunks[DataKey.OBSERVATION],
+                chunks[DataKey.CORE_EMB],
                 chunks[DataKey.TARGET],
                 hidden_list,
                 previous_actions_chunks,
@@ -482,6 +489,7 @@ class TTTFDPiVTrainer(TorchTrainer):
         }
         chunk_keys_first_add_steps: Mapping[str, int] = {
             DataKey.OBSERVATION: 0,
+            DataKey.CORE_EMB: 0,
             DataKey.TARGET: target_delay_frames,
             DataKey.PREVIOUS_ACTION: 0,
             DataKey.ACTION: 0,

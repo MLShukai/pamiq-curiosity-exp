@@ -206,6 +206,7 @@ class TTTFDPiV(nn.Module):
         obs_dim_hidden: int,
         action_info: ActionInfo,
         external_action_dim: int,
+        attention_dim: int,
         surprisal_dim: int,
         value_dim: int,
         internal_action_dim: int,
@@ -216,6 +217,7 @@ class TTTFDPiV(nn.Module):
         obs_time_mixer: StackedHiddenState,
         core_model: StackedTTT,
         surprisal_shape: Iterable[int],
+        encoder_decoder_num_layers: int = 8,
     ) -> None:
         """Initialize the forward-dynamics policy-value model.
 
@@ -243,6 +245,27 @@ class TTTFDPiV(nn.Module):
         )
         self.body_state_projection = nn.Linear(body_state_dim, body_state_emb_dim)
         self.dim = dim
+        self.attention_dim = attention_dim
+
+        assert dim % attention_dim == 0, "dim must be divisible by attention_dim"
+        assert (
+            obs_dim_hidden % attention_dim == 0
+        ), "obs_dim_hidden must be divisible by attention_dim"
+        assert (
+            external_action_dim % attention_dim == 0
+        ), "external_action_dim must be divisible by attention_dim"
+        assert (
+            surprisal_dim % attention_dim == 0
+        ), "surprisal_dim must be divisible by attention_dim"
+        assert (
+            value_dim % attention_dim == 0
+        ), "value_dim must be divisible by attention_dim"
+        assert (
+            internal_action_dim % attention_dim == 0
+        ), "internal_action_dim must be divisible by attention_dim"
+        assert (
+            body_state_emb_dim % attention_dim == 0
+        ), "body_state_emb_dim must be divisible by attention_dim"
 
         self.obs_dim_hidden = obs_dim_hidden
         self.external_action_dim = external_action_dim
@@ -255,42 +278,46 @@ class TTTFDPiV(nn.Module):
             value_dim + surprisal_dim + internal_action_dim + body_state_emb_dim
         )
 
-        embedding_dim = obs_dim_hidden + external_action_dim + self.internal_state_dim
-        self.embedding_dim = embedding_dim
-
-        self.obs_projection = nn.Parameter(torch.randn(dim, obs_dim_hidden))
-        self.external_action_projection = nn.Parameter(
-            torch.randn(dim, self.external_action_dim)
-        )
-        self.value_projection = nn.Parameter(torch.randn(dim, value_dim))
-        self.surprisal_projection = nn.Parameter(torch.randn(dim, surprisal_dim))
-        self.internal_action_projection = nn.Parameter(
-            torch.randn(dim, internal_action_dim)
-        )
-        self.body_state_emb_projection = nn.Parameter(
-            torch.randn(dim, body_state_emb_dim)
-        )
-        self.surprisal_coef_logit_projection = nn.Parameter(
-            torch.randn(*surprisal_shape, surprisal_dim)
-        )
-        self.surprisal_shape = surprisal_shape
-
         self.external_action_head = FCMultiCategoricalHead(
             external_action_dim, action_info.choices
         )
         self.internal_state_head = IdentityHead(self.internal_state_dim)
-
-        self.emb_core_norm = nn.LayerNorm(dim)
-        self.emb_next_norm = nn.LayerNorm(embedding_dim)
-
+        self.surprisal_coef_logit_projection = nn.Parameter(
+            torch.randn(*surprisal_shape, surprisal_dim)
+        )
         self.core_model = core_model
 
+        self.ttt_encoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                attention_dim,
+                4,
+                dim_feedforward=attention_dim * 4,
+                activation=nn.SiLU(),
+                batch_first=True,
+                norm_first=True,
+            ),
+            num_layers=encoder_decoder_num_layers,
+        )
+        self.ttt_encoder_norm = nn.LayerNorm(attention_dim)
+        self.ttt_decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(
+                attention_dim,
+                4,
+                dim_feedforward=attention_dim * 4,
+                activation=nn.SiLU(),
+                batch_first=True,
+                norm_first=True,
+            ),
+            num_layers=encoder_decoder_num_layers,
+        )
+        self.ttt_decoder_norm = nn.LayerNorm(attention_dim)
         self.value_head = FCScalarHead(value_dim, squeeze_scalar_dim=True)
 
     @override
     def forward(
         self,
         obs: Tensor,
+        emb_core: Tensor | None,
         external_action: Tensor | None,
         internal_action: Tensor | None,
         body_state: Tensor | None,
@@ -298,6 +325,7 @@ class TTTFDPiV(nn.Module):
         *,
         no_len: bool = False,
     ) -> tuple[
+        Tensor,
         Tensor,
         Tensor,
         MultiDistributions,
@@ -343,6 +371,7 @@ class TTTFDPiV(nn.Module):
             if external_action is not None
             else obs_emb.new_zeros((*obs_emb.shape[:-1], self.external_action_dim))
         )
+
         if internal_action is not None and body_state is not None:
             if len(internal_action.shape) != len(body_state.shape):
                 body_state = body_state.unsqueeze(-1)
@@ -352,29 +381,34 @@ class TTTFDPiV(nn.Module):
             internal_state = obs_emb.new_zeros(
                 (*obs_emb.shape[:-1], self.internal_state_dim)
             )
+        if emb_core is None:
+            emb_core = torch.randn(
+                (*obs_emb.shape[:-1], self.dim), device=obs_emb.device
+            )
 
         emb = torch.cat((obs_emb, external_action_emb, internal_state), dim=-1)
 
-        emb_projection = torch.cat(
-            [
-                self.obs_projection,
-                self.external_action_projection,
-                self.value_projection,
-                self.surprisal_projection,
-                self.internal_action_projection,
-                self.body_state_emb_projection,
-            ],
-            dim=-1,
+        emb_core_tokens = emb_core.view(
+            -1, emb_core.shape[-1] // self.attention_dim, self.attention_dim
         )
-        emb_core = torch.einsum("...i,ji->...j", emb, emb_projection)
-        emb_core = self.emb_core_norm(emb_core)
+        emb_tokens = emb.view(
+            -1, emb.shape[-1] // self.attention_dim, self.attention_dim
+        )
+
+        emb_core_tokens = self.ttt_encoder(emb_core_tokens, emb_tokens)
+        emb_core_tokens = self.ttt_encoder_norm(emb_core_tokens)
+        emb_core = emb_core_tokens.view(emb_core.shape)
 
         emb_core_next, next_hidden_ttt, surprisal = self.core_model(
             emb_core, hidden_ttt, no_len=no_len
         )
-        emb_next = torch.einsum("...i,ij->...j", emb_core_next, emb_projection)
-        emb_next = self.emb_next_norm(emb_next)
-        # emb_next = emb_next / attention_coef
+
+        emb_core_next_tokens = emb_core_next.view(
+            -1, emb_core_next.shape[-1] // self.attention_dim, self.attention_dim
+        )
+        emb_next_tokens = self.ttt_decoder(emb_tokens, emb_core_next_tokens)
+        emb_next_tokens = self.ttt_decoder_norm(emb_next_tokens)
+        emb_next = emb_next_tokens.view(emb.shape)
 
         index_start = 0
         obs_hat = emb_next[..., index_start : index_start + self.obs_dim_hidden]
@@ -422,6 +456,7 @@ class TTTFDPiV(nn.Module):
         ).view(*surprisal.shape)
         return (
             obs_emb,
+            emb_core_next,
             obs_hat,
             action_dist,
             value,
@@ -433,11 +468,13 @@ class TTTFDPiV(nn.Module):
     def forward_with_no_len(
         self,
         obs: Tensor,
+        emb_core: Tensor | None,
         external_action: Tensor | None,
         internal_state: Tensor | None,
         body_state: Tensor | None,
         hidden: Hidden | None = None,
     ) -> tuple[
+        Tensor,
         Tensor,
         Tensor,
         MultiDistributions,
@@ -452,6 +489,7 @@ class TTTFDPiV(nn.Module):
             obs: Current observation tensor. shape is (*batch, num_token, obs_dim)
             external_action: Action tensor. shape is (*batch, num_token, action_choices)
             internal_state: Internal state tensor. shape is (*batch, dim)
+            emb_core: Core embedding tensor. shape is (*batch, dim)
             hidden: Optional hidden state from previous timestep. shape is (*batch, depth, dim).
                 If None, the hidden state is initialized to zeros
 
@@ -464,5 +502,11 @@ class TTTFDPiV(nn.Module):
                 - Tensor representing the surprisal.
         """
         return self.forward(
-            obs, external_action, internal_state, body_state, hidden, no_len=True
+            obs,
+            emb_core,
+            external_action,
+            internal_state,
+            body_state,
+            hidden,
+            no_len=True,
         )
