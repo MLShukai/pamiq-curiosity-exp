@@ -287,6 +287,26 @@ class TTTFDPiV(nn.Module):
         )
         self.core_model = core_model
 
+        def init_weights(m):
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+        self.info_mixer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                attention_dim,
+                4,
+                dim_feedforward=attention_dim * 4,
+                activation=nn.SiLU(),
+                batch_first=True,
+                norm_first=True,
+            ),
+            num_layers=encoder_decoder_num_layers,
+            norm=nn.LayerNorm(attention_dim),
+        )
+        self.info_mixer.apply(init_weights)
+
         self.ttt_encoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(
                 attention_dim,
@@ -297,8 +317,10 @@ class TTTFDPiV(nn.Module):
                 norm_first=True,
             ),
             num_layers=encoder_decoder_num_layers,
+            norm=nn.LayerNorm(attention_dim),
         )
-        self.ttt_encoder_norm = nn.LayerNorm(attention_dim)
+        self.ttt_encoder.apply(init_weights)
+
         self.ttt_decoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(
                 attention_dim,
@@ -309,8 +331,10 @@ class TTTFDPiV(nn.Module):
                 norm_first=True,
             ),
             num_layers=encoder_decoder_num_layers,
+            norm=nn.LayerNorm(attention_dim),
         )
-        self.ttt_decoder_norm = nn.LayerNorm(attention_dim)
+        self.ttt_decoder.apply(init_weights)
+
         self.value_head = FCScalarHead(value_dim, squeeze_scalar_dim=True)
 
     @override
@@ -395,8 +419,9 @@ class TTTFDPiV(nn.Module):
             -1, emb.shape[-1] // self.attention_dim, self.attention_dim
         )
 
-        emb_core_tokens = self.ttt_encoder(emb_core_tokens, emb_tokens)
-        emb_core_tokens = self.ttt_encoder_norm(emb_core_tokens)
+        emb_tokens_mixed = self.info_mixer(emb_tokens)
+
+        emb_core_tokens = self.ttt_encoder(emb_core_tokens, emb_tokens_mixed)
         emb_core = emb_core_tokens.view(emb_core.shape)
 
         emb_core_next, next_hidden_ttt, surprisal = self.core_model(
@@ -407,7 +432,6 @@ class TTTFDPiV(nn.Module):
             -1, emb_core_next.shape[-1] // self.attention_dim, self.attention_dim
         )
         emb_next_tokens = self.ttt_decoder(emb_tokens, emb_core_next_tokens)
-        emb_next_tokens = self.ttt_decoder_norm(emb_next_tokens)
         emb_next = emb_next_tokens.view(emb.shape)
 
         index_start = 0

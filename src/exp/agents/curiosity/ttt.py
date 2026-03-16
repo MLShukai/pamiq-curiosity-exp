@@ -284,8 +284,8 @@ class TTTCuriosityAgent(Agent[Tensor, Tensor]):
         )
 
         reward = (
-            # F.tanh((F.relu(self.fatigue) * surprisal_coef).sum())
-            F.tanh((-self.fatigue * surprisal_coef).sum())
+            # F.tanh((F.relu(-self.fatigue) * surprisal_coef).sum())
+            F.tanh((self.fatigue * surprisal_coef).sum())
             if self.fatigue is not None
             else torch.zeros(1, device=surprisal.device)
         )
