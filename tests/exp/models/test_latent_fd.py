@@ -21,7 +21,7 @@ class TestEncoder:
 
     @pytest.fixture
     def core_model(self):
-        return QLSTM(depth=2, dim=16, dim_ff_hidden=32, dropout=0.1)
+        return QLSTM(depth=2, dim=16, dim_hidden=32, dropout=0.1)
 
     @parametrize_device
     def test_encoder_with_obs_action_info(
@@ -47,7 +47,7 @@ class TestEncoder:
         output, hidden = encoder(obs, action)
 
         assert output.shape == (batch_size, seq_len, 12)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, seq_len, 32)  # depth=2, dim=16
 
     @parametrize_device
     def test_encoder_with_int_dimensions(self, core_model, device):
@@ -66,7 +66,7 @@ class TestEncoder:
         output, hidden = encoder(obs, action)
 
         assert output.shape == (batch_size, seq_len, 16)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, seq_len, 32)  # depth=2, dim=16
 
     @parametrize_device
     def test_encoder_no_len(self, obs_info, action_info, core_model, device):
@@ -87,7 +87,7 @@ class TestEncoder:
         output, hidden = encoder(obs, action, no_len=True)
 
         assert output.shape == (batch_size, 16)
-        assert hidden.shape == (batch_size, 2, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, 32)  # depth=2, dim=32
 
 
 class TestPredictor:
@@ -162,7 +162,7 @@ class TestLatentFDFramework:
             obs_info=obs_info,
             action_info=action_info,
             core_model_dim=16,
-            core_model=QLSTM(depth=2, dim=16, dim_ff_hidden=32, dropout=0.1),
+            core_model=QLSTM(depth=2, dim=16, dim_hidden=32, dropout=0.1),
             out_dim=12,
         )
 
@@ -192,7 +192,7 @@ class TestLatentFDFramework:
         output, hidden = framework(obs, action)
 
         assert output.shape == (batch_size, seq_len, obs_info.num_tokens, obs_info.dim)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, seq_len, 32)  # depth=2, dim=16
 
     @parametrize_device
     def test_framework_with_hidden_state(
@@ -214,8 +214,8 @@ class TestLatentFDFramework:
         hidden = torch.randn(
             batch_size,
             2,
-            16,
-            device=device,  # depth=2, dim=16 (no seq_len for QLSTM hidden state)
+            32,
+            device=device,  # depth=2, dim=32 (no seq_len for QLSTM hidden state)
         )
 
         output, next_hidden = framework(obs, action, hidden)
@@ -225,7 +225,7 @@ class TestLatentFDFramework:
             batch_size,
             2,
             seq_len,
-            16,
+            32,
         )  # QLSTM outputs include seq_len
 
     @parametrize_device

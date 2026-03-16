@@ -17,7 +17,7 @@ class TestStackedHiddenFDPiV:
     OBS_NUM_TOKENS = 4
     ACTION_DIM = 4
     ACTION_CHOICES = [2, 3, 4]
-    DIM_FF_HIDDEN = 16
+    DIM_HIDDEN = 16
 
     @pytest.fixture
     def obs_info(self):
@@ -39,7 +39,7 @@ class TestStackedHiddenFDPiV:
         return QLSTM(
             depth=self.DEPTH,
             dim=self.DIM,
-            dim_ff_hidden=self.DIM_FF_HIDDEN,
+            dim_hidden=self.DIM_HIDDEN,
             dropout=0.0,
         )
 
@@ -67,7 +67,7 @@ class TestStackedHiddenFDPiV:
 
     @pytest.fixture
     def hidden(self):
-        return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM)
+        return torch.randn(self.BATCH_SIZE, self.DEPTH, self.DIM_HIDDEN)
 
     def test_forward(self, dynamics_model, obs, action, hidden):
         """Test forward pass of StackedHiddenFD model."""
@@ -97,7 +97,7 @@ class TestStackedHiddenFDPiV:
             self.BATCH_SIZE,
             self.DEPTH,
             self.SEQ_LEN,
-            self.DIM,
+            self.DIM_HIDDEN,
         )
 
         # Check tensor properties
@@ -126,7 +126,12 @@ class TestStackedHiddenFDPiV:
 
         assert single_value.shape == (1, self.SEQ_LEN)
 
-        assert single_next_hidden.shape == (1, self.DEPTH, self.SEQ_LEN, self.DIM)
+        assert single_next_hidden.shape == (
+            1,
+            self.DEPTH,
+            self.SEQ_LEN,
+            self.DIM_HIDDEN,
+        )
 
     def test_forward_with_no_len(self, dynamics_model, hidden):
         """Test forward_with_no_len for inference without sequence
@@ -157,7 +162,7 @@ class TestStackedHiddenFDPiV:
         assert next_hidden.shape == (
             self.BATCH_SIZE,
             self.DEPTH,
-            self.DIM,
+            self.DIM_HIDDEN,
         )
 
         # Check tensor properties
@@ -190,7 +195,7 @@ class TestStackedHiddenFDPiV:
             self.BATCH_SIZE,
             self.DEPTH,
             self.SEQ_LEN,
-            self.DIM,
+            self.DIM_HIDDEN,
         )
 
     def test_forward_with_no_len_no_hidden(self, dynamics_model):
@@ -221,5 +226,5 @@ class TestStackedHiddenFDPiV:
         assert next_hidden.shape == (
             self.BATCH_SIZE,
             self.DEPTH,
-            self.DIM,
+            self.DIM_HIDDEN,
         )

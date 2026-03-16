@@ -18,7 +18,7 @@ class TestEncoder:
 
     @pytest.fixture
     def core_model(self):
-        return QLSTM(depth=2, dim=16, dim_ff_hidden=32, dropout=0.1)
+        return QLSTM(depth=2, dim=16, dim_hidden=32, dropout=0.1)
 
     @parametrize_device
     def test_encoder_with_obs_info(self, obs_info, core_model, device):
@@ -38,7 +38,7 @@ class TestEncoder:
         output, hidden = encoder(obs)
 
         assert output.shape == (batch_size, seq_len, 12)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, seq_len, 32)  # depth=2, dim=16
 
     @parametrize_device
     def test_encoder_with_int_dimension(self, core_model, device):
@@ -55,7 +55,7 @@ class TestEncoder:
         output, hidden = encoder(obs)
 
         assert output.shape == (batch_size, seq_len, 16)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, seq_len, 32)  # depth=2, dim=16
 
     @parametrize_device
     def test_encoder_without_out_dim(self, obs_info, core_model, device):
@@ -74,7 +74,7 @@ class TestEncoder:
         output, hidden = encoder(obs)
 
         assert output.shape == (batch_size, seq_len, 16)  # Uses core_model_dim
-        assert hidden.shape == (batch_size, 2, seq_len, 16)
+        assert hidden.shape == (batch_size, 2, seq_len, 32)
 
     @parametrize_device
     def test_encoder_with_hidden_state(self, obs_info, core_model, device):
@@ -89,12 +89,12 @@ class TestEncoder:
         obs = torch.randn(
             batch_size, seq_len, obs_info.num_tokens, obs_info.dim, device=device
         )
-        hidden = torch.randn(batch_size, 2, 16, device=device)  # Initial hidden state
+        hidden = torch.randn(batch_size, 2, 32, device=device)  # Initial hidden state
 
         output, next_hidden = encoder(obs, hidden)
 
         assert output.shape == (batch_size, seq_len, 16)
-        assert next_hidden.shape == (batch_size, 2, seq_len, 16)
+        assert next_hidden.shape == (batch_size, 2, seq_len, 32)
 
     @parametrize_device
     def test_encoder_with_upper_action(self, obs_info, core_model, device):
@@ -119,7 +119,7 @@ class TestEncoder:
         output, hidden = encoder(obs, upper_action=upper_action)
 
         assert output.shape == (batch_size, seq_len, 12)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)
+        assert hidden.shape == (batch_size, 2, seq_len, 32)
 
     @parametrize_device
     def test_encoder_without_upper_action_dim(self, obs_info, core_model, device):
@@ -141,7 +141,7 @@ class TestEncoder:
         output, hidden = encoder(obs)
 
         assert output.shape == (batch_size, seq_len, 12)
-        assert hidden.shape == (batch_size, 2, seq_len, 16)
+        assert hidden.shape == (batch_size, 2, seq_len, 32)
 
 
 class TestGenerator:
@@ -269,7 +269,7 @@ class TestLatentPiVFramework:
         return Encoder(
             obs_info=obs_info,
             core_model_dim=16,
-            core_model=QLSTM(depth=2, dim=16, dim_ff_hidden=32, dropout=0.1),
+            core_model=QLSTM(depth=2, dim=16, dim_hidden=32, dropout=0.1),
             out_dim=12,
         )
 
@@ -309,7 +309,7 @@ class TestLatentPiVFramework:
         assert value.shape == (batch_size, seq_len)
 
         # Check hidden state
-        assert hidden.shape == (batch_size, 2, seq_len, 16)  # depth=2, dim=16
+        assert hidden.shape == (batch_size, 2, seq_len, 32)  # depth=2, dim=16
 
     @parametrize_device
     def test_framework_with_hidden_state(
@@ -328,7 +328,7 @@ class TestLatentPiVFramework:
         hidden = torch.randn(
             batch_size,
             2,
-            16,
+            32,
             device=device,  # Initial hidden state
         )
 
@@ -338,4 +338,4 @@ class TestLatentPiVFramework:
         assert isinstance(policy_dist, MultiCategoricals)
         assert len(policy_dist.dists) == len(action_info.choices)
         assert value.shape == (batch_size, seq_len)
-        assert next_hidden.shape == (batch_size, 2, seq_len, 16)
+        assert next_hidden.shape == (batch_size, 2, seq_len, 32)

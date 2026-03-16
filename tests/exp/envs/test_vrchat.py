@@ -126,8 +126,7 @@ class TestCreateEnv:
         obs = env.observe()
         mock_sensor.read.assert_called_once_with()
         assert obs.shape == (3, 84, 84)
-        assert obs.mean().item() == pytest.approx(0.0, abs=0.01)
-        assert obs.std().item() == pytest.approx(1.0, abs=0.01)
+        assert obs.mean().item() == pytest.approx(1.0, abs=0.01)
         assert obs.device == device
         assert obs.dtype == dtype
 

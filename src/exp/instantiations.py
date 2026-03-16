@@ -64,6 +64,11 @@ def instantiate_models(cfg: DictConfig) -> dict[str, TorchTrainingModel[Any]]:
 
     # Instantiating
     for name, model_cfg in cfg.models.items():
+        if name == "disable_jepa":
+            models_dict.pop(ModelName.IMAGE_JEPA_CONTEXT_ENCODER, None)
+            models_dict.pop(ModelName.IMAGE_JEPA_TARGET_ENCODER, None)
+            models_dict.pop(ModelName.IMAGE_JEPA_PREDICTOR, None)
+            continue
         logger.info(f"Instantiating model: '{name}' ...")
 
         model: TorchTrainingModel[Any] | list[TorchTrainingModel[Any]] = (
@@ -109,6 +114,9 @@ def instantiate_trainers(cfg: DictConfig) -> dict[str, TorchTrainer]:
 
     trainers_dict: dict[str, TorchTrainer] = {"jepa": jepa}
     for name, trainer_cfg in cfg.trainers.items():
+        if name == "disable_jepa":
+            trainers_dict.pop("jepa", None)
+            continue
         logger.info(f"Instantiating Trainer: '{name}' ...")
         trainer: TorchTrainer | list[TorchTrainer] = hydra.utils.instantiate(
             trainer_cfg
@@ -136,6 +144,9 @@ def instantiate_buffers(cfg: DictConfig) -> Mapping[str, DataBuffer[Any, Any]]:
     }
 
     for name, buffer_cfg in cfg.buffers.items():
+        if name == "disable_jepa":
+            buffers_dict.pop("image", None)
+            continue
         logger.info(f"Instantiating DataBuffer: '{name}'")
         buffer: DataBuffer[Any, Any] | list[DataBuffer[Any, Any]] = (
             hydra.utils.instantiate(buffer_cfg)

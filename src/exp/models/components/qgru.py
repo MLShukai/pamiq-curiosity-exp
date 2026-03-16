@@ -11,14 +11,16 @@ from .stacked_hidden_state import StackedHiddenState
 
 
 class QGRULayer(nn.Module):
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, dim_hidden: int, is_weak: bool = False):
         super().__init__()
         self.dim = dim
-        self.fc_forget = nn.Linear(dim, dim)
-        self.fc_input = nn.Linear(dim, dim)
+        self.fc_forget = nn.Linear(dim, dim_hidden)
+        self.fc_input = nn.Linear(dim, dim_hidden)
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
-        self.fc_out = nn.Linear(dim, dim)
+        self.fc_out = nn.Linear(dim_hidden, dim)
+        self.dim_hidden = dim_hidden
+        self.is_weak = is_weak
 
     __call__: Callable[[Tensor, Tensor | None], tuple[Tensor, Tensor]]
 
@@ -36,21 +38,27 @@ class QGRULayer(nn.Module):
         batch, len, dim = x.shape
 
         if hidden is None:
-            hidden = torch.zeros(batch, dim, device=x.device, dtype=x.dtype)
+            hidden = torch.zeros(batch, self.dim_hidden, device=x.device, dtype=x.dtype)
 
-        remember = (
-            F.sigmoid(self.fc_forget(x))
-            * torch.linspace(0.0, 1.0, dim, device=x.device)[None, None, :]
-        )
+        remember = F.sigmoid(self.fc_forget(x))
+        if not self.is_weak:
+            remember = (
+                remember
+                * torch.linspace(0.0, 1.0, self.dim_hidden, device=x.device)[
+                    None, None, :
+                ]
+            )
         forget = 1 - remember
 
         input = self.tanh(self.fc_input(x))
         h_inner_chunk = (
             scan(
-                forget.transpose(2, 1).reshape(batch * dim, len),
-                (input * remember).transpose(2, 1).reshape(batch * dim, len),
+                forget.transpose(2, 1).reshape(batch * self.dim_hidden, len),
+                (input * remember)
+                .transpose(2, 1)
+                .reshape(batch * self.dim_hidden, len),
             )
-            .reshape(batch, dim, len)
+            .reshape(batch, self.dim_hidden, len)
             .transpose(2, 1)
         )
 
@@ -64,17 +72,20 @@ class QGRUBlock(nn.Module):
     """QGRU Block, which consists of a QGRU layer and a feed forward
     network."""
 
-    def __init__(self, dim: int, dim_ff_hidden: int, dropout: float):
+    def __init__(
+        self, dim: int, dim_hidden: int, dropout: float, is_weak: bool = False
+    ):
         """Initialize the QGRU block.
 
         Args:
             dim: The number of features in the input.
             dim_ff_hidden: The number of features in the hidden layer.
             dropout: The dropout rate.
+            is_weak: Whether the QGRU block is weak.
         """
         super().__init__()
-        self.qgru = QGRULayer(dim)
-        self.ffn = FFNSwiGLU(dim, dim_ff_hidden)
+        self.qgru = QGRULayer(dim, dim_hidden, is_weak)
+        self.ffn = FFNSwiGLU(dim, dim_hidden)
         self.norm_qgru = RMSNorm(dim)
         self.norm_ffn = RMSNorm(dim)
         self.dropout = nn.Dropout(dropout)
@@ -107,7 +118,14 @@ class QGRUBlock(nn.Module):
 class QGRU(StackedHiddenState):
     """QGRU, which is a stack of QGRU blocks."""
 
-    def __init__(self, depth: int, dim: int, dim_ff_hidden: int, dropout: float):
+    def __init__(
+        self,
+        depth: int,
+        dim: int,
+        dim_hidden: int,
+        dropout: float,
+        is_weak: bool = False,
+    ):
         """Initialize the QGRU.
 
         Args:
@@ -115,11 +133,13 @@ class QGRU(StackedHiddenState):
             dim: The number of features in the input.
             dim_ff_hidden: The number of features in the hidden layer.
             dropout: The dropout rate.
+            is_weak: Whether the QGRU is weak.
         """
         super().__init__(
             nn.ModuleList(
-                [QGRUBlock(dim, dim_ff_hidden, dropout) for _ in range(depth)]
-            )
+                [QGRUBlock(dim, dim_hidden, dropout, is_weak) for _ in range(depth)]
+            ),
+            last_norm=RMSNorm(dim),
         )
 
 
@@ -128,6 +148,7 @@ def create_multiple(
     dim_list: list[int],
     dim_ff_hidden_scale: float,
     dropout: float,
+    is_weak: bool = False,
 ) -> nn.ModuleList:
     """Create multiple QGRU blocks.
 
@@ -142,5 +163,8 @@ def create_multiple(
     """
     dim_ff_hidden = [int(dim * dim_ff_hidden_scale) for dim in dim_list]
     return nn.ModuleList(
-        [QGRU(depth, dim, dim_ff_hidden[i], dropout) for i, dim in enumerate(dim_list)]
+        [
+            QGRU(depth, dim, dim_ff_hidden[i], dropout, is_weak)
+            for i, dim in enumerate(dim_list)
+        ]
     )

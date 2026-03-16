@@ -63,6 +63,36 @@ class Standardize:
         return (input - input.mean()) / (input.std() + self.eps)
 
 
+class MeanDivide:
+    """Normalize input by dividing by its mean.
+
+    This module normalizes the input tensor by dividing it by its mean
+    value.
+    """
+
+    def __init__(self, eps: float = 1e-8) -> None:
+        """Initialize the MeanDivide transform.
+
+        Args:
+            eps: Small value to add to mean to avoid division by zero.
+        """
+        super().__init__()
+        self.eps = eps
+
+    def __call__(self, input: torch.Tensor) -> torch.Tensor:
+        """Apply mean division to the input tensor.
+
+        Args:
+            input: Input tensor to normalize.
+
+        Returns:
+            Normalized tensor where each element is divided by the mean of the input.
+        """
+        if input.numel() == 0:  # Avoid division by zero for empty tensors
+            return input
+        return input / (input.mean() + self.eps)
+
+
 class ToDtype:
     """Convert tensor to specified data type.
 

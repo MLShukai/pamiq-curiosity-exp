@@ -13,7 +13,7 @@ class IntegratedCuriosityFramework(Agent[Tensor, Tensor]):
     def __init__(
         self,
         curiosity: Agent[Tensor, Tensor],
-        unimodal_encoding: UnimodalEncodingAgent = UnimodalEncodingAgent(),
+        unimodal_encoding: Agent[Tensor, Tensor] = UnimodalEncodingAgent(),
     ) -> None:
         """Initialize the integrated curiosity framework.
 
